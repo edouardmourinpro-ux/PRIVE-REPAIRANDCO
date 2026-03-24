@@ -1,34 +1,142 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+/* Main App Styles - Repair & Co */
+
+/* Navigation */
+.nav-link {
+  @apply relative text-[#1A1A2E] font-medium transition-colors duration-300 hover:text-[#1A5C3A];
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+.nav-link::after {
+  content: '';
+  @apply absolute bottom-0 left-0 w-0 h-0.5 bg-[#2ECC71] transition-all duration-300;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+.nav-link:hover::after {
+  @apply w-full;
 }
 
-.App-link {
-    color: #61dafb;
+.nav-link.active {
+  @apply text-[#1A5C3A];
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+.nav-link.active::after {
+  @apply w-full;
+}
+
+/* Hero Section */
+.hero-gradient {
+  background: linear-gradient(135deg, #E8F5EE 0%, #FFFFFF 100%);
+}
+
+/* Cards */
+.service-card {
+  @apply bg-white rounded-2xl p-6 border border-[#E8F5EE] 
+         transition-all duration-300 
+         hover:border-[#2ECC71] hover:shadow-lg hover:-translate-y-1;
+}
+
+.store-card {
+  @apply bg-white rounded-2xl overflow-hidden border border-[#E8F5EE]
+         transition-all duration-300
+         hover:shadow-xl hover:-translate-y-1;
+}
+
+/* Forms */
+.form-input {
+  @apply w-full px-4 py-3 rounded-xl border border-[#E8F5EE] 
+         bg-white text-[#1A1A2E]
+         focus:outline-none focus:border-[#2ECC71] focus:ring-2 focus:ring-[#2ECC71]/20
+         transition-all duration-300;
+}
+
+.form-select {
+  @apply w-full px-4 py-3 rounded-xl border border-[#E8F5EE] 
+         bg-white text-[#1A1A2E]
+         focus:outline-none focus:border-[#2ECC71] focus:ring-2 focus:ring-[#2ECC71]/20
+         transition-all duration-300 cursor-pointer;
+}
+
+.form-textarea {
+  @apply w-full px-4 py-3 rounded-xl border border-[#E8F5EE] 
+         bg-white text-[#1A1A2E] resize-none
+         focus:outline-none focus:border-[#2ECC71] focus:ring-2 focus:ring-[#2ECC71]/20
+         transition-all duration-300;
+}
+
+/* Step indicator */
+.step-indicator {
+  @apply flex items-center justify-center w-10 h-10 rounded-full 
+         text-sm font-semibold transition-all duration-300;
+}
+
+.step-indicator.active {
+  @apply bg-[#1A5C3A] text-white;
+}
+
+.step-indicator.completed {
+  @apply bg-[#2ECC71] text-white;
+}
+
+.step-indicator.pending {
+  @apply bg-[#E8F5EE] text-[#1A5C3A];
+}
+
+/* QualiRépar badge */
+.qualirepar-badge {
+  @apply inline-flex items-center gap-2 px-4 py-2 
+         bg-[#E8F5EE] rounded-full text-[#1A5C3A] text-sm font-medium;
+}
+
+/* Rating stars */
+.rating-star {
+  @apply text-[#2ECC71];
+}
+
+/* Footer */
+.footer-link {
+  @apply text-white/80 hover:text-white transition-colors duration-300;
+}
+
+/* Mobile menu */
+.mobile-menu {
+  @apply fixed inset-0 bg-white z-50 transform transition-transform duration-300;
+}
+
+.mobile-menu.open {
+  @apply translate-x-0;
+}
+
+.mobile-menu.closed {
+  @apply translate-x-full;
+}
+
+/* Cookie banner */
+.cookie-banner {
+  @apply fixed bottom-0 left-0 right-0 bg-white border-t border-[#E8F5EE] 
+         p-4 shadow-lg z-50 transform transition-transform duration-300;
+}
+
+/* FAQ Accordion */
+.faq-item {
+  @apply border-b border-[#E8F5EE] last:border-b-0;
+}
+
+.faq-trigger {
+  @apply flex items-center justify-between w-full py-5 text-left 
+         text-[#1A1A2E] font-medium hover:text-[#1A5C3A] 
+         transition-colors duration-300;
+}
+
+.faq-content {
+  @apply pb-5 text-[#1A1A2E]/80 leading-relaxed;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .hero-title {
+    @apply text-3xl;
+  }
+  
+  .section-padding {
+    @apply px-4 py-16;
+  }
 }
