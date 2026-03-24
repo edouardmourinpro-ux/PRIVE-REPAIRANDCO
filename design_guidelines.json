@@ -1,0 +1,112 @@
+{
+  "theme": "light",
+  "typography": {
+    "fonts": {
+      "headings": "Plus Jakarta Sans, sans-serif",
+      "body": "Inter, sans-serif"
+    },
+    "rules": {
+      "headings": "Use tracking-tight for all headings. Avoid generic bold; use ExtraBold (800) or Light (300) for contrast. Do not center-align headings unless necessary.",
+      "body": "leading-relaxed for paragraphs. Text color must be #1A1A2E for high contrast readability."
+    }
+  },
+  "colors": {
+    "primary": "#1A5C3A",
+    "background_soft": "#E8F5EE",
+    "background_base": "#FFFFFF",
+    "accent": "#2ECC71",
+    "text": "#1A1A2E",
+    "rules": {
+      "contrast": "Ensure minimum 4.5:1 text contrast. White text on Primary, Text color on backgrounds.",
+      "accents": "Use Bright Green (#2ECC71) for outline icons, progress bars, and hover states ONLY.",
+      "buttons": "Primary button: bg-[#1A5C3A] text-white hover:bg-[#2ECC71]. Secondary: border-[#1A5C3A] bg-transparent text-[#1A5C3A] hover:bg-[#E8F5EE]."
+    }
+  },
+  "visual_enhancers": {
+    "radii": "16px (rounded-2xl) for cards, images, and modals. rounded-full for primary buttons and badges.",
+    "shadows": "Subtle, soft ambient shadows on cards on hover: shadow-[0_8px_30px_rgb(0,0,0,0.04)]. Default state is flat or very light shadow-sm.",
+    "icons": "Lucide-react with strokeWidth={1.5}. Always use Bright Green (#2ECC71) for icons.",
+    "textures": "Use subtle noise overlays for the dark green sections to add premium depth."
+  },
+  "grids_and_layouts": {
+    "bento_grid": "Use the 'Tetris' bento grid for services and store features. Mix col-span-1, col-span-2, row-span-2 to create asymmetry. Gap must be gap-6 or gap-8.",
+    "spacing": "Generous spacing. Sections should have py-24 or py-32. Cards should have p-8 or p-12.",
+    "alignment": "Left-align dense text and headings. Avoid center-everything disease."
+  },
+  "motion": {
+    "scrolling": "Use lenis for smooth scrolling momentum.",
+    "interactions": "Hover states must include transform scale (hover:-translate-y-1) and slight shadow increase. Buttons must have active:scale-95.",
+    "transitions": "Avoid 'transition-all'. Use specific transition-transform, transition-colors with duration-300 ease-out."
+  },
+  "accessibility": {
+    "contrast": "Meet WCAG AA standards. Use APCA contrast principles.",
+    "testing": "All interactive and key informational elements MUST include a data-testid attribute in kebab-case (e.g., data-testid='quote-form-submit')."
+  },
+  "media_and_assets": {
+    "image_urls": [
+      {
+        "url": "https://images.pexels.com/photos/7639370/pexels-photo-7639370.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "hero",
+        "description": "Technician repairing a laptop motherboard (close up)."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1576613109753-27804de2cba8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwxfHx0ZWNobmljaWFuJTIwcmVwYWlyaW5nJTIwc21hcnRwaG9uZSUyMG1vdGhlcmJvYXJkJTIwY2xvc2UlMjB1cHxlbnwwfHx8fDE3NzQzNDEwOTJ8MA&ixlib=rb-4.1.0&q=85",
+        "category": "services",
+        "description": "Person repairing smartphones under a lighted table."
+      },
+      {
+        "url": "https://images.pexels.com/photos/7988665/pexels-photo-7988665.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "b2b",
+        "description": "Diverse team discussing projects in a modern office setting with a tablet."
+      },
+      {
+        "url": "https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png",
+        "category": "trust_badge",
+        "description": "QualiRépar logo"
+      },
+      {
+        "url": "https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/p6booyft_IMG_9355-scaled%20%281%29.webp",
+        "category": "store",
+        "description": "Physical store location"
+      }
+    ]
+  },
+  "libraries": {
+    "icons": "lucide-react",
+    "animation": "framer-motion",
+    "scrolling": "@studio-freight/lenis",
+    "forms": "react-hook-form, zod, @hookform/resolvers"
+  },
+  "pages_and_components": {
+    "homepage": "Bento grid for services. Prominent QualiRépar badge. Trust signals. Large hero with the repair close up.",
+    "quote_form": "Multi-step wizard with step indicator on /devis. Use framer-motion for smooth transitions between steps. Large hit areas for touch devices.",
+    "store_locator": "Bento layout with map on one side and store cards on the other. Include 'Get Directions' CTA on /magasins.",
+    "faq": "Shadcn accordion styled with mint green backgrounds for open state on /faq.",
+    "b2b": "Professional tone, features the enterprise image. Emphasize fleet management on /entreprises."
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the color palette provided by the user. Do not introduce generic tailwind blues or grays.",
+    "Build a Multi-step quote form (/devis) using React Hook Form and Shadcn. Include progress indicators.",
+    "Create a fully responsive navbar and footer. Footer must contain links to all pages and locations.",
+    "Implement the 'QualiRépar' logo prominently on the homepage and services pages.",
+    "Use Lucide icons, colored in Bright Green (#2ECC71).",
+    "Do not use generic center-aligned layouts. Use asymmetrical bento grids for features and services.",
+    "Add 'data-testid' to ALL interactive elements (buttons, links, inputs).",
+    "Never use transparent backgrounds on headers or overlays.",
+    "Ensure all text meets WCAG AA contrast ratio."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Do not converge toward generic, 'on distribution' outputs. Avoid the 'AI slop' aesthetic.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur) where appropriate, ensuring readability.",
+    "You MUST NOT apply universal transition (e.g., transition: all).",
+    "You MUST NOT center align the app container (no .App { text-align: center; }).",
+    "Always use modern button styles (rounded-full or rounded-xl) with interaction animations.",
+    "NEVER use emojis as icons. Use the specified icon library (Lucide).",
+    "Every interaction needs micro-animations (hover, focus, active).",
+    "Use 2-3x more spacing than feels comfortable (e.g., py-24, p-8).",
+    "Prioritize using pre-existing Shadcn components, customized to fit the brand.",
+    "Components MUST use named exports, Pages MUST use default exports.",
+    "Use 'sonner' for toast notifications."
+  ]
+}
