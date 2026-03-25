@@ -212,7 +212,7 @@ export const FAQ_DATA = [
     questions: [
       {
         q: "C'est quoi le label QualiRépar ?",
-        a: "QualiRépar est un label officiel de l'État français qui garantit la qualité des réparations. Il vous permet de bénéficier d'une aide financière directement déduite de votre facture, jusqu'à 50€ selon l'appareil réparé."
+        a: "QualiRépar est un label officiel de l'État français qui garantit la qualité des réparations. Il vous permet de bénéficier d'une aide financière directement déduite de votre facture, entre 15 et 80€ selon l'appareil réparé."
       },
       {
         q: "Tous vos magasins sont labellisés ?",

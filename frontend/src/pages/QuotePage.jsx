@@ -432,7 +432,7 @@ const QuotePage = () => {
               <div>
                 <p className="font-semibold text-[#1A5C3A]">Label QualiRépar</p>
                 <p className="text-sm text-[#1A1A2E]/70 mt-1">
-                  Bénéficiez d'une aide jusqu'à 50€ déduite directement de votre facture.
+                  Bénéficiez d'une aide de 15 à 80€ déduite directement de votre facture.
                 </p>
               </div>
             </div>

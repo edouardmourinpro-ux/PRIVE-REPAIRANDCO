@@ -1,20 +1,47 @@
 import { Link } from 'react-router-dom';
 import { 
-  Smartphone, Tablet, Laptop, Coffee, MapPin, Star, Clock, 
+  Smartphone, Laptop, Coffee, Bike, MapPin, Star, Clock, 
   Shield, Zap, MessageSquare, Recycle, ChevronRight, CheckCircle,
   Phone, ArrowRight, BadgeCheck
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
-import { STORES, SERVICES, REVIEWS } from '../data/stores';
+import { STORES, REVIEWS } from '../data/stores';
 
 const HomePage = () => {
-  const iconMap = {
-    Smartphone: Smartphone,
-    Tablet: Tablet,
-    Laptop: Laptop,
-    Coffee: Coffee
-  };
+  // 3 Universes for services section
+  const universes = [
+    {
+      id: 'smart-connect',
+      title: 'SMART & CONNECT',
+      subtitle: 'Smartphones, Tablettes, Consoles & Informatique',
+      icon: Smartphone,
+      color: 'bg-blue-500',
+      colorLight: 'bg-blue-50',
+      textColor: 'text-blue-600',
+      link: '/services#smart-connect'
+    },
+    {
+      id: 'home',
+      title: 'HOME',
+      subtitle: 'Petit Électroménager',
+      icon: Coffee,
+      color: 'bg-orange-500',
+      colorLight: 'bg-orange-50',
+      textColor: 'text-orange-600',
+      link: '/services#home'
+    },
+    {
+      id: 'mobility',
+      title: 'MOBILITY',
+      subtitle: 'Vélos électriques et Trottinettes',
+      icon: Bike,
+      color: 'bg-green-500',
+      colorLight: 'bg-green-50',
+      textColor: 'text-green-600',
+      link: '/services#mobility'
+    }
+  ];
 
   return (
     <div data-testid="home-page">
@@ -38,14 +65,20 @@ const HomePage = () => {
               </p>
               
               {/* QualiRépar Badge */}
-              <a href="#qualirepar" className="inline-block mt-4" data-testid="hero-qualirepar-link">
+              <a 
+                href="https://www.label-qualirepar.fr/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-block mt-4" 
+                data-testid="hero-qualirepar-link"
+              >
                 <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-2 shadow-sm border border-[#E8F5EE] hover:shadow-md transition-shadow">
                   <img
                     src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
                     alt="Label QualiRépar"
                     className="h-10"
                   />
-                  <span className="text-sm text-[#1A5C3A] font-medium">Jusqu'à 80€ de bonus</span>
+                  <span className="text-sm text-[#1A5C3A] font-medium">Entre 15 et 80€ de bonus</span>
                 </div>
               </a>
               
@@ -143,7 +176,7 @@ const HomePage = () => {
             <div className="text-center col-span-2 lg:col-span-1">
               <div className="flex items-center justify-center gap-1 mb-2">
                 <BadgeCheck className="text-[#2ECC71]" size={24} />
-                <span className="text-3xl font-bold text-[#1A5C3A]">50€</span>
+                <span className="text-3xl font-bold text-[#1A5C3A]">15-80€</span>
               </div>
               <p className="text-[#1A1A2E]/60 text-sm">Bonus QualiRépar</p>
             </div>
@@ -152,7 +185,7 @@ const HomePage = () => {
       </section>
 
       {/* QualiRépar Section */}
-      <section className="py-16 lg:py-24 section-mint">
+      <section id="qualirepar" className="py-16 lg:py-24 section-mint">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -161,51 +194,63 @@ const HomePage = () => {
                 Label officiel de l'État
               </div>
               <h2 className="text-3xl lg:text-4xl font-bold text-[#1A5C3A] tracking-tight">
-                Économisez jusqu'à 50€ grâce au bonus réparation
+                Économisez entre 15 et 80€ grâce au bonus réparation
               </h2>
               <p className="mt-6 text-lg text-[#1A1A2E]/80 leading-relaxed">
                 Repair & Co est labellisé <strong>QualiRépar</strong>. Ce label officiel vous permet 
                 de bénéficier d'une aide de l'État directement déduite de votre facture — 
-                jusqu'à 50€ selon l'appareil. Réparer plutôt que remplacer, c'est bon pour 
+                entre 15 et 80€ selon l'appareil. Réparer plutôt que remplacer, c'est bon pour 
                 votre portefeuille et pour la planète.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                <Link to="/faq" data-testid="qualirepar-learn-more">
+                <a 
+                  href="https://www.label-qualirepar.fr/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  data-testid="qualirepar-learn-more"
+                >
                   <Button className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full px-6 py-3">
                     En savoir plus
                     <ChevronRight className="ml-1" size={18} />
                   </Button>
-                </Link>
+                </a>
               </div>
             </div>
             <div className="flex justify-center">
-              <div className="bg-white rounded-2xl p-8 shadow-lg max-w-sm">
-                <img
-                  src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
-                  alt="Label QualiRépar - Réparation certifiée"
-                  className="w-full"
-                />
-                <div className="mt-6 space-y-3">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={20} />
-                    <span className="text-[#1A1A2E]">Jusqu'à 50€ d'aide directe</span>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={20} />
-                    <span className="text-[#1A1A2E]">Déduit automatiquement de la facture</span>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={20} />
-                    <span className="text-[#1A1A2E]">Tous nos magasins labellisés</span>
+              <a 
+                href="https://www.label-qualirepar.fr/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <div className="bg-white rounded-2xl p-8 shadow-lg max-w-sm hover:shadow-xl transition-shadow">
+                  <img
+                    src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
+                    alt="Label QualiRépar - Réparation certifiée"
+                    className="w-full"
+                  />
+                  <div className="mt-6 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={20} />
+                      <span className="text-[#1A1A2E]">Entre 15 et 80€ d'aide directe</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={20} />
+                      <span className="text-[#1A1A2E]">Déduit automatiquement de la facture</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={20} />
+                      <span className="text-[#1A1A2E]">Tous nos magasins labellisés</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </a>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Services Section */}
+      {/* Services Section - 3 Universes */}
       <section className="py-16 lg:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-left mb-12">
@@ -217,39 +262,31 @@ const HomePage = () => {
             </p>
           </div>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {SERVICES.map((service) => {
-              const IconComponent = iconMap[service.icon];
-              return (
-                <Card 
-                  key={service.id} 
-                  className="service-card group cursor-pointer"
-                  data-testid={`service-card-${service.id}`}
-                >
+          <div className="grid md:grid-cols-3 gap-6">
+            {universes.map((universe) => (
+              <Link 
+                key={universe.id}
+                to={universe.link}
+                className="block"
+                data-testid={`universe-card-${universe.id}`}
+              >
+                <Card className="service-card group cursor-pointer h-full">
                   <CardContent className="p-6">
-                    <div className="w-14 h-14 bg-[#E8F5EE] rounded-2xl flex items-center justify-center mb-4 group-hover:bg-[#2ECC71]/20 transition-colors duration-300">
-                      <IconComponent className="text-[#2ECC71]" size={28} />
+                    <div className={`w-14 h-14 ${universe.colorLight} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                      <universe.icon className={universe.textColor} size={28} />
                     </div>
-                    <h3 className="text-xl font-semibold text-[#1A5C3A] mb-2">{service.title}</h3>
+                    <h3 className={`text-xl font-bold ${universe.textColor} mb-2`}>{universe.title}</h3>
                     <p className="text-[#1A1A2E]/70 text-sm leading-relaxed mb-4">
-                      {service.description}
+                      {universe.subtitle}
                     </p>
-                    {service.priceFrom && (
-                      <p className="text-[#2ECC71] font-semibold text-sm mb-4">
-                        À partir de {service.priceFrom}€
-                      </p>
-                    )}
-                    <Link 
-                      to="/services" 
-                      className="inline-flex items-center text-[#1A5C3A] font-medium text-sm hover:text-[#2ECC71] transition-colors"
-                    >
+                    <span className="inline-flex items-center text-[#1A5C3A] font-medium text-sm group-hover:text-[#2ECC71] transition-colors">
                       Voir les réparations
-                      <ChevronRight size={16} className="ml-1" />
-                    </Link>
+                      <ChevronRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" />
+                    </span>
                   </CardContent>
                 </Card>
-              );
-            })}
+              </Link>
+            ))}
           </div>
           
           <div className="mt-10 text-center">

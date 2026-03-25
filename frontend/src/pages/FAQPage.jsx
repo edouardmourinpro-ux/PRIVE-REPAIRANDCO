@@ -66,26 +66,43 @@ const FAQPage = () => {
                   Label QualiRépar
                 </div>
                 <h2 className="text-2xl lg:text-3xl font-bold text-[#1A5C3A] mb-4">
-                  Économisez jusqu'à 50€ sur vos réparations
+                  Économisez entre 15 et 80€ sur vos réparations
                 </h2>
                 <p className="text-[#1A1A2E]/80 leading-relaxed mb-6">
                   Le bonus réparation est une aide financière de l'État qui vous permet de 
                   réduire le coût de vos réparations. Tous nos magasins Repair & Co sont 
                   labellisés QualiRépar, ce qui vous permet d'en bénéficier directement.
                 </p>
-                <Link to="/devis" data-testid="faq-cta-quote">
-                  <Button className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full">
-                    Demander un devis
-                    <ArrowRight className="ml-2" size={18} />
-                  </Button>
-                </Link>
+                <div className="flex flex-wrap gap-4">
+                  <Link to="/devis" data-testid="faq-cta-quote">
+                    <Button className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full">
+                      Demander un devis
+                      <ArrowRight className="ml-2" size={18} />
+                    </Button>
+                  </Link>
+                  <a 
+                    href="https://www.label-qualirepar.fr/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                  >
+                    <Button variant="outline" className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full">
+                      En savoir plus sur QualiRépar
+                    </Button>
+                  </a>
+                </div>
               </div>
               <div className="flex justify-center">
-                <img
-                  src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
-                  alt="Label QualiRépar"
-                  className="max-w-xs"
-                />
+                <a 
+                  href="https://www.label-qualirepar.fr/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <img
+                    src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
+                    alt="Label QualiRépar"
+                    className="max-w-xs hover:opacity-80 transition-opacity"
+                  />
+                </a>
               </div>
             </div>
           </div>

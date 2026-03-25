@@ -133,13 +133,20 @@ const AboutPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-10 items-center">
             <div className="flex justify-center order-2 lg:order-1">
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
-                <img
-                  src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
-                  alt="Label QualiRépar"
-                  className="max-w-[180px] mx-auto"
+              <a 
+                href="https://www.label-qualirepar.fr/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow">
+                  <img
+                    src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
+                    alt="Label QualiRépar"
+                    className="max-w-[180px] mx-auto"
                 />
-              </div>
+                </div>
+              </a>
             </div>
             <div className="order-1 lg:order-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-white rounded-full text-[#1A5C3A] text-sm font-medium mb-4">

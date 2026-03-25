@@ -252,11 +252,18 @@ const StoresPage = () => {
       {/* QualiRépar Section */}
       <section id="qualirepar-section" className="py-10 lg:py-14 section-mint">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <img
-            src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
-            alt="Label QualiRépar"
-            className="h-16 mx-auto mb-4"
-          />
+          <a 
+            href="https://www.label-qualirepar.fr/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="inline-block"
+          >
+            <img
+              src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
+              alt="Label QualiRépar"
+              className="h-16 mx-auto mb-4 hover:opacity-80 transition-opacity"
+            />
+          </a>
           <h2 className="text-xl font-bold text-[#1A5C3A] mb-3">
             Tous nos magasins sont labellisés QualiRépar
           </h2>
@@ -264,10 +271,15 @@ const StoresPage = () => {
             Bénéficiez d'une aide de 15€ à 80€ selon l'appareil réparé, 
             directement déduite de votre facture.
           </p>
-          <Link to="/faq" className="inline-flex items-center mt-4 text-[#1A5C3A] font-medium hover:text-[#2ECC71] text-sm">
+          <a 
+            href="https://www.label-qualirepar.fr/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="inline-flex items-center mt-4 text-[#1A5C3A] font-medium hover:text-[#2ECC71] text-sm"
+          >
             En savoir plus
             <ExternalLink size={14} className="ml-1" />
-          </Link>
+          </a>
         </div>
       </section>
 

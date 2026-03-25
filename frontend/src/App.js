@@ -1,6 +1,7 @@
 import "@/App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Layout } from "./components/layout/Layout";
+import { ScrollToTop } from "./components/ScrollToTop";
 import { Helmet, HelmetProvider } from "react-helmet-async";
 
 // Pages
@@ -19,11 +20,12 @@ function App() {
   return (
     <HelmetProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <Helmet>
           <title>Repair & Co — Réparation smartphone, tablette et PC | Nîmes, Montpellier, Béziers</title>
           <meta 
             name="description" 
-            content="Repair & Co : réparation rapide de smartphones, tablettes et PC à Nîmes, Montpellier, Pérols et Béziers. Devis gratuit, label QualiRépar, jusqu'à 50€ d'aide de l'État." 
+            content="Repair & Co : réparation rapide de smartphones, tablettes et PC à Nîmes, Montpellier, Pérols et Béziers. Devis gratuit, label QualiRépar, entre 15 et 80€ d'aide de l'État." 
           />
           <meta name="keywords" content="réparation smartphone, réparation tablette, réparation PC, Nîmes, Montpellier, Béziers, QualiRépar, écran cassé, batterie" />
           <link rel="preconnect" href="https://fonts.googleapis.com" />

@@ -308,19 +308,26 @@ const BuybackPage = () => {
       </section>
 
       {/* QualiRépar */}
-      <section className="py-16 lg:py-24 section-mint">
+      <section className="py-12 lg:py-16 section-mint">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <img
-            src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
-            alt="Label QualiRépar"
-            className="h-20 mx-auto mb-6"
-          />
-          <h2 className="text-2xl font-bold text-[#1A5C3A] mb-4">
+          <a 
+            href="https://www.label-qualirepar.fr/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="inline-block"
+          >
+            <img
+              src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
+              alt="Label QualiRépar"
+              className="h-16 mx-auto mb-4 hover:opacity-80 transition-opacity"
+            />
+          </a>
+          <h2 className="text-xl font-bold text-[#1A5C3A] mb-3">
             Label QualiRépar
           </h2>
-          <p className="text-[#1A1A2E]/80 max-w-xl mx-auto">
+          <p className="text-[#1A1A2E]/80 max-w-xl mx-auto text-sm">
             Tous nos magasins sont labellisés QualiRépar. Bénéficiez d'une aide 
-            jusqu'à 50€ sur vos réparations.
+            entre 15 et 80€ sur vos réparations.
           </p>
         </div>
       </section>

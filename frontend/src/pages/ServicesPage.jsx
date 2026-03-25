@@ -84,6 +84,13 @@ const ServicesPage = () => {
     }
   ];
 
+  const scrollToUniverse = (id) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
     <div data-testid="services-page">
       {/* Hero */}
@@ -109,6 +116,21 @@ const ServicesPage = () => {
               </Button>
             </Link>
           </div>
+          
+          {/* Universe Quick Links */}
+          <div className="mt-8 flex flex-wrap gap-3">
+            {universes.map((universe) => (
+              <button
+                key={universe.id}
+                onClick={() => scrollToUniverse(universe.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full ${universe.colorLight} ${universe.textColor} font-medium text-sm hover:opacity-80 transition-opacity`}
+              >
+                <universe.icon size={18} />
+                {universe.title}
+                <ChevronRight size={14} />
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -116,17 +138,26 @@ const ServicesPage = () => {
       <section className="py-10 lg:py-14 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
           {universes.map((universe) => (
-            <div key={universe.id} data-testid={`universe-${universe.id}`}>
+            <div key={universe.id} id={universe.id} data-testid={`universe-${universe.id}`} className="scroll-mt-24">
               {/* Universe Header */}
               <div className={`${universe.colorLight} rounded-2xl p-5 mb-6`}>
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 ${universe.color} rounded-xl flex items-center justify-center`}>
-                    <universe.icon className="text-white" size={24} />
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 ${universe.color} rounded-xl flex items-center justify-center`}>
+                      <universe.icon className="text-white" size={24} />
+                    </div>
+                    <div>
+                      <h2 className={`text-xl font-bold ${universe.textColor}`}>{universe.title}</h2>
+                      <p className="text-[#1A1A2E]/70 text-sm">{universe.subtitle}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className={`text-xl font-bold ${universe.textColor}`}>{universe.title}</h2>
-                    <p className="text-[#1A1A2E]/70 text-sm">{universe.subtitle}</p>
-                  </div>
+                  <button
+                    onClick={() => scrollToUniverse(universe.id)}
+                    className={`text-sm font-medium ${universe.textColor} flex items-center gap-1 hover:opacity-70`}
+                  >
+                    Voir les réparations
+                    <ChevronRight size={16} />
+                  </button>
                 </div>
                 {universe.notice && (
                   <div className="mt-3 flex items-start gap-2 text-sm text-[#1A1A2E]/70 bg-white/50 rounded-lg px-3 py-2">
@@ -164,7 +195,7 @@ const ServicesPage = () => {
                         )}
                       </ul>
 
-                      <div className="flex items-center justify-between text-xs border-t border-[#E8F5EE] pt-3">
+                      <div className="flex items-center justify-between text-xs border-t border-[#E8F5EE] pt-3 mb-4">
                         <div className="flex items-center gap-1">
                           <Clock size={14} className="text-[#2ECC71]" />
                           <span className="text-[#1A1A2E]/70">{service.delay}</span>
@@ -174,6 +205,20 @@ const ServicesPage = () => {
                             À partir de {service.priceFrom}€
                           </span>
                         )}
+                      </div>
+
+                      {/* CTAs for each service card */}
+                      <div className="flex gap-2">
+                        <Link to="/devis" className="flex-1">
+                          <Button size="sm" className="w-full bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full text-xs">
+                            Obtenir un devis
+                          </Button>
+                        </Link>
+                        <Link to="/rendez-vous" className="flex-1">
+                          <Button size="sm" variant="outline" className="w-full border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full text-xs">
+                            Prendre RDV
+                          </Button>
+                        </Link>
                       </div>
                     </CardContent>
                   </Card>
@@ -207,17 +252,28 @@ const ServicesPage = () => {
                   directement déduite de votre facture. Les prix affichés sont <strong>cumulables 
                   avec le Bonus QualiRépar</strong>.
                 </p>
-                <Link to="/faq" className="inline-flex items-center mt-3 text-[#1A5C3A] font-medium hover:text-[#2ECC71] text-sm">
+                <a 
+                  href="https://www.label-qualirepar.fr/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center mt-3 text-[#1A5C3A] font-medium hover:text-[#2ECC71] text-sm"
+                >
                   En savoir plus sur QualiRépar
                   <ChevronRight size={16} className="ml-1" />
-                </Link>
+                </a>
               </div>
               <div className="flex justify-center">
-                <img
-                  src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
-                  alt="Label QualiRépar"
-                  className="max-w-[200px]"
-                />
+                <a 
+                  href="https://www.label-qualirepar.fr/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <img
+                    src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
+                    alt="Label QualiRépar"
+                    className="max-w-[200px] hover:opacity-80 transition-opacity"
+                  />
+                </a>
               </div>
             </div>
           </div>
