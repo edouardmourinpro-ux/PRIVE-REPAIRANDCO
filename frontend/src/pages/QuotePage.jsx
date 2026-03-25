@@ -146,11 +146,11 @@ const QuotePage = () => {
       <section className="py-12 lg:py-16 hero-gradient">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-3xl sm:text-4xl font-extrabold text-[#1A5C3A] tracking-tight">
-            Devis gratuit en 2 minutes
+            Devis gratuit
           </h1>
           <p className="mt-4 text-lg text-[#1A1A2E]/80">
-            Dites-nous quel appareil vous avez et quel est le problème. 
-            On vous rappelle sous 15 minutes.
+            Précisez-nous votre appareil et votre problème. 
+            Nous vous rappelons sous 15 minutes.
           </p>
         </div>
       </section>

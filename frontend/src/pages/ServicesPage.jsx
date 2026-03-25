@@ -1,134 +1,222 @@
 import { Link } from 'react-router-dom';
 import { 
-  Smartphone, Tablet, Laptop, Coffee, Clock, ChevronRight, 
-  BadgeCheck, CheckCircle, ArrowRight
+  Smartphone, Laptop, Coffee, Bike, Clock, ChevronRight, 
+  BadgeCheck, CheckCircle, ArrowRight, Gamepad2, Info
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
-import { SERVICES } from '../data/stores';
 
 const ServicesPage = () => {
-  const iconMap = {
-    Smartphone: Smartphone,
-    Tablet: Tablet,
-    Laptop: Laptop,
-    Coffee: Coffee
-  };
+  const universes = [
+    {
+      id: 'smart-connect',
+      title: 'SMART & CONNECT',
+      subtitle: 'Smartphones, Tablettes, Consoles & Informatique',
+      icon: Smartphone,
+      color: 'bg-blue-500',
+      colorLight: 'bg-blue-50',
+      textColor: 'text-blue-600',
+      services: [
+        {
+          name: 'Smartphones & Tablettes',
+          icon: Smartphone,
+          repairs: ['Écran cassé / remplacement de vitre', 'Batterie (autonomie dégradée)', 'Connecteur de charge', 'Caméra avant / arrière', 'Boutons volume / power', 'Haut-parleur / micro'],
+          brands: 'Apple, Samsung, Xiaomi, Huawei, OnePlus, Google, Oppo...',
+          delay: '30 min à 1h',
+          priceFrom: 29
+        },
+        {
+          name: 'Consoles de jeux',
+          icon: Gamepad2,
+          repairs: ['Manettes (drift, boutons)', 'Lecteur disque', 'Ports HDMI', 'Ventilateur / surchauffe', 'Disque dur / SSD'],
+          brands: 'PlayStation, Xbox, Nintendo Switch...',
+          delay: '1h à 48h',
+          priceFrom: 39
+        },
+        {
+          name: 'Informatique',
+          icon: Laptop,
+          repairs: ['Remplacement écran', 'Clavier', 'Batterie', 'Nettoyage / optimisation', 'Remplacement disque dur / SSD', 'Réinstallation système'],
+          brands: 'HP, Dell, Lenovo, Asus, Acer, Apple MacBook, MSI...',
+          delay: '24h à 48h',
+          priceFrom: 49
+        }
+      ]
+    },
+    {
+      id: 'home',
+      title: 'HOME',
+      subtitle: 'Petit Électroménager',
+      icon: Coffee,
+      color: 'bg-orange-500',
+      colorLight: 'bg-orange-50',
+      textColor: 'text-orange-600',
+      services: [
+        {
+          name: 'Petit électroménager',
+          icon: Coffee,
+          repairs: ['Cafetières & machines à café', 'Aspirateurs', 'Grille-pain & bouilloires', 'Mixeurs & robots', 'Fers à repasser', 'Diagnostic + réparation sur place'],
+          brands: 'Philips, Bosch, Moulinex, SEB, Dyson, Nespresso, De\'Longhi...',
+          delay: 'Selon pièces disponibles',
+          priceFrom: 25
+        }
+      ]
+    },
+    {
+      id: 'mobility',
+      title: 'MOBILITY',
+      subtitle: 'Vélos électriques (VAE) et Trottinettes',
+      icon: Bike,
+      color: 'bg-green-500',
+      colorLight: 'bg-green-50',
+      textColor: 'text-green-600',
+      notice: 'Service disponible uniquement dans les magasins de Montpellier Est et Béziers',
+      services: [
+        {
+          name: 'Vélos électriques & Trottinettes',
+          icon: Bike,
+          repairs: ['Batterie (diagnostic & remplacement)', 'Moteur', 'Contrôleur', 'Freins', 'Pneus & chambres à air', 'Écran / tableau de bord'],
+          brands: 'Toutes marques de VAE et trottinettes électriques',
+          delay: '24h à 72h',
+          priceFrom: 35
+        }
+      ]
+    }
+  ];
 
   return (
     <div data-testid="services-page">
       {/* Hero */}
-      <section className="py-16 lg:py-20 hero-gradient">
+      <section className="py-10 lg:py-14 hero-gradient">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-[#1A5C3A] tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-[#1A5C3A] tracking-tight">
             Nos services de réparation
           </h1>
-          <p className="mt-6 text-lg text-[#1A1A2E]/80 max-w-2xl leading-relaxed">
+          <p className="mt-4 text-lg text-[#1A1A2E]/80 max-w-2xl leading-relaxed">
             Repair & Co répare tous vos appareils électroniques, toutes marques. 
             Diagnostic gratuit, devis immédiat, réparation garantie.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-4">
+            <Link to="/devis" data-testid="services-hero-cta-quote">
+              <Button className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full">
+                Obtenir un devis
+                <ArrowRight className="ml-2" size={18} />
+              </Button>
+            </Link>
+            <Link to="/rendez-vous" data-testid="services-hero-cta-appointment">
+              <Button variant="outline" className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full">
+                Prendre un rendez-vous
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Services by Universe */}
+      <section className="py-10 lg:py-14 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+          {universes.map((universe) => (
+            <div key={universe.id} data-testid={`universe-${universe.id}`}>
+              {/* Universe Header */}
+              <div className={`${universe.colorLight} rounded-2xl p-5 mb-6`}>
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 ${universe.color} rounded-xl flex items-center justify-center`}>
+                    <universe.icon className="text-white" size={24} />
+                  </div>
+                  <div>
+                    <h2 className={`text-xl font-bold ${universe.textColor}`}>{universe.title}</h2>
+                    <p className="text-[#1A1A2E]/70 text-sm">{universe.subtitle}</p>
+                  </div>
+                </div>
+                {universe.notice && (
+                  <div className="mt-3 flex items-start gap-2 text-sm text-[#1A1A2E]/70 bg-white/50 rounded-lg px-3 py-2">
+                    <Info size={16} className="flex-shrink-0 mt-0.5" />
+                    <span>{universe.notice}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Services Grid */}
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {universe.services.map((service, idx) => (
+                  <Card key={idx} className="border border-[#E8F5EE] hover:shadow-md transition-shadow">
+                    <CardContent className="p-5">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={`w-10 h-10 ${universe.colorLight} rounded-lg flex items-center justify-center`}>
+                          <service.icon className={universe.textColor} size={20} />
+                        </div>
+                        <h3 className="font-semibold text-[#1A5C3A]">{service.name}</h3>
+                      </div>
+                      
+                      <p className="text-xs text-[#1A1A2E]/60 mb-3">{service.brands}</p>
+                      
+                      <ul className="space-y-1 mb-4">
+                        {service.repairs.slice(0, 4).map((repair, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm">
+                            <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={14} />
+                            <span className="text-[#1A1A2E]/80">{repair}</span>
+                          </li>
+                        ))}
+                        {service.repairs.length > 4 && (
+                          <li className="text-sm text-[#1A1A2E]/60 pl-5">
+                            + {service.repairs.length - 4} autres réparations
+                          </li>
+                        )}
+                      </ul>
+
+                      <div className="flex items-center justify-between text-xs border-t border-[#E8F5EE] pt-3">
+                        <div className="flex items-center gap-1">
+                          <Clock size={14} className="text-[#2ECC71]" />
+                          <span className="text-[#1A1A2E]/70">{service.delay}</span>
+                        </div>
+                        {service.priceFrom && (
+                          <span className="font-semibold text-[#1A5C3A]">
+                            À partir de {service.priceFrom}€
+                          </span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Disclaimer */}
+          <p className="text-sm text-[#1A1A2E]/60 text-center">
+            *Sous réserve de la disponibilité de la pièce détachée.
           </p>
         </div>
       </section>
 
-      {/* Services Grid */}
-      <section className="py-16 lg:py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
-          {SERVICES.map((service, index) => {
-            const IconComponent = iconMap[service.icon];
-            return (
-              <div 
-                key={service.id} 
-                data-testid={`service-section-${service.id}`}
-                className={`grid lg:grid-cols-2 gap-12 items-start ${index % 2 === 1 ? 'lg:flex-row-reverse' : ''}`}
-              >
-                <div className={index % 2 === 1 ? 'lg:order-2' : ''}>
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-16 h-16 bg-[#E8F5EE] rounded-2xl flex items-center justify-center">
-                      <IconComponent className="text-[#2ECC71]" size={32} />
-                    </div>
-                    <div>
-                      <h2 className="text-2xl lg:text-3xl font-bold text-[#1A5C3A]">{service.title}</h2>
-                      <p className="text-[#1A1A2E]/60">{service.brands.join(', ')}</p>
-                    </div>
-                  </div>
-                  
-                  <p className="text-lg text-[#1A1A2E]/80 leading-relaxed mb-6">
-                    {service.description}
-                  </p>
-
-                  <div className="flex flex-wrap gap-4 mb-6">
-                    <div className="flex items-center gap-2 bg-[#E8F5EE] px-4 py-2 rounded-full">
-                      <Clock className="text-[#2ECC71]" size={18} />
-                      <span className="text-sm font-medium text-[#1A5C3A]">{service.delay}</span>
-                    </div>
-                    {service.priceFrom && (
-                      <div className="flex items-center gap-2 bg-[#E8F5EE] px-4 py-2 rounded-full">
-                        <span className="text-sm font-medium text-[#1A5C3A]">
-                          À partir de {service.priceFrom}€
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <Link to="/devis">
-                    <Button 
-                      className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full"
-                      data-testid={`cta-quote-${service.id}`}
-                    >
-                      Obtenir un devis
-                      <ArrowRight className="ml-2" size={18} />
-                    </Button>
-                  </Link>
-                </div>
-
-                <Card className={`card-repair ${index % 2 === 1 ? 'lg:order-1' : ''}`}>
-                  <CardContent className="p-8">
-                    <h3 className="text-lg font-semibold text-[#1A5C3A] mb-4">
-                      Réparations courantes
-                    </h3>
-                    <ul className="space-y-3">
-                      {service.repairs.map((repair, i) => (
-                        <li key={i} className="flex items-start gap-3">
-                          <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={18} />
-                          <span className="text-[#1A1A2E]/80">{repair}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
       {/* QualiRépar Section */}
-      <section className="py-16 lg:py-24 section-mint">
+      <section id="qualirepar" className="py-10 lg:py-14 section-mint">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-white rounded-2xl p-8 lg:p-12 shadow-lg">
-            <div className="grid lg:grid-cols-2 gap-8 items-center">
+          <div className="bg-white rounded-2xl p-6 lg:p-8 shadow-lg">
+            <div className="grid lg:grid-cols-2 gap-6 items-center">
               <div>
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#E8F5EE] rounded-full text-[#1A5C3A] text-sm font-medium mb-4">
-                  <BadgeCheck className="text-[#2ECC71]" size={18} />
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#E8F5EE] rounded-full text-[#1A5C3A] text-sm font-medium mb-3">
+                  <BadgeCheck className="text-[#2ECC71]" size={16} />
                   Label QualiRépar
                 </div>
-                <h2 className="text-2xl lg:text-3xl font-bold text-[#1A5C3A] mb-4">
-                  Jusqu'à 50€ d'aide de l'État
+                <h2 className="text-2xl font-bold text-[#1A5C3A] mb-3">
+                  De 15€ à 80€ de réduction selon l'appareil
                 </h2>
-                <p className="text-[#1A1A2E]/80 leading-relaxed">
+                <p className="text-[#1A1A2E]/80 leading-relaxed text-sm">
                   Tous nos magasins sont labellisés QualiRépar. Bénéficiez d'une aide financière 
-                  directement déduite de votre facture sur la réparation de vos appareils électroniques.
+                  directement déduite de votre facture. Les prix affichés sont <strong>cumulables 
+                  avec le Bonus QualiRépar</strong>.
                 </p>
-                <Link to="/faq" className="inline-flex items-center mt-4 text-[#1A5C3A] font-medium hover:text-[#2ECC71]">
+                <Link to="/faq" className="inline-flex items-center mt-3 text-[#1A5C3A] font-medium hover:text-[#2ECC71] text-sm">
                   En savoir plus sur QualiRépar
-                  <ChevronRight size={18} className="ml-1" />
+                  <ChevronRight size={16} className="ml-1" />
                 </Link>
               </div>
               <div className="flex justify-center">
                 <img
                   src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
                   alt="Label QualiRépar"
-                  className="max-w-xs"
+                  className="max-w-[200px]"
                 />
               </div>
             </div>
@@ -137,24 +225,24 @@ const ServicesPage = () => {
       </section>
 
       {/* CTA */}
-      <section className="py-16 lg:py-24 bg-[#1A5C3A]">
+      <section className="py-10 lg:py-14 bg-[#1A5C3A]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl lg:text-4xl font-bold text-white mb-6">
+          <h2 className="text-2xl lg:text-3xl font-bold text-white mb-4">
             Besoin d'une réparation ?
           </h2>
-          <p className="text-lg text-white/80 mb-8 max-w-xl mx-auto">
-            Obtenez un devis gratuit en 2 minutes ou venez directement dans l'un de nos magasins.
+          <p className="text-base text-white/80 mb-6 max-w-xl mx-auto">
+            Obtenez un devis gratuit ou venez directement dans l'un de nos magasins.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link to="/devis" data-testid="services-cta-quote">
-              <Button className="bg-white text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full px-8 py-6 text-lg">
-                Devis gratuit
-                <ArrowRight className="ml-2" size={20} />
+              <Button className="bg-white text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full px-8 py-5">
+                Obtenir un devis
+                <ArrowRight className="ml-2" size={18} />
               </Button>
             </Link>
-            <Link to="/magasins" data-testid="services-cta-stores">
-              <Button variant="outline" className="border-2 border-white text-white hover:bg-white/10 rounded-full px-8 py-6 text-lg">
-                Trouver un magasin
+            <Link to="/rendez-vous" data-testid="services-cta-appointment">
+              <Button variant="outline" className="border-2 border-white text-white hover:bg-white/10 rounded-full px-8 py-5">
+                Prendre un rendez-vous
               </Button>
             </Link>
           </div>

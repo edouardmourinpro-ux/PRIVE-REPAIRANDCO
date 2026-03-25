@@ -23,26 +23,42 @@ const HomePage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="animate-fade-in-up">
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#1A5C3A] leading-tight tracking-tight">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#1A5C3A] leading-tight tracking-tight">
                 Votre expert en{' '}
                 <span className="text-[#2ECC71]">réparation</span>{' '}
                 et reconditionnement
               </h1>
-              <p className="mt-6 text-lg text-[#1A1A2E]/80 leading-relaxed max-w-xl">
-                Smartphones, tablettes, PC et petit électroménager : réparation rapide, 
-                devis gratuit et vente de reconditionnés. Présents à Montpellier, Nîmes, 
-                Pérols et Béziers.
+              <p className="mt-4 text-lg text-[#1A1A2E]/80 leading-relaxed max-w-xl">
+                <strong>Smartphones & Tablettes / Informatique / Petit Électroménager / Vélos et Trottinettes.</strong>
+                <br />
+                Pour tous ces univers, les équipes techniques Repair&Co réparent au prix le plus juste.
               </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4">
+              <p className="mt-3 text-base text-[#1A5C3A] font-medium">
+                Retrouvez-nous dans nos ateliers en proximité ou en ligne.
+              </p>
+              
+              {/* QualiRépar Badge */}
+              <a href="#qualirepar" className="inline-block mt-4" data-testid="hero-qualirepar-link">
+                <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-2 shadow-sm border border-[#E8F5EE] hover:shadow-md transition-shadow">
+                  <img
+                    src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
+                    alt="Label QualiRépar"
+                    className="h-10"
+                  />
+                  <span className="text-sm text-[#1A5C3A] font-medium">Jusqu'à 80€ de bonus</span>
+                </div>
+              </a>
+              
+              <div className="mt-6 flex flex-col sm:flex-row gap-4">
                 <Link to="/devis" data-testid="hero-cta-quote">
                   <Button className="w-full sm:w-auto bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full px-8 py-6 text-lg font-semibold transition-all duration-300 hover:-translate-y-1">
-                    Devis gratuit
+                    Devis gratuit en ligne
                     <ArrowRight className="ml-2" size={20} />
                   </Button>
                 </Link>
                 <Link to="/rendez-vous" data-testid="hero-cta-appointment">
                   <Button variant="outline" className="w-full sm:w-auto border-2 border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full px-8 py-6 text-lg font-semibold transition-all duration-300">
-                    Prendre RDV
+                    Prendre rendez-vous
                   </Button>
                 </Link>
               </div>

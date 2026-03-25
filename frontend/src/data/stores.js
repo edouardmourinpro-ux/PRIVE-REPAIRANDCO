@@ -7,12 +7,16 @@ export const STORES = [
     postalCode: "30900",
     location: "Carrefour Nîmes Étoile",
     phone: "04 66 84 80 79",
+    whatsapp: "33466848079",
     hours: "Lundi–Samedi : 9h30–19h30",
     rating: 4.7,
     reviewsCount: 225,
     qualirepar: true,
     mapsUrl: "https://www.google.com/maps/search/?api=1&query=116+Rue+André+Dupont+30900+Nîmes",
-    mapsEmbed: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2886.5!2d4.36!3d43.84!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDPCsDUwJzEyLjAiTiA0wrAyMScyNC4wIkU!5e0!3m2!1sfr!2sfr!4v1234567890"
+    testimonial: {
+      text: "Écran de mon iPhone réparé en 45 minutes ! Service impeccable et prix très correct.",
+      author: "Marie L."
+    }
   },
   {
     id: "nimes-cap-costieres",
@@ -22,12 +26,16 @@ export const STORES = [
     postalCode: "30900",
     location: "CC La Galerie",
     phone: "04 48 19 14 09",
+    whatsapp: "33448191409",
     hours: "Lundi–Samedi : 9h30–20h00",
     rating: 3.5,
     reviewsCount: null,
     qualirepar: true,
     mapsUrl: "https://www.google.com/maps/search/?api=1&query=Impasse+de+Rousellas+30900+Nîmes",
-    mapsEmbed: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2888.5!2d4.35!3d43.81!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDPCsDQ4JzQzLjkiTiA0wrAyMScwMi41IkU!5e0!3m2!1sfr!2sfr!4v1234567890"
+    testimonial: {
+      text: "Accueil sympathique, réparation de ma tablette effectuée rapidement.",
+      author: "Pierre D."
+    }
   },
   {
     id: "montpellier-sud",
@@ -37,12 +45,16 @@ export const STORES = [
     postalCode: "34070",
     location: "CC Intermarché",
     phone: "04 67 58 81 39",
+    whatsapp: "33467588139",
     hours: "Lundi–Samedi : 9h30–20h00",
     rating: 4.1,
     reviewsCount: 283,
     qualirepar: true,
     mapsUrl: "https://www.google.com/maps/search/?api=1&query=504+Avenue+du+Mas+d'Argelliers+34070+Montpellier",
-    mapsEmbed: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2890.5!2d3.85!3d43.58!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDPCsDM0JzU5LjUiTiAzwrA1MCc1MS4zIkU!5e0!3m2!1sfr!2sfr!4v1234567890"
+    testimonial: {
+      text: "Batterie de mon Samsung changée rapidement. L'équipe est très professionnelle !",
+      author: "Thomas B."
+    }
   },
   {
     id: "perols-lattes",
@@ -52,12 +64,13 @@ export const STORES = [
     postalCode: "34970",
     location: "CC Grand Sud",
     phone: "06 61 66 03 30",
+    whatsapp: "33661660330",
     hours: "Lundi–Samedi : 9h30–20h00",
     rating: null,
     reviewsCount: null,
     qualirepar: true,
     mapsUrl: "https://www.google.com/maps/search/?api=1&query=Grand+Sud+Lattes",
-    mapsEmbed: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2891.5!2d3.92!3d43.57!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDPCsDM0JzAxLjIiTiAzwrA1NScwMC4xIkU!5e0!3m2!1sfr!2sfr!4v1234567890"
+    testimonial: null
   },
   {
     id: "beziers",
@@ -67,12 +80,13 @@ export const STORES = [
     postalCode: "34500",
     location: "Centre Commercial",
     phone: "06 61 66 03 30",
+    whatsapp: "33661660330",
     hours: "Lundi–Samedi : 9h30–20h00",
     rating: null,
     reviewsCount: null,
     qualirepar: true,
     mapsUrl: "https://www.google.com/maps/search/?api=1&query=Béziers+centre+commercial",
-    mapsEmbed: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2896.5!2d3.22!3d43.34!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDPCsDIwJzM4LjAiTiAzwrAxMicxNi4wIkU!5e0!3m2!1sfr!2sfr!4v1234567890"
+    testimonial: null
   }
 ];
 

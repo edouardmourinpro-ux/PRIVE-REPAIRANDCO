@@ -81,24 +81,54 @@ Create a complete professional website for Repair & Co, an electronics repair bu
 **Frontend (React):**
 - ✅ All 10 pages implemented
 - ✅ Responsive navigation (desktop + mobile)
-- ✅ Homepage with hero, services, stores, reviews sections
+- ✅ Homepage with updated hero tagline, QualiRépar badge, CTAs
 - ✅ Multi-step quote form (4 steps)
-- ✅ Services page with 4 categories
-- ✅ Stores page with Google Maps embeds
+- ✅ Services page with 3 universes (Smart & Connect, Home, Mobility)
+- ✅ Stores page with Clic&Repair section, postal code search, WhatsApp buttons
 - ✅ FAQ with accordion
 - ✅ Cookie consent banner
 - ✅ Footer with all links
 
-**Design:**
-- ✅ Brand colors applied throughout
-- ✅ QualiRépar logo featured prominently
-- ✅ Store photo integrated
-- ✅ Shadcn UI components customized
-- ✅ Lucide icons used
+### March 2026 - Content Update
 
-**SEO:**
-- ✅ Meta tags with local keywords
-- ✅ Semantic HTML structure
+**Homepage:**
+- ✅ Updated tagline: "Smartphones & Tablettes / Informatique / Petit Électroménager / Vélos et Trottinettes"
+- ✅ Added subline: "Retrouvez-nous dans nos ateliers en proximité ou en ligne"
+- ✅ QualiRépar badge with link
+- ✅ CTA buttons: "Devis gratuit en ligne" + "Prendre rendez-vous"
+
+**Services Page:**
+- ✅ Reorganized into 3 universes: SMART & CONNECT, HOME, MOBILITY
+- ✅ Smartphones & Tablettes grouped together
+- ✅ Vélos/Trottinettes with store availability notice
+- ✅ Compact layout with visible CTAs
+- ✅ Mention: "*Sous réserve de la disponibilité de la pièce détachée"
+- ✅ QualiRépar bonus mention (15 to 80€)
+
+**Stores Page:**
+- ✅ Title: "Nos magasins — Près de chez vous"
+- ✅ Section 1: "Faire réparer en atelier"
+- ✅ Section 2: "Faire réparer en ligne — Clic&Repair"
+- ✅ Postal code search field
+- ✅ WhatsApp buttons for each store
+- ✅ Store testimonials linked to correct stores
+- ✅ QualiRépar link
+
+**Quote Page:**
+- ✅ Title: "Devis gratuit"
+- ✅ Subtitle: "Précisez-nous votre appareil et votre problème. Nous vous rappelons sous 15 minutes."
+
+**About Page:**
+- ✅ Updated intro with eco-responsibility focus
+- ✅ ESS section (Économie Sociale et Solidaire)
+- ✅ Team section with 3 blocks (engagée, qualifiés, proches)
+- ✅ Mission statement quote
+
+**Enterprise Page:**
+- ✅ Title: "Une offre, des gains multiples pour vous et vos employés"
+- ✅ Programme RSE REPAIR section
+- ✅ "Des réponses adaptées à vos besoins" section
+- ✅ Download brochure button (placeholder)
 
 ---
 
