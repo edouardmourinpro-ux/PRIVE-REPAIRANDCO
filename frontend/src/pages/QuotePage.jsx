@@ -122,16 +122,16 @@ const QuotePage = () => {
     return (
       <div data-testid="quote-success" className="min-h-[70vh] flex items-center justify-center py-16">
         <div className="text-center max-w-md mx-auto px-4">
-          <div className="w-20 h-20 bg-[#E8F5EE] rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="text-[#2ECC71]" size={48} />
+          <div className="w-20 h-20 bg-[#e8f5f5] rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="text-[#86cbd4]" size={48} />
           </div>
-          <h1 className="text-3xl font-bold text-[#1A5C3A] mb-4">Demande reçue !</h1>
+          <h1 className="text-3xl font-bold text-[#005157] mb-4">Demande reçue !</h1>
           <p className="text-lg text-[#1A1A2E]/80 mb-8">
             Un technicien vous rappelle sous 15 minutes pour confirmer votre devis.
           </p>
           <Button 
             onClick={() => window.location.href = '/'}
-            className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full"
+            className="bg-[#005157] text-white hover:bg-[#86cbd4] rounded-full"
           >
             Retour à l'accueil
           </Button>
@@ -145,7 +145,7 @@ const QuotePage = () => {
       {/* Hero */}
       <section className="py-12 lg:py-16 hero-gradient">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-[#1A5C3A] tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-[#005157] tracking-tight">
             Devis gratuit
           </h1>
           <p className="mt-4 text-lg text-[#1A1A2E]/80">
@@ -172,7 +172,7 @@ const QuotePage = () => {
                 {s < 4 && (
                   <div 
                     className={`w-16 sm:w-24 h-1 mx-2 rounded ${
-                      step > s ? 'bg-[#2ECC71]' : 'bg-[#E8F5EE]'
+                      step > s ? 'bg-[#86cbd4]' : 'bg-[#e8f5f5]'
                     }`}
                   />
                 )}
@@ -184,7 +184,7 @@ const QuotePage = () => {
             {/* Step 1: Device Type */}
             {step === 1 && (
               <div className="animate-fade-in-up" data-testid="quote-step-1">
-                <h2 className="text-2xl font-bold text-[#1A5C3A] mb-6">
+                <h2 className="text-2xl font-bold text-[#005157] mb-6">
                   Quel type d'appareil ?
                 </h2>
                 <div className="grid grid-cols-2 gap-4">
@@ -196,17 +196,17 @@ const QuotePage = () => {
                       data-testid={`device-${id}`}
                       className={`p-6 rounded-2xl border-2 transition-all duration-300 ${
                         deviceType === id
-                          ? 'border-[#2ECC71] bg-[#E8F5EE]'
-                          : 'border-[#E8F5EE] hover:border-[#2ECC71]/50'
+                          ? 'border-[#86cbd4] bg-[#e8f5f5]'
+                          : 'border-[#e8f5f5] hover:border-[#86cbd4]/50'
                       }`}
                     >
                       <Icon 
                         className={`mx-auto mb-3 ${
-                          deviceType === id ? 'text-[#2ECC71]' : 'text-[#1A5C3A]'
+                          deviceType === id ? 'text-[#86cbd4]' : 'text-[#005157]'
                         }`} 
                         size={40} 
                       />
-                      <span className="font-semibold text-[#1A5C3A]">{label}</span>
+                      <span className="font-semibold text-[#005157]">{label}</span>
                     </button>
                   ))}
                 </div>
@@ -219,7 +219,7 @@ const QuotePage = () => {
             {/* Step 2: Brand & Model */}
             {step === 2 && (
               <div className="animate-fade-in-up" data-testid="quote-step-2">
-                <h2 className="text-2xl font-bold text-[#1A5C3A] mb-6">
+                <h2 className="text-2xl font-bold text-[#005157] mb-6">
                   Marque et modèle
                 </h2>
                 <div className="space-y-6">
@@ -258,7 +258,7 @@ const QuotePage = () => {
             {/* Step 3: Issue Type */}
             {step === 3 && (
               <div className="animate-fade-in-up" data-testid="quote-step-3">
-                <h2 className="text-2xl font-bold text-[#1A5C3A] mb-6">
+                <h2 className="text-2xl font-bold text-[#005157] mb-6">
                   Quel est le problème ?
                 </h2>
                 <div className="space-y-3">
@@ -267,8 +267,8 @@ const QuotePage = () => {
                       key={issue}
                       className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
                         selectedIssues.includes(issue)
-                          ? 'border-[#2ECC71] bg-[#E8F5EE]'
-                          : 'border-[#E8F5EE] hover:border-[#2ECC71]/50'
+                          ? 'border-[#86cbd4] bg-[#e8f5f5]'
+                          : 'border-[#e8f5f5] hover:border-[#86cbd4]/50'
                       }`}
                     >
                       <Checkbox
@@ -304,7 +304,7 @@ const QuotePage = () => {
             {/* Step 4: Contact Info */}
             {step === 4 && (
               <div className="animate-fade-in-up" data-testid="quote-step-4">
-                <h2 className="text-2xl font-bold text-[#1A5C3A] mb-6">
+                <h2 className="text-2xl font-bold text-[#005157] mb-6">
                   Vos coordonnées
                 </h2>
                 <div className="space-y-6">
@@ -386,7 +386,7 @@ const QuotePage = () => {
                   variant="outline"
                   onClick={prevStep}
                   data-testid="quote-prev"
-                  className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full"
+                  className="border-[#005157] text-[#005157] hover:bg-[#e8f5f5] rounded-full"
                 >
                   <ChevronLeft size={18} className="mr-1" />
                   Précédent
@@ -400,7 +400,7 @@ const QuotePage = () => {
                   type="button"
                   onClick={nextStep}
                   data-testid="quote-next"
-                  className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full"
+                  className="bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full"
                 >
                   Suivant
                   <ChevronRight size={18} className="ml-1" />
@@ -410,7 +410,7 @@ const QuotePage = () => {
                   type="submit"
                   disabled={isSubmitting}
                   data-testid="quote-submit"
-                  className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full"
+                  className="bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full"
                 >
                   {isSubmitting ? (
                     <>
@@ -426,11 +426,11 @@ const QuotePage = () => {
           </form>
 
           {/* QualiRépar Note */}
-          <div className="mt-12 p-6 bg-[#E8F5EE] rounded-2xl">
+          <div className="mt-12 p-6 bg-[#e8f5f5] rounded-2xl">
             <div className="flex items-start gap-4">
-              <BadgeCheck className="text-[#2ECC71] flex-shrink-0" size={24} />
+              <BadgeCheck className="text-[#86cbd4] flex-shrink-0" size={24} />
               <div>
-                <p className="font-semibold text-[#1A5C3A]">Label QualiRépar</p>
+                <p className="font-semibold text-[#005157]">Label QualiRépar</p>
                 <p className="text-sm text-[#1A1A2E]/70 mt-1">
                   Bénéficiez d'une aide de 15 à 80€ déduite directement de votre facture.
                 </p>

@@ -40,7 +40,7 @@ export const CookieBanner = () => {
             <p className="text-[#1A1A2E] text-sm leading-relaxed">
               Nous utilisons des cookies pour améliorer votre expérience sur notre site. 
               En continuant à naviguer, vous acceptez notre utilisation des cookies conformément à notre{' '}
-              <a href="/rgpd" className="text-[#1A5C3A] underline hover:text-[#2ECC71]">
+              <a href="/rgpd" className="text-[#005157] underline hover:text-[#86cbd4]">
                 politique de confidentialité
               </a>.
             </p>
@@ -51,7 +51,7 @@ export const CookieBanner = () => {
               variant="outline"
               size="sm"
               onClick={handleDecline}
-              className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full"
+              className="border-[#005157] text-[#005157] hover:bg-[#e8f5f5] rounded-full"
             >
               Refuser
             </Button>
@@ -59,7 +59,7 @@ export const CookieBanner = () => {
               data-testid="cookie-accept"
               size="sm"
               onClick={handleAccept}
-              className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full"
+              className="bg-[#005157] text-white hover:bg-[#86cbd4] rounded-full"
             >
               Accepter
             </Button>

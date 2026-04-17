@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { 
-  Building2, Users, Zap, Shield, BadgeCheck, CheckCircle, 
+  Building2, Zap, Shield, BadgeCheck, CheckCircle, 
   Loader2, ArrowRight, Phone, Mail, Download, Gift, Wrench,
   Truck, CreditCard, Award
 } from 'lucide-react';
@@ -31,6 +32,7 @@ const b2bSchema = z.object({
   email: z.string().email('Entrez un email valide'),
   phone: z.string().min(10, 'Entrez un numéro valide'),
   fleet_size: z.string().min(1, 'Sélectionnez une taille de flotte'),
+  need_type: z.string().min(1, 'Sélectionnez un besoin'),
   message: z.string().optional(),
 });
 
@@ -68,11 +70,11 @@ const EnterprisePage = () => {
     { value: '200+', label: 'Plus de 200 appareils' },
   ];
 
-  const rseRepairBenefits = [
-    'Remises immédiates sur réparations et accessoires',
-    'Garantie à vie sur les actes de réparation, pendant 1 an',
-    'Inscription gratuite au programme',
-    'Cumul possible avec le bonus QualiRépar (15 à 80€ selon l\'appareil)'
+  const needTypes = [
+    { value: 'flotte-mobile', label: 'Besoin réparation flotte mobile' },
+    { value: 'flotte-informatique', label: 'Besoin réparation flotte informatique' },
+    { value: 'autres', label: 'Autres' },
+    { value: 'programme-rse', label: 'Programme RSE collaborateurs' },
   ];
 
   const adaptedSolutions = [
@@ -82,20 +84,34 @@ const EnterprisePage = () => {
     { icon: Building2, title: 'Reconditionnés', description: 'Ventes de mobiles reconditionnés' },
   ];
 
+  const scrollToSection = (id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const navItems = [
+    { id: 'offres', label: 'Offres entreprises' },
+    { id: 'programme-rse', label: 'Programme RSE collaborateurs' },
+    { id: 'qualirepar-b2b', label: 'Label QualiRépar' },
+    { id: 'contact-b2b', label: 'Contact' },
+  ];
+
   if (isSuccess) {
     return (
       <div data-testid="b2b-success" className="min-h-[70vh] flex items-center justify-center py-16">
         <div className="text-center max-w-md mx-auto px-4">
-          <div className="w-20 h-20 bg-[#E8F5EE] rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="text-[#2ECC71]" size={48} />
+          <div className="w-20 h-20 bg-[#e8f5f5] rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="text-[#86cbd4]" size={48} />
           </div>
-          <h1 className="text-3xl font-bold text-[#1A5C3A] mb-4">Demande reçue !</h1>
+          <h1 className="text-3xl font-bold text-[#005157] mb-4">Demande reçue !</h1>
           <p className="text-lg text-[#1A1A2E]/80 mb-8">
             Notre équipe commerciale vous contactera rapidement pour discuter de vos besoins.
           </p>
           <Button 
             onClick={() => window.location.href = '/'}
-            className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full"
+            className="bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full"
           >
             Retour à l'accueil
           </Button>
@@ -107,25 +123,38 @@ const EnterprisePage = () => {
   return (
     <div data-testid="enterprise-page">
       {/* Hero */}
-      <section className="py-12 lg:py-16 bg-[#1A5C3A]">
+      <section className="py-12 lg:py-16 bg-[#005157]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-10 items-center">
             <div>
               <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-                Repair & Co Entreprises
+                Repair & Co — Services Entreprise
               </h1>
               <p className="mt-4 text-xl text-white/90 leading-relaxed">
-                Une offre, des gains multiples pour vous et vos employés
+                Réparation de flottes mobiles, SAV externalisé, Programme RSE avantages collaborateurs, rachat et/ou vente de smartphones reconditionnés, …
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-full">
-                  <BadgeCheck className="text-[#2ECC71]" size={18} />
+                  <BadgeCheck className="text-[#86cbd4]" size={18} />
                   <span className="text-white text-sm">Label QualiRépar</span>
                 </div>
                 <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-full">
-                  <Building2 className="text-[#2ECC71]" size={18} />
+                  <Building2 className="text-[#86cbd4]" size={18} />
                   <span className="text-white text-sm">5 magasins</span>
                 </div>
+              </div>
+              {/* Internal nav */}
+              <div className="mt-8 flex flex-wrap gap-2">
+                {navItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => scrollToSection(item.id)}
+                    className="px-4 py-2 rounded-full bg-white/10 text-white text-sm font-medium hover:bg-white/20 transition-colors"
+                    data-testid={`b2b-nav-${item.id}`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
               </div>
             </div>
             <div className="hidden lg:block">
@@ -139,91 +168,16 @@ const EnterprisePage = () => {
         </div>
       </section>
 
-      {/* Programme RSE REPAIR */}
-      <section className="py-12 lg:py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-10">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#E8F5EE] rounded-full text-[#1A5C3A] text-sm font-medium mb-4">
-                <Gift className="text-[#2ECC71]" size={16} />
-                Programme dédié
-              </div>
-              <h2 className="text-2xl font-bold text-[#1A5C3A] mb-4">
-                Le programme RSE REPAIR
-              </h2>
-              <p className="text-[#1A1A2E]/80 leading-relaxed mb-4">
-                Nous accompagnons les entreprises dans la traduction de leur politique RSE 
-                au travers d'un programme dédié.
-              </p>
-              <p className="text-[#1A1A2E]/80 leading-relaxed mb-6">
-                Le programme <strong>RSE REPAIR</strong> permet à l'entreprise de proposer à ses salariés :
-              </p>
-              
-              <ul className="space-y-3 mb-6">
-                {rseRepairBenefits.map((benefit, idx) => (
-                  <li key={idx} className="flex items-start gap-3">
-                    <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={18} />
-                    <span className="text-[#1A1A2E]/80">{benefit}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <p className="text-sm text-[#1A1A2E]/60 mb-6">
-                REPAIR&CO étant labellisé QUALIREPAR, les collaborateurs peuvent cumuler des réductions 
-                de <strong>15 à 80€</strong> selon la nature du produit réparé.
-              </p>
-
-              <Button 
-                variant="outline"
-                className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full"
-                data-testid="download-brochure"
-                onClick={() => alert('Téléchargement de la plaquette (à configurer)')}
-              >
-                <Download size={18} className="mr-2" />
-                Télécharger notre plaquette
-              </Button>
-            </div>
-
-            <Card className="bg-[#E8F5EE] border-none">
-              <CardContent className="p-6">
-                <Award className="text-[#2ECC71] mb-4" size={40} />
-                <h3 className="text-xl font-bold text-[#1A5C3A] mb-3">
-                  Inscription gratuite
-                </h3>
-                <p className="text-[#1A1A2E]/80 text-sm leading-relaxed mb-4">
-                  Inscrivez votre entreprise au programme RSE REPAIR et offrez à vos collaborateurs 
-                  des avantages exclusifs sur toutes leurs réparations.
-                </p>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="text-[#2ECC71]" size={16} />
-                    <span className="text-[#1A1A2E]/80">Aucun engagement</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="text-[#2ECC71]" size={16} />
-                    <span className="text-[#1A1A2E]/80">Mise en place rapide</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="text-[#2ECC71]" size={16} />
-                    <span className="text-[#1A1A2E]/80">Valable dans tous nos magasins</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
       {/* Solutions adaptées */}
-      <section className="py-12 lg:py-16 section-mint">
+      <section id="offres" className="py-12 lg:py-16 section-mint scroll-mt-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <h2 className="text-2xl font-bold text-[#1A5C3A] mb-3">
+            <h2 className="text-2xl font-bold text-[#005157] mb-3">
               Des réponses adaptées à vos besoins
             </h2>
             <p className="text-[#1A1A2E]/70 max-w-2xl mx-auto">
               L'offre Repair&Co s'adapte à votre entreprise : maintenances, SAV, réparations, 
-              logistique, ventes et financements de mobiles reconditionnés.
+              logistique, Programme RSE avantages collaborateurs, ventes et financements de mobiles reconditionnés.
             </p>
           </div>
 
@@ -231,10 +185,10 @@ const EnterprisePage = () => {
             {adaptedSolutions.map((solution, index) => (
               <Card key={index} className="bg-white">
                 <CardContent className="p-5 text-center">
-                  <div className="w-12 h-12 bg-[#E8F5EE] rounded-xl flex items-center justify-center mx-auto mb-3">
-                    <solution.icon className="text-[#2ECC71]" size={24} />
+                  <div className="w-12 h-12 bg-[#e8f5f5] rounded-xl flex items-center justify-center mx-auto mb-3">
+                    <solution.icon className="text-[#86cbd4]" size={24} />
                   </div>
-                  <h3 className="font-semibold text-[#1A5C3A] mb-1">{solution.title}</h3>
+                  <h3 className="font-semibold text-[#005157] mb-1">{solution.title}</h3>
                   <p className="text-[#1A1A2E]/70 text-sm">{solution.description}</p>
                 </CardContent>
               </Card>
@@ -243,11 +197,121 @@ const EnterprisePage = () => {
         </div>
       </section>
 
+      {/* Programme RSE REPAIR */}
+      <section id="programme-rse" className="py-12 lg:py-16 bg-white scroll-mt-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-10">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#e8f5f5] rounded-full text-[#005157] text-sm font-medium mb-4">
+                <Gift className="text-[#86cbd4]" size={16} />
+                Programme dédié
+              </div>
+              <h2 className="text-2xl font-bold text-[#005157] mb-4">
+                Programme RSE REPAIR
+              </h2>
+              <p className="text-[#1A1A2E]/80 leading-relaxed mb-4">
+                Nous accompagnons les entreprises dans la mise en œuvre concrète de leur politique RSE 
+                et de leur marque employeur auprès de leurs collaborateurs, grâce à un programme dédié. 
+                Notre objectif : encourager des comportements plus responsables et promouvoir le réflexe 
+                « réparer plutôt que jeter ».
+              </p>
+              <p className="text-[#1A1A2E]/80 leading-relaxed mb-4">
+                Offrez à vos collaborateurs tous les avantages du club Repair avec votre code entreprise 
+                et faites-leur bénéficier de <strong>-25 à -50%</strong> sur toutes leurs réparations. 
+                Une autre façon de soutenir « Le réparer plutôt que jeter » et d'illustrer votre politique RSE !
+              </p>
+              <p className="text-[#1A1A2E]/80 leading-relaxed mb-6">
+                REPAIR&CO étant labellisé QUALIREPAR, les collaborateurs peuvent en plus cumuler sur leurs 
+                futures réparations des réductions allant de <strong>15 à 80 euros</strong> selon la nature 
+                du produit réparé.
+              </p>
+
+              <Button 
+                onClick={() => scrollToSection('contact-b2b')}
+                className="bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full"
+                data-testid="rse-join-btn"
+              >
+                Je souhaite le rejoindre
+                <ArrowRight size={18} className="ml-2" />
+              </Button>
+            </div>
+
+            <Card className="bg-[#e8f5f5] border-none">
+              <CardContent className="p-6">
+                <Award className="text-[#86cbd4] mb-4" size={40} />
+                <h3 className="text-xl font-bold text-[#005157] mb-3">
+                  Inscription gratuite
+                </h3>
+                <p className="text-[#1A1A2E]/80 text-sm leading-relaxed mb-4">
+                  Inscrivez votre entreprise au programme RSE REPAIR et offrez à vos collaborateurs 
+                  des avantages exclusifs sur toutes leurs réparations.
+                </p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <CheckCircle className="text-[#86cbd4]" size={16} />
+                    <span className="text-[#1A1A2E]/80">Aucun engagement</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <CheckCircle className="text-[#86cbd4]" size={16} />
+                    <span className="text-[#1A1A2E]/80">Mise en place rapide</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <CheckCircle className="text-[#86cbd4]" size={16} />
+                    <span className="text-[#1A1A2E]/80">Valable dans tous nos magasins</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <CheckCircle className="text-[#86cbd4]" size={16} />
+                    <span className="text-[#1A1A2E]/80">Cumul possible avec le bonus QualiRépar</span>
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <Button 
+                    variant="outline"
+                    className="border-[#005157] text-[#005157] hover:bg-white rounded-full w-full"
+                    data-testid="download-brochure"
+                    onClick={() => alert('Téléchargement de la plaquette (à configurer)')}
+                  >
+                    <Download size={18} className="mr-2" />
+                    Télécharger notre plaquette
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* QualiRépar B2B */}
+      <section id="qualirepar-b2b" className="py-12 lg:py-16 section-mint scroll-mt-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <a 
+            href="https://www.label-qualirepar.fr/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="inline-block"
+          >
+            <img
+              src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
+              alt="Label QualiRépar"
+              className="h-16 mx-auto mb-4 hover:opacity-80 transition-opacity"
+            />
+          </a>
+          <h2 className="text-xl font-bold text-[#005157] mb-3">
+            Tous nos magasins sont labellisés QualiRépar
+          </h2>
+          <p className="text-[#1A1A2E]/80 max-w-xl mx-auto text-sm">
+            Vos collaborateurs bénéficient de 15€ à 80€ de réduction selon l'appareil réparé, 
+            directement déduite de la facture.
+          </p>
+        </div>
+      </section>
+
       {/* Form */}
-      <section className="py-12 lg:py-16 bg-white">
+      <section id="contact-b2b" className="py-12 lg:py-16 bg-white scroll-mt-24">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-[#1A5C3A] mb-3">
+            <h2 className="text-2xl font-bold text-[#005157] mb-3">
               Contactez notre équipe B2B
             </h2>
             <p className="text-[#1A1A2E]/70">
@@ -327,6 +391,27 @@ const EnterprisePage = () => {
                 </div>
 
                 <div>
+                  <Label htmlFor="need_type" className="text-[#1A1A2E] mb-2 block text-sm">
+                    Type de besoin
+                  </Label>
+                  <Select onValueChange={(value) => setValue('need_type', value)}>
+                    <SelectTrigger data-testid="b2b-need-type" className="form-select">
+                      <SelectValue placeholder="Sélectionnez votre besoin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {needTypes.map((need) => (
+                        <SelectItem key={need.value} value={need.value}>
+                          {need.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.need_type && (
+                    <p className="text-red-500 text-xs mt-1">{errors.need_type.message}</p>
+                  )}
+                </div>
+
+                <div>
                   <Label htmlFor="fleet_size" className="text-[#1A1A2E] mb-2 block text-sm">
                     Taille de flotte estimée
                   </Label>
@@ -364,7 +449,7 @@ const EnterprisePage = () => {
                   type="submit"
                   disabled={isSubmitting}
                   data-testid="b2b-submit"
-                  className="w-full bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full py-5"
+                  className="w-full bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full py-5"
                 >
                   {isSubmitting ? (
                     <>
@@ -384,11 +469,11 @@ const EnterprisePage = () => {
 
           {/* Contact info */}
           <div className="mt-6 flex flex-col sm:flex-row justify-center gap-6 text-center">
-            <a href="tel:0466848079" className="flex items-center justify-center gap-2 text-[#1A5C3A] hover:text-[#2ECC71] text-sm">
+            <a href="tel:0466848079" className="flex items-center justify-center gap-2 text-[#005157] hover:text-[#86cbd4] text-sm">
               <Phone size={18} />
               04 66 84 80 79
             </a>
-            <a href="mailto:edouardmourinpro@gmail.com" className="flex items-center justify-center gap-2 text-[#1A5C3A] hover:text-[#2ECC71] text-sm">
+            <a href="mailto:edouardmourinpro@gmail.com" className="flex items-center justify-center gap-2 text-[#005157] hover:text-[#86cbd4] text-sm">
               <Mail size={18} />
               edouardmourinpro@gmail.com
             </a>
@@ -397,10 +482,10 @@ const EnterprisePage = () => {
       </section>
 
       {/* Partners */}
-      <section className="py-10 bg-[#E8F5EE]">
+      <section className="py-10 bg-[#e8f5f5]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-[#1A1A2E]/60 mb-4 text-sm">Présents dans les enseignes</p>
-          <div className="flex flex-wrap justify-center items-center gap-6 text-[#1A5C3A] font-semibold">
+          <div className="flex flex-wrap justify-center items-center gap-6 text-[#005157] font-semibold">
             <span>Carrefour</span>
             <span>Intermarché</span>
             <span>Klepierre (Grand Sud)</span>

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { 
-  Recycle, Smartphone, ArrowRight, CheckCircle, Loader2, MapPin, BadgeCheck
+  Recycle, Smartphone, ArrowRight, CheckCircle, Loader2, MapPin, BadgeCheck, Shield
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -70,16 +70,16 @@ const BuybackPage = () => {
     return (
       <div data-testid="buyback-success" className="min-h-[70vh] flex items-center justify-center py-16">
         <div className="text-center max-w-md mx-auto px-4">
-          <div className="w-20 h-20 bg-[#E8F5EE] rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="text-[#2ECC71]" size={48} />
+          <div className="w-20 h-20 bg-[#e8f5f5] rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="text-[#86cbd4]" size={48} />
           </div>
-          <h1 className="text-3xl font-bold text-[#1A5C3A] mb-4">Demande reçue !</h1>
+          <h1 className="text-3xl font-bold text-[#005157] mb-4">Demande reçue !</h1>
           <p className="text-lg text-[#1A1A2E]/80 mb-8">
             Notre technicien vous contacte sous 24h avec une offre de rachat.
           </p>
           <Button 
             onClick={() => window.location.href = '/'}
-            className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full"
+            className="bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full"
           >
             Retour à l'accueil
           </Button>
@@ -93,7 +93,7 @@ const BuybackPage = () => {
       {/* Hero */}
       <section className="py-16 lg:py-20 hero-gradient">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-[#1A5C3A] tracking-tight">
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-[#005157] tracking-tight">
             Donnez une seconde vie à vos appareils
           </h1>
           <p className="mt-6 text-lg text-[#1A1A2E]/80 max-w-2xl leading-relaxed">
@@ -108,12 +108,12 @@ const BuybackPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12">
             {/* Sell Form */}
-            <Card className="card-repair border-2 border-[#2ECC71]">
+            <Card className="card-repair border-2 border-[#86cbd4]">
               <CardContent className="p-8">
-                <div className="w-14 h-14 bg-[#E8F5EE] rounded-2xl flex items-center justify-center mb-6">
-                  <Smartphone className="text-[#2ECC71]" size={28} />
+                <div className="w-14 h-14 bg-[#e8f5f5] rounded-2xl flex items-center justify-center mb-6">
+                  <Smartphone className="text-[#86cbd4]" size={28} />
                 </div>
-                <h2 className="text-2xl font-bold text-[#1A5C3A] mb-4">
+                <h2 className="text-2xl font-bold text-[#005157] mb-4">
                   Je vends mon appareil
                 </h2>
                 <p className="text-[#1A1A2E]/70 mb-6">
@@ -220,7 +220,7 @@ const BuybackPage = () => {
                     type="submit"
                     disabled={isSubmitting}
                     data-testid="buyback-submit"
-                    className="w-full bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full"
+                    className="w-full bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full"
                   >
                     {isSubmitting ? (
                       <>
@@ -245,40 +245,57 @@ const BuybackPage = () => {
             {/* Buy Refurbished */}
             <Card className="card-repair">
               <CardContent className="p-8">
-                <div className="w-14 h-14 bg-[#E8F5EE] rounded-2xl flex items-center justify-center mb-6">
-                  <Recycle className="text-[#2ECC71]" size={28} />
+                <div className="w-14 h-14 bg-[#e8f5f5] rounded-2xl flex items-center justify-center mb-6">
+                  <Recycle className="text-[#86cbd4]" size={28} />
                 </div>
-                <h2 className="text-2xl font-bold text-[#1A5C3A] mb-4">
+                <h2 className="text-2xl font-bold text-[#005157] mb-4">
                   J'achète un reconditionné
                 </h2>
-                <p className="text-[#1A1A2E]/70 mb-6">
+                <p className="text-[#1A1A2E]/70 mb-4">
                   Smartphones reconditionnés, testés, validés et garantis. 
                   À retrouver directement en magasin.
                 </p>
+                <p className="text-[#1A1A2E]/70 mb-6">
+                  Sans vous déplacer, sollicitez-nous et nous nous faisons fort de vous trouver 
+                  votre smartphone au meilleur rapport qualité/prix.
+                </p>
 
-                <div className="space-y-4 mb-8">
+                <div className="space-y-4 mb-6">
                   <div className="flex items-start gap-3">
-                    <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={20} />
+                    <CheckCircle className="text-[#86cbd4] flex-shrink-0 mt-0.5" size={20} />
                     <span className="text-[#1A1A2E]">Appareils testés et certifiés</span>
                   </div>
                   <div className="flex items-start gap-3">
-                    <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={20} />
+                    <CheckCircle className="text-[#86cbd4] flex-shrink-0 mt-0.5" size={20} />
                     <span className="text-[#1A1A2E]">Garantie sur tous les produits</span>
                   </div>
                   <div className="flex items-start gap-3">
-                    <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={20} />
+                    <CheckCircle className="text-[#86cbd4] flex-shrink-0 mt-0.5" size={20} />
                     <span className="text-[#1A1A2E]">Prix jusqu'à 50% moins cher</span>
                   </div>
                   <div className="flex items-start gap-3">
-                    <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={20} />
+                    <CheckCircle className="text-[#86cbd4] flex-shrink-0 mt-0.5" size={20} />
                     <span className="text-[#1A1A2E]">Démarche éco-responsable</span>
+                  </div>
+                </div>
+
+                {/* Guarantee badge */}
+                <div className="p-4 bg-[#e8f5f5] rounded-xl mb-6">
+                  <div className="flex items-start gap-3">
+                    <Shield className="text-[#005157] flex-shrink-0" size={24} />
+                    <div>
+                      <p className="font-semibold text-[#005157]">Nos smartphones sont garantis 24 mois.</p>
+                      <p className="text-sm text-[#1A1A2E]/70 mt-1">
+                        Une garantie étendue pour vous assurer une tranquillité totale.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
                 <Link to="/magasins" data-testid="buyback-stores-link">
                   <Button 
                     variant="outline" 
-                    className="w-full border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full"
+                    className="w-full border-[#005157] text-[#005157] hover:bg-[#e8f5f5] rounded-full"
                   >
                     <MapPin className="mr-2" size={18} />
                     Voir nos magasins
@@ -290,11 +307,11 @@ const BuybackPage = () => {
                 </p>
 
                 {/* Eco badge */}
-                <div className="mt-8 p-4 bg-[#E8F5EE] rounded-xl">
+                <div className="mt-6 p-4 bg-[#e8f5f5] rounded-xl">
                   <div className="flex items-start gap-3">
-                    <BadgeCheck className="text-[#2ECC71] flex-shrink-0" size={24} />
+                    <BadgeCheck className="text-[#86cbd4] flex-shrink-0" size={24} />
                     <div>
-                      <p className="font-semibold text-[#1A5C3A]">Éco-responsable</p>
+                      <p className="font-semibold text-[#005157]">Éco-responsable</p>
                       <p className="text-sm text-[#1A1A2E]/70 mt-1">
                         En choisissant un reconditionné, vous participez à réduire les déchets électroniques.
                       </p>
@@ -322,7 +339,7 @@ const BuybackPage = () => {
               className="h-16 mx-auto mb-4 hover:opacity-80 transition-opacity"
             />
           </a>
-          <h2 className="text-xl font-bold text-[#1A5C3A] mb-3">
+          <h2 className="text-xl font-bold text-[#005157] mb-3">
             Label QualiRépar
           </h2>
           <p className="text-[#1A1A2E]/80 max-w-xl mx-auto text-sm">

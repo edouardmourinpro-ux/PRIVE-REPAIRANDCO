@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { 
   Heart, Shield, Leaf, MapPin, Users, Award, BadgeCheck,
-  Recycle, Building2, Wrench, HandHeart
+  Recycle, Building2, Wrench, HandHeart, CheckCircle
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
@@ -51,17 +51,25 @@ const AboutPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-10 items-center">
             <div>
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-[#1A5C3A] tracking-tight">
-                Qui sommes-nous
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-[#005157] tracking-tight">
+                Qui sommes-nous ?
               </h1>
-              <p className="mt-5 text-base text-[#1A1A2E]/80 leading-relaxed">
-                <strong>REPAIR&CO</strong> est une entreprise éco-responsable et engagée, spécialiste de la 
-                seconde vie de l'appareil numérique, de l'objet connecté (mobile, informatique, 
-                petit électroménager…) et de la mobilité douce (vélos et trottinettes électriques).
+              <p className="mt-5 text-base text-[#1A1A2E]/80 leading-relaxed font-semibold">
+                REPAIR&CO, une entreprise engagée et éco-responsable
               </p>
               <p className="mt-3 text-base text-[#1A1A2E]/80 leading-relaxed">
-                Depuis plus de <strong>10 ans</strong>, nous encourageons une consommation plus responsable, 
-                durable et respectueuse de l'environnement.
+                Spécialiste de la seconde vie des appareils numériques et des objets connectés 
+                (smartphones, informatique, petit électroménager…), et des solutions de mobilité douce 
+                (vélos et trottinettes électriques), REPAIR&CO place la durabilité au cœur de son expertise.
+              </p>
+              <p className="mt-3 text-base text-[#1A1A2E]/80 leading-relaxed">
+                Grâce à une large gamme de services de réparation et d'intervention, nos équipes 
+                accompagnent au quotidien les particuliers, les entreprises et les acteurs de l'Économie 
+                Sociale et Solidaire, en les aidant à faire le choix du "réparer plutôt que jeter".
+              </p>
+              <p className="mt-3 text-base text-[#1A1A2E]/80 leading-relaxed">
+                Depuis plus de <strong>10 ans</strong>, nous œuvrons auprès de particuliers et des entreprises 
+                pour une consommation plus responsable, durable et respectueuse de l'environnement.
               </p>
             </div>
             <div className="flex justify-center">
@@ -76,7 +84,7 @@ const AboutPage = () => {
       </section>
 
       {/* Mission Statement */}
-      <section className="py-10 lg:py-12 bg-[#1A5C3A]">
+      <section className="py-10 lg:py-12 bg-[#005157]">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-xl lg:text-2xl text-white font-medium italic leading-relaxed">
             "Développer des services de réparation et de reconditionnement en proximité pour 
@@ -92,11 +100,11 @@ const AboutPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-10 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#E8F5EE] rounded-full text-[#1A5C3A] text-sm font-medium mb-4">
-                <Leaf className="text-[#2ECC71]" size={16} />
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#e8f5f5] rounded-full text-[#005157] text-sm font-medium mb-4">
+                <Leaf className="text-[#86cbd4]" size={16} />
                 Économie Sociale et Solidaire
               </div>
-              <h2 className="text-2xl font-bold text-[#1A5C3A] mb-4">
+              <h2 className="text-2xl font-bold text-[#005157] mb-4">
                 Repair&Co au service de l'ESS
               </h2>
               <p className="text-[#1A1A2E]/80 leading-relaxed mb-4">
@@ -111,13 +119,13 @@ const AboutPage = () => {
             </div>
             <div className="grid grid-cols-1 gap-4">
               {values.map((value, index) => (
-                <Card key={index} className="border border-[#E8F5EE]">
+                <Card key={index} className="border border-[#e8f5f5]">
                   <CardContent className="p-4 flex items-start gap-4">
-                    <div className="w-10 h-10 bg-[#E8F5EE] rounded-lg flex items-center justify-center flex-shrink-0">
-                      <value.icon className="text-[#2ECC71]" size={20} />
+                    <div className="w-10 h-10 bg-[#e8f5f5] rounded-lg flex items-center justify-center flex-shrink-0">
+                      <value.icon className="text-[#86cbd4]" size={20} />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-[#1A5C3A] text-sm">{value.title}</h3>
+                      <h3 className="font-semibold text-[#005157] text-sm">{value.title}</h3>
                       <p className="text-[#1A1A2E]/70 text-sm mt-1">{value.description}</p>
                     </div>
                   </CardContent>
@@ -144,16 +152,16 @@ const AboutPage = () => {
                     src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
                     alt="Label QualiRépar"
                     className="max-w-[180px] mx-auto"
-                />
+                  />
                 </div>
               </a>
             </div>
             <div className="order-1 lg:order-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white rounded-full text-[#1A5C3A] text-sm font-medium mb-4">
-                <BadgeCheck className="text-[#2ECC71]" size={16} />
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white rounded-full text-[#005157] text-sm font-medium mb-4">
+                <BadgeCheck className="text-[#86cbd4]" size={16} />
                 Engagement qualité
               </div>
-              <h2 className="text-2xl font-bold text-[#1A5C3A] mb-4">
+              <h2 className="text-2xl font-bold text-[#005157] mb-4">
                 Label QualiRépar
               </h2>
               <p className="text-[#1A1A2E]/80 leading-relaxed mb-3">
@@ -162,19 +170,19 @@ const AboutPage = () => {
               </p>
               <ul className="space-y-2 text-[#1A1A2E]/80 text-sm">
                 <li className="flex items-start gap-2">
-                  <span className="text-[#2ECC71]">✓</span>
+                  <CheckCircle className="text-[#86cbd4] flex-shrink-0 mt-0.5" size={16} />
                   Des techniciens qualifiés et formés
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-[#2ECC71]">✓</span>
+                  <CheckCircle className="text-[#86cbd4] flex-shrink-0 mt-0.5" size={16} />
                   Des pièces de qualité
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-[#2ECC71]">✓</span>
+                  <CheckCircle className="text-[#86cbd4] flex-shrink-0 mt-0.5" size={16} />
                   Une garantie sur les réparations
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-[#2ECC71]">✓</span>
+                  <CheckCircle className="text-[#86cbd4] flex-shrink-0 mt-0.5" size={16} />
                   De 15€ à 80€ d'aide directe selon l'appareil
                 </li>
               </ul>
@@ -187,7 +195,7 @@ const AboutPage = () => {
       <section className="py-12 lg:py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <h2 className="text-2xl font-bold text-[#1A5C3A] mb-4">
+            <h2 className="text-2xl font-bold text-[#005157] mb-4">
               L'équipe Repair&Co
             </h2>
             <p className="text-base text-[#1A1A2E]/70 max-w-2xl mx-auto">
@@ -201,10 +209,10 @@ const AboutPage = () => {
             {teamBlocks.map((block, index) => (
               <Card key={index} className="card-repair text-center">
                 <CardContent className="p-6">
-                  <div className="w-14 h-14 bg-[#E8F5EE] rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <block.icon className="text-[#2ECC71]" size={28} />
+                  <div className="w-14 h-14 bg-[#e8f5f5] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <block.icon className="text-[#86cbd4]" size={28} />
                   </div>
-                  <h3 className="text-lg font-semibold text-[#1A5C3A] mb-2">
+                  <h3 className="text-lg font-semibold text-[#005157] mb-2">
                     {block.title}
                   </h3>
                   <p className="text-[#1A1A2E]/70 text-sm leading-relaxed">
@@ -220,7 +228,7 @@ const AboutPage = () => {
       {/* Locations */}
       <section className="py-12 lg:py-16 section-mint">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-bold text-[#1A5C3A] mb-8 text-center">
+          <h2 className="text-2xl font-bold text-[#005157] mb-8 text-center">
             Nos implantations
           </h2>
           
@@ -228,8 +236,8 @@ const AboutPage = () => {
             {STORES.map((store) => (
               <Card key={store.id} className="bg-white">
                 <CardContent className="p-4 text-center">
-                  <MapPin className="text-[#2ECC71] mx-auto mb-2" size={20} />
-                  <h3 className="font-semibold text-[#1A5C3A] text-sm">{store.name}</h3>
+                  <MapPin className="text-[#86cbd4] mx-auto mb-2" size={20} />
+                  <h3 className="font-semibold text-[#005157] text-sm">{store.name}</h3>
                   <p className="text-xs text-[#1A1A2E]/60">{store.city}</p>
                 </CardContent>
               </Card>
@@ -238,7 +246,7 @@ const AboutPage = () => {
 
           <div className="text-center">
             <Link to="/magasins" data-testid="about-stores-link">
-              <Button className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full px-6">
+              <Button className="bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full px-6">
                 Voir tous nos magasins
               </Button>
             </Link>
@@ -247,9 +255,9 @@ const AboutPage = () => {
       </section>
 
       {/* Contact Press */}
-      <section className="py-12 lg:py-16 bg-[#1A5C3A]">
+      <section className="py-12 lg:py-16 bg-[#005157]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <Award className="text-[#2ECC71] mx-auto mb-4" size={40} />
+          <Award className="text-[#86cbd4] mx-auto mb-4" size={40} />
           <h2 className="text-2xl font-bold text-white mb-4">
             Presse & Partenariats
           </h2>
@@ -257,7 +265,7 @@ const AboutPage = () => {
             Vous êtes journaliste ou souhaitez établir un partenariat avec Repair & Co ?
           </p>
           <Link to="/contact" data-testid="about-contact-link">
-            <Button className="bg-white text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full px-6">
+            <Button className="bg-white text-[#005157] hover:bg-[#e8f5f5] rounded-full px-6">
               Contactez-nous
             </Button>
           </Link>

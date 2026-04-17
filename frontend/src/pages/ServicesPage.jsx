@@ -13,9 +13,9 @@ const ServicesPage = () => {
       title: 'SMART & CONNECT',
       subtitle: 'Smartphones, Tablettes, Consoles & Informatique',
       icon: Smartphone,
-      color: 'bg-blue-500',
-      colorLight: 'bg-blue-50',
-      textColor: 'text-blue-600',
+      color: 'bg-[#005157]',
+      colorLight: 'bg-[#e8f5f5]',
+      textColor: 'text-[#005157]',
       services: [
         {
           name: 'Smartphones & Tablettes',
@@ -48,9 +48,9 @@ const ServicesPage = () => {
       title: 'HOME',
       subtitle: 'Petit Électroménager',
       icon: Coffee,
-      color: 'bg-orange-500',
-      colorLight: 'bg-orange-50',
-      textColor: 'text-orange-600',
+      color: 'bg-[#005157]',
+      colorLight: 'bg-[#e8f5f5]',
+      textColor: 'text-[#005157]',
       services: [
         {
           name: 'Petit électroménager',
@@ -58,7 +58,7 @@ const ServicesPage = () => {
           repairs: ['Cafetières & machines à café', 'Aspirateurs', 'Grille-pain & bouilloires', 'Mixeurs & robots', 'Fers à repasser', 'Diagnostic + réparation sur place'],
           brands: 'Philips, Bosch, Moulinex, SEB, Dyson, Nespresso, De\'Longhi...',
           delay: 'Selon pièces disponibles',
-          priceFrom: 25
+          priceFrom: null
         }
       ]
     },
@@ -67,9 +67,9 @@ const ServicesPage = () => {
       title: 'MOBILITY',
       subtitle: 'Vélos électriques (VAE) et Trottinettes',
       icon: Bike,
-      color: 'bg-green-500',
-      colorLight: 'bg-green-50',
-      textColor: 'text-green-600',
+      color: 'bg-[#86cbd4]',
+      colorLight: 'bg-[#e8f5f5]',
+      textColor: 'text-[#005157]',
       notice: 'Service disponible uniquement dans les magasins de Montpellier Est et Béziers',
       services: [
         {
@@ -96,7 +96,7 @@ const ServicesPage = () => {
       {/* Hero */}
       <section className="py-10 lg:py-14 hero-gradient">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-[#1A5C3A] tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-[#005157] tracking-tight">
             Nos services de réparation
           </h1>
           <p className="mt-4 text-lg text-[#1A1A2E]/80 max-w-2xl leading-relaxed">
@@ -105,13 +105,13 @@ const ServicesPage = () => {
           </p>
           <div className="mt-6 flex flex-wrap gap-4">
             <Link to="/devis" data-testid="services-hero-cta-quote">
-              <Button className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full">
+              <Button className="bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full">
                 Obtenir un devis
                 <ArrowRight className="ml-2" size={18} />
               </Button>
             </Link>
             <Link to="/rendez-vous" data-testid="services-hero-cta-appointment">
-              <Button variant="outline" className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full">
+              <Button variant="outline" className="border-[#005157] text-[#005157] hover:bg-[#e8f5f5] rounded-full">
                 Prendre un rendez-vous
               </Button>
             </Link>
@@ -123,7 +123,7 @@ const ServicesPage = () => {
               <button
                 key={universe.id}
                 onClick={() => scrollToUniverse(universe.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full ${universe.colorLight} ${universe.textColor} font-medium text-sm hover:opacity-80 transition-opacity`}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#e8f5f5] text-[#005157] font-medium text-sm hover:bg-[#86cbd4]/30 transition-colors"
               >
                 <universe.icon size={18} />
                 {universe.title}
@@ -147,17 +147,10 @@ const ServicesPage = () => {
                       <universe.icon className="text-white" size={24} />
                     </div>
                     <div>
-                      <h2 className={`text-xl font-bold ${universe.textColor}`}>{universe.title}</h2>
+                      <h2 className="text-xl font-bold text-[#005157]">{universe.title}</h2>
                       <p className="text-[#1A1A2E]/70 text-sm">{universe.subtitle}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => scrollToUniverse(universe.id)}
-                    className={`text-sm font-medium ${universe.textColor} flex items-center gap-1 hover:opacity-70`}
-                  >
-                    Voir les réparations
-                    <ChevronRight size={16} />
-                  </button>
                 </div>
                 {universe.notice && (
                   <div className="mt-3 flex items-start gap-2 text-sm text-[#1A1A2E]/70 bg-white/50 rounded-lg px-3 py-2">
@@ -170,13 +163,13 @@ const ServicesPage = () => {
               {/* Services Grid */}
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {universe.services.map((service, idx) => (
-                  <Card key={idx} className="border border-[#E8F5EE] hover:shadow-md transition-shadow">
+                  <Card key={idx} className="border border-[#e8f5f5] hover:shadow-md transition-shadow">
                     <CardContent className="p-5">
                       <div className="flex items-center gap-3 mb-3">
-                        <div className={`w-10 h-10 ${universe.colorLight} rounded-lg flex items-center justify-center`}>
-                          <service.icon className={universe.textColor} size={20} />
+                        <div className="w-10 h-10 bg-[#e8f5f5] rounded-lg flex items-center justify-center">
+                          <service.icon className="text-[#005157]" size={20} />
                         </div>
-                        <h3 className="font-semibold text-[#1A5C3A]">{service.name}</h3>
+                        <h3 className="font-semibold text-[#005157]">{service.name}</h3>
                       </div>
                       
                       <p className="text-xs text-[#1A1A2E]/60 mb-3">{service.brands}</p>
@@ -184,7 +177,7 @@ const ServicesPage = () => {
                       <ul className="space-y-1 mb-4">
                         {service.repairs.slice(0, 4).map((repair, i) => (
                           <li key={i} className="flex items-start gap-2 text-sm">
-                            <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={14} />
+                            <CheckCircle className="text-[#86cbd4] flex-shrink-0 mt-0.5" size={14} />
                             <span className="text-[#1A1A2E]/80">{repair}</span>
                           </li>
                         ))}
@@ -195,27 +188,30 @@ const ServicesPage = () => {
                         )}
                       </ul>
 
-                      <div className="flex items-center justify-between text-xs border-t border-[#E8F5EE] pt-3 mb-4">
+                      <div className="flex items-center justify-between text-xs border-t border-[#e8f5f5] pt-3 mb-4">
                         <div className="flex items-center gap-1">
-                          <Clock size={14} className="text-[#2ECC71]" />
+                          <Clock size={14} className="text-[#86cbd4]" />
                           <span className="text-[#1A1A2E]/70">{service.delay}</span>
                         </div>
-                        {service.priceFrom && (
-                          <span className="font-semibold text-[#1A5C3A]">
+                        {service.priceFrom ? (
+                          <span className="font-semibold text-[#005157]">
                             À partir de {service.priceFrom}€
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-[#005157]">
+                            Sur devis
                           </span>
                         )}
                       </div>
 
-                      {/* CTAs for each service card */}
                       <div className="flex gap-2">
                         <Link to="/devis" className="flex-1">
-                          <Button size="sm" className="w-full bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full text-xs">
+                          <Button size="sm" className="w-full bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full text-xs">
                             Obtenir un devis
                           </Button>
                         </Link>
                         <Link to="/rendez-vous" className="flex-1">
-                          <Button size="sm" variant="outline" className="w-full border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full text-xs">
+                          <Button size="sm" variant="outline" className="w-full border-[#005157] text-[#005157] hover:bg-[#e8f5f5] rounded-full text-xs">
                             Prendre RDV
                           </Button>
                         </Link>
@@ -227,7 +223,6 @@ const ServicesPage = () => {
             </div>
           ))}
 
-          {/* Disclaimer */}
           <p className="text-sm text-[#1A1A2E]/60 text-center">
             *Sous réserve de la disponibilité de la pièce détachée.
           </p>
@@ -235,16 +230,16 @@ const ServicesPage = () => {
       </section>
 
       {/* QualiRépar Section */}
-      <section id="qualirepar" className="py-10 lg:py-14 section-mint">
+      <section id="qualirepar" className="py-10 lg:py-14 section-mint scroll-mt-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="bg-white rounded-2xl p-6 lg:p-8 shadow-lg">
             <div className="grid lg:grid-cols-2 gap-6 items-center">
               <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#E8F5EE] rounded-full text-[#1A5C3A] text-sm font-medium mb-3">
-                  <BadgeCheck className="text-[#2ECC71]" size={16} />
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#e8f5f5] rounded-full text-[#005157] text-sm font-medium mb-3">
+                  <BadgeCheck className="text-[#86cbd4]" size={16} />
                   Label QualiRépar
                 </div>
-                <h2 className="text-2xl font-bold text-[#1A5C3A] mb-3">
+                <h2 className="text-2xl font-bold text-[#005157] mb-3">
                   De 15€ à 80€ de réduction selon l'appareil
                 </h2>
                 <p className="text-[#1A1A2E]/80 leading-relaxed text-sm">
@@ -256,7 +251,7 @@ const ServicesPage = () => {
                   href="https://www.label-qualirepar.fr/" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="inline-flex items-center mt-3 text-[#1A5C3A] font-medium hover:text-[#2ECC71] text-sm"
+                  className="inline-flex items-center mt-3 text-[#005157] font-medium hover:text-[#86cbd4] text-sm"
                 >
                   En savoir plus sur QualiRépar
                   <ChevronRight size={16} className="ml-1" />
@@ -281,7 +276,7 @@ const ServicesPage = () => {
       </section>
 
       {/* CTA */}
-      <section className="py-10 lg:py-14 bg-[#1A5C3A]">
+      <section className="py-10 lg:py-14 bg-[#005157]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl lg:text-3xl font-bold text-white mb-4">
             Besoin d'une réparation ?
@@ -291,7 +286,7 @@ const ServicesPage = () => {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link to="/devis" data-testid="services-cta-quote">
-              <Button className="bg-white text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full px-8 py-5">
+              <Button className="bg-white text-[#005157] hover:bg-[#e8f5f5] rounded-full px-8 py-5">
                 Obtenir un devis
                 <ArrowRight className="ml-2" size={18} />
               </Button>

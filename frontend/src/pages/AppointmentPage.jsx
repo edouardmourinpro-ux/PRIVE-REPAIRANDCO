@@ -36,6 +36,7 @@ const appointmentSchema = z.object({
 const AppointmentPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [selectedStore, setSelectedStore] = useState('');
 
   const {
     register,
@@ -63,20 +64,25 @@ const AppointmentPage = () => {
     }
   };
 
+  const handleStoreChange = (value) => {
+    setSelectedStore(value);
+    setValue('store', value);
+  };
+
   if (isSuccess) {
     return (
       <div data-testid="appointment-success" className="min-h-[70vh] flex items-center justify-center py-16">
         <div className="text-center max-w-md mx-auto px-4">
-          <div className="w-20 h-20 bg-[#E8F5EE] rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="text-[#2ECC71]" size={48} />
+          <div className="w-20 h-20 bg-[#e8f5f5] rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="text-[#86cbd4]" size={48} />
           </div>
-          <h1 className="text-3xl font-bold text-[#1A5C3A] mb-4">Demande reçue !</h1>
+          <h1 className="text-3xl font-bold text-[#005157] mb-4">Demande reçue !</h1>
           <p className="text-lg text-[#1A1A2E]/80 mb-8">
             Nous vous contacterons rapidement pour confirmer votre rendez-vous.
           </p>
           <Button 
             onClick={() => window.location.href = '/'}
-            className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full"
+            className="bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full"
           >
             Retour à l'accueil
           </Button>
@@ -85,17 +91,36 @@ const AppointmentPage = () => {
     );
   }
 
+  const nimesStore = STORES.find(s => s.id === 'nimes-etoile');
+
   return (
     <div data-testid="appointment-page">
       {/* Hero */}
       <section className="py-16 lg:py-20 hero-gradient">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-[#1A5C3A] tracking-tight">
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-[#005157] tracking-tight">
             Prendre rendez-vous
           </h1>
           <p className="mt-6 text-lg text-[#1A1A2E]/80 max-w-2xl leading-relaxed">
             Réservez un créneau pour votre réparation ou passez directement en magasin.
           </p>
+          
+          {/* Store selection dropdown */}
+          <div className="mt-6 max-w-md">
+            <Label className="text-[#005157] mb-2 block font-medium">Choisissez votre magasin</Label>
+            <Select onValueChange={handleStoreChange} value={selectedStore}>
+              <SelectTrigger data-testid="appointment-store-hero" className="form-select bg-white">
+                <SelectValue placeholder="Sélectionnez un magasin" />
+              </SelectTrigger>
+              <SelectContent>
+                {STORES.map((store) => (
+                  <SelectItem key={store.id} value={store.id}>
+                    {store.name} — {store.city}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </section>
 
@@ -104,13 +129,13 @@ const AppointmentPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12">
             {/* Nîmes Étoile - Direct booking */}
-            <Card className="card-repair border-2 border-[#2ECC71]">
+            <Card className={`card-repair border-2 ${selectedStore === 'nimes-etoile' || !selectedStore ? 'border-[#86cbd4]' : 'border-[#e8f5f5]'}`}>
               <CardContent className="p-8">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#E8F5EE] rounded-full text-sm font-medium text-[#1A5C3A] mb-4">
-                  <Calendar className="text-[#2ECC71]" size={16} />
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#e8f5f5] rounded-full text-sm font-medium text-[#005157] mb-4">
+                  <Calendar className="text-[#86cbd4]" size={16} />
                   Réservation en ligne
                 </div>
-                <h2 className="text-2xl font-bold text-[#1A5C3A] mb-4">
+                <h2 className="text-2xl font-bold text-[#005157] mb-4">
                   Nîmes Étoile
                 </h2>
                 <p className="text-[#1A1A2E]/70 mb-6">
@@ -120,16 +145,16 @@ const AppointmentPage = () => {
                 
                 <div className="space-y-3 mb-6 text-sm">
                   <div className="flex items-center gap-2">
-                    <MapPin className="text-[#2ECC71]" size={18} />
-                    <span>116 Rue André Dupont, 30900 Nîmes</span>
+                    <MapPin className="text-[#86cbd4]" size={18} />
+                    <span>{nimesStore?.address}, {nimesStore?.postalCode} {nimesStore?.city}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Clock className="text-[#2ECC71]" size={18} />
-                    <span>Lundi–Samedi : 9h30–19h30</span>
+                    <Clock className="text-[#86cbd4]" size={18} />
+                    <span>{nimesStore?.hours}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Phone className="text-[#2ECC71]" size={18} />
-                    <span>04 66 84 80 79</span>
+                    <Phone className="text-[#86cbd4]" size={18} />
+                    <span>{nimesStore?.phone}</span>
                   </div>
                 </div>
 
@@ -139,7 +164,7 @@ const AppointmentPage = () => {
                   rel="noopener noreferrer"
                   data-testid="nimes-booking-link"
                 >
-                  <Button className="w-full bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full">
+                  <Button className="w-full bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full">
                     Réserver en ligne
                     <ExternalLink className="ml-2" size={18} />
                   </Button>
@@ -148,9 +173,9 @@ const AppointmentPage = () => {
             </Card>
 
             {/* Other stores - Contact form */}
-            <Card className="card-repair">
+            <Card className={`card-repair ${selectedStore && selectedStore !== 'nimes-etoile' ? 'border-2 border-[#86cbd4]' : ''}`}>
               <CardContent className="p-8">
-                <h2 className="text-2xl font-bold text-[#1A5C3A] mb-4">
+                <h2 className="text-2xl font-bold text-[#005157] mb-4">
                   Autres magasins
                 </h2>
                 <p className="text-[#1A1A2E]/70 mb-6">
@@ -202,7 +227,10 @@ const AppointmentPage = () => {
 
                   <div>
                     <Label htmlFor="store" className="text-[#1A1A2E] mb-2 block">Magasin</Label>
-                    <Select onValueChange={(value) => setValue('store', value)}>
+                    <Select 
+                      onValueChange={(value) => setValue('store', value)}
+                      value={selectedStore && selectedStore !== 'nimes-etoile' ? selectedStore : undefined}
+                    >
                       <SelectTrigger data-testid="appointment-store" className="form-select">
                         <SelectValue placeholder="Choisissez un magasin" />
                       </SelectTrigger>
@@ -255,7 +283,7 @@ const AppointmentPage = () => {
                     type="submit"
                     disabled={isSubmitting}
                     data-testid="appointment-submit"
-                    className="w-full bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full"
+                    className="w-full bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full"
                   >
                     {isSubmitting ? (
                       <>
@@ -279,7 +307,7 @@ const AppointmentPage = () => {
             </p>
             <Link 
               to="/magasins" 
-              className="inline-flex items-center mt-4 text-[#1A5C3A] font-medium hover:text-[#2ECC71]"
+              className="inline-flex items-center mt-4 text-[#005157] font-medium hover:text-[#86cbd4]"
             >
               Voir tous nos magasins
               <ExternalLink size={16} className="ml-1" />
