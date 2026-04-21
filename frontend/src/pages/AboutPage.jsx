@@ -257,7 +257,7 @@ const AboutPage = () => {
       {/* Contact Press */}
       <section className="py-12 lg:py-16 bg-[#005157]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <Award className="text-[#005157] mx-auto mb-4" size={40} />
+          <Award className="text-[#86cbd4] mx-auto mb-4" size={40} />
           <h2 className="text-2xl font-bold text-white mb-4">
             Presse & Partenariats
           </h2>

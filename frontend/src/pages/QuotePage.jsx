@@ -159,11 +159,11 @@ const QuotePage = () => {
       <section className="py-12 lg:py-16 bg-white">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Progress */}
-          <div className="flex items-center justify-between mb-12">
+          <div className="flex items-center justify-between mb-12 overflow-hidden">
             {[1, 2, 3, 4].map((s) => (
               <div key={s} className="flex items-center">
                 <div 
-                  className={`step-indicator ${
+                  className={`step-indicator flex-shrink-0 ${
                     step > s ? 'completed' : step === s ? 'active' : 'pending'
                   }`}
                 >
@@ -171,8 +171,8 @@ const QuotePage = () => {
                 </div>
                 {s < 4 && (
                   <div 
-                    className={`w-16 sm:w-24 h-1 mx-2 rounded ${
-                      step > s ? 'bg-[#86cbd4]' : 'bg-[#e8f5f5]'
+                    className={`w-10 sm:w-24 h-1 mx-1 sm:mx-2 rounded ${
+                      step > s ? 'bg-[#005157]' : 'bg-[#e8f5f5]'
                     }`}
                   />
                 )}

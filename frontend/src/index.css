@@ -21,11 +21,13 @@ body {
   background-color: var(--repair-white);
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  color: #111111;
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    color: #111111;
+  }
 }
 
 code {
@@ -36,6 +38,7 @@ code {
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 5rem;
+  overflow-x: hidden;
 }
 
 /* Custom scrollbar */

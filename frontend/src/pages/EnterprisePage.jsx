@@ -128,18 +128,18 @@ const EnterprisePage = () => {
           <div className="grid lg:grid-cols-2 gap-10 items-center">
             <div>
               <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-                Repair & Co — <span className="text-[#005157]">Services Entreprise</span>
+                Repair & Co — <span className="text-[#86cbd4]">Services Entreprise</span>
               </h1>
               <p className="mt-4 text-xl text-white/90 leading-relaxed">
                 Réparation de flottes mobiles, SAV externalisé, Programme RSE avantages collaborateurs, rachat et/ou vente de smartphones reconditionnés, …
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-full">
-                  <BadgeCheck className="text-[#005157]" size={18} />
+                  <BadgeCheck className="text-[#86cbd4]" size={18} />
                   <span className="text-white text-sm">Label QualiRépar</span>
                 </div>
                 <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-full">
-                  <Building2 className="text-[#005157]" size={18} />
+                  <Building2 className="text-[#86cbd4]" size={18} />
                   <span className="text-white text-sm">5 magasins</span>
                 </div>
               </div>

@@ -107,7 +107,7 @@
 }
 
 .mobile-menu.closed {
-  @apply translate-x-full;
+  @apply translate-x-full pointer-events-none;
 }
 
 /* Cookie banner */

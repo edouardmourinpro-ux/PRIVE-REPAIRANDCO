@@ -230,22 +230,6 @@ const ServicesPage = () => {
           </div>
         </div>
       </section>
-
-      {/* CTA */}
-      <section className="py-10 lg:py-14 bg-[#005157]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-2xl lg:text-3xl font-bold text-white mb-4">Besoin d'une réparation ?</h2>
-          <p className="text-base text-white/80 mb-6 max-w-xl mx-auto">Obtenez un devis gratuit ou venez directement dans l'un de nos magasins.</p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/devis" data-testid="services-cta-quote">
-              <Button className="bg-white text-[#005157] hover:bg-[#e8f5f5] rounded-full px-8 py-5">Obtenir un devis <ArrowRight className="ml-2" size={18} /></Button>
-            </Link>
-            <Link to="/rendez-vous" data-testid="services-cta-appointment">
-              <Button variant="outline" className="border-2 border-white text-white hover:bg-white/10 rounded-full px-8 py-5">Prendre un rendez-vous</Button>
-            </Link>
-          </div>
-        </div>
-      </section>
     </div>
   );
 };
