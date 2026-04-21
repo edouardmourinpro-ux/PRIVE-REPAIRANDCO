@@ -131,7 +131,7 @@ export const Navbar = () => {
                 href="tel:0466848079" 
                 className="flex items-center gap-3 text-[#005157] font-medium"
               >
-                <Phone size={20} className="text-[#86cbd4]" />
+                <Phone size={20} className="text-[#005157]" />
                 04 66 84 80 79
               </a>
             </div>

@@ -74,10 +74,10 @@ const ContactPage = () => {
       <div data-testid="contact-success" className="min-h-[70vh] flex items-center justify-center py-16">
         <div className="text-center max-w-md mx-auto px-4">
           <div className="w-20 h-20 bg-[#e8f5f5] rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="text-[#86cbd4]" size={48} />
+            <CheckCircle className="text-[#005157]" size={48} />
           </div>
-          <h1 className="text-3xl font-bold text-[#005157] mb-4">Message envoyé !</h1>
-          <p className="text-lg text-[#1A1A2E]/80 mb-8">
+          <h1 className="text-3xl font-bold text-[#111111] mb-4">Message envoyé !</h1>
+          <p className="text-lg text-[#111111]/80 mb-8">
             Nous vous répondrons dans les plus brefs délais.
           </p>
           <Button 
@@ -96,10 +96,10 @@ const ContactPage = () => {
       {/* Hero */}
       <section className="py-16 lg:py-20 hero-gradient">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-[#005157] tracking-tight">
-            Contactez-nous
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-[#111111] tracking-tight">
+            <span className="text-[#005157]">Contactez</span>-nous
           </h1>
-          <p className="mt-6 text-lg text-[#1A1A2E]/80 max-w-2xl leading-relaxed">
+          <p className="mt-6 text-lg text-[#111111]/80 max-w-2xl leading-relaxed">
             Une question, une réclamation ou une demande de partenariat ? 
             Notre équipe est à votre écoute.
           </p>
@@ -113,13 +113,13 @@ const ContactPage = () => {
             {/* Form */}
             <Card className="card-repair">
               <CardContent className="p-8">
-                <h2 className="text-2xl font-bold text-[#005157] mb-6">
+                <h2 className="text-2xl font-bold text-[#111111] mb-6">
                   Envoyez-nous un message
                 </h2>
 
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                   <div>
-                    <Label htmlFor="name" className="text-[#1A1A2E] mb-2 block">Nom complet</Label>
+                    <Label htmlFor="name" className="text-[#111111] mb-2 block">Nom complet</Label>
                     <Input
                       {...register('name')}
                       data-testid="contact-name"
@@ -133,7 +133,7 @@ const ContactPage = () => {
 
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="email" className="text-[#1A1A2E] mb-2 block">Email</Label>
+                      <Label htmlFor="email" className="text-[#111111] mb-2 block">Email</Label>
                       <Input
                         {...register('email')}
                         data-testid="contact-email"
@@ -146,7 +146,7 @@ const ContactPage = () => {
                       )}
                     </div>
                     <div>
-                      <Label htmlFor="phone" className="text-[#1A1A2E] mb-2 block">Téléphone (optionnel)</Label>
+                      <Label htmlFor="phone" className="text-[#111111] mb-2 block">Téléphone (optionnel)</Label>
                       <Input
                         {...register('phone')}
                         data-testid="contact-phone"
@@ -157,7 +157,7 @@ const ContactPage = () => {
                   </div>
 
                   <div>
-                    <Label htmlFor="subject" className="text-[#1A1A2E] mb-2 block">Sujet</Label>
+                    <Label htmlFor="subject" className="text-[#111111] mb-2 block">Sujet</Label>
                     <Select onValueChange={(value) => setValue('subject', value)}>
                       <SelectTrigger data-testid="contact-subject" className="form-select">
                         <SelectValue placeholder="Sélectionnez un sujet" />
@@ -174,7 +174,7 @@ const ContactPage = () => {
                   </div>
 
                   <div>
-                    <Label htmlFor="store" className="text-[#1A1A2E] mb-2 block">Magasin concerné (optionnel)</Label>
+                    <Label htmlFor="store" className="text-[#111111] mb-2 block">Magasin concerné (optionnel)</Label>
                     <Select onValueChange={(value) => setValue('store', value)}>
                       <SelectTrigger data-testid="contact-store" className="form-select">
                         <SelectValue placeholder="Sélectionnez un magasin" />
@@ -190,7 +190,7 @@ const ContactPage = () => {
                   </div>
 
                   <div>
-                    <Label htmlFor="message" className="text-[#1A1A2E] mb-2 block">Message</Label>
+                    <Label htmlFor="message" className="text-[#111111] mb-2 block">Message</Label>
                     <Textarea
                       {...register('message')}
                       data-testid="contact-message"
@@ -227,33 +227,33 @@ const ContactPage = () => {
 
             {/* Stores */}
             <div>
-              <h2 className="text-2xl font-bold text-[#005157] mb-6">
-                Nos magasins
+              <h2 className="text-2xl font-bold text-[#111111] mb-6">
+                Nos <span className="text-[#005157]">magasins</span>
               </h2>
               <div className="space-y-4">
                 {STORES.map((store) => (
                   <Card key={store.id} className="border border-[#e8f5f5]">
                     <CardContent className="p-6">
-                      <h3 className="font-semibold text-[#005157] mb-3">{store.name}</h3>
+                      <h3 className="font-semibold text-[#111111] mb-3">{store.name}</h3>
                       <div className="space-y-2 text-sm">
                         <div className="flex items-start gap-2">
-                          <MapPin size={16} className="text-[#86cbd4] mt-0.5 flex-shrink-0" />
-                          <span className="text-[#1A1A2E]/70">
+                          <MapPin size={16} className="text-[#005157] mt-0.5 flex-shrink-0" />
+                          <span className="text-[#111111]/70">
                             {store.address}, {store.postalCode} {store.city}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Phone size={16} className="text-[#86cbd4] flex-shrink-0" />
+                          <Phone size={16} className="text-[#005157] flex-shrink-0" />
                           <a 
                             href={`tel:${store.phone.replace(/\s/g, '')}`}
-                            className="text-[#1A1A2E]/70 hover:text-[#005157]"
+                            className="text-[#111111]/70 hover:text-[#005157]"
                           >
                             {store.phone}
                           </a>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Clock size={16} className="text-[#86cbd4] flex-shrink-0" />
-                          <span className="text-[#1A1A2E]/70">{store.hours}</span>
+                          <Clock size={16} className="text-[#005157] flex-shrink-0" />
+                          <span className="text-[#111111]/70">{store.hours}</span>
                         </div>
                       </div>
                     </CardContent>
@@ -262,7 +262,7 @@ const ContactPage = () => {
               </div>
 
               <div className="mt-6">
-                <Link to="/magasins" className="text-[#005157] font-medium hover:text-[#86cbd4]">
+                <Link to="/magasins" className="text-[#005157] font-medium hover:text-[#005157]">
                   Voir tous les détails des magasins →
                 </Link>
               </div>
@@ -270,10 +270,10 @@ const ContactPage = () => {
               {/* B2B Note */}
               <Card className="mt-8 bg-[#e8f5f5] border-none">
                 <CardContent className="p-6">
-                  <h3 className="font-semibold text-[#005157] mb-2">
+                  <h3 className="font-semibold text-[#111111] mb-2">
                     Vous êtes une entreprise ?
                   </h3>
-                  <p className="text-sm text-[#1A1A2E]/70 mb-4">
+                  <p className="text-sm text-[#111111]/70 mb-4">
                     Pour les demandes B2B (flottes mobiles, devis groupé), 
                     consultez notre offre dédiée aux professionnels.
                   </p>

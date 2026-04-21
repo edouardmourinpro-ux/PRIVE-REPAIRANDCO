@@ -40,7 +40,7 @@ export const CookieBanner = () => {
             <p className="text-[#1A1A2E] text-sm leading-relaxed">
               Nous utilisons des cookies pour améliorer votre expérience sur notre site. 
               En continuant à naviguer, vous acceptez notre utilisation des cookies conformément à notre{' '}
-              <a href="/rgpd" className="text-[#005157] underline hover:text-[#86cbd4]">
+              <a href="/rgpd" className="text-[#005157] underline hover:text-[#005157]/70">
                 politique de confidentialité
               </a>.
             </p>
