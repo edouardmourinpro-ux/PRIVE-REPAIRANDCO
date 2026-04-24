@@ -3,12 +3,12 @@
 
 /* Navigation */
 .nav-link {
-  @apply relative text-[#111111] font-medium transition-colors duration-300 hover:text-[#005157];
+  @apply relative text-[#005157] font-medium transition-colors duration-300 hover:text-[#22c55e];
 }
 
 .nav-link::after {
   content: '';
-  @apply absolute bottom-0 left-0 w-0 h-0.5 bg-[#86cbd4] transition-all duration-300;
+  @apply absolute bottom-0 left-0 w-0 h-0.5 bg-[#22c55e] transition-all duration-300;
 }
 
 .nav-link:hover::after {
@@ -84,7 +84,7 @@
 /* QualiRépar badge */
 .qualirepar-badge {
   @apply inline-flex items-center gap-2 px-4 py-2 
-         bg-[#e8f5f5] rounded-full text-[#111111] text-sm font-medium;
+         bg-[#e8f5f5] rounded-full text-[#005157] text-sm font-medium;
 }
 
 /* Rating stars */
@@ -123,12 +123,12 @@
 
 .faq-trigger {
   @apply flex items-center justify-between w-full py-5 text-left 
-         text-[#111111] font-medium hover:text-[#005157] 
+         text-[#005157] font-medium hover:text-[#22c55e] 
          transition-colors duration-300;
 }
 
 .faq-content {
-  @apply pb-5 text-[#111111]/80 leading-relaxed;
+  @apply pb-5 text-[#005157]/80 leading-relaxed;
 }
 
 /* Responsive adjustments */

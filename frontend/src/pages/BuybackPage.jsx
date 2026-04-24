@@ -73,8 +73,8 @@ const BuybackPage = () => {
           <div className="w-20 h-20 bg-[#e8f5f5] rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="text-[#005157]" size={48} />
           </div>
-          <h1 className="text-3xl font-bold text-[#111111] mb-4">Demande reçue !</h1>
-          <p className="text-lg text-[#111111]/80 mb-8">
+          <h1 className="text-3xl font-bold text-[#005157] mb-4">Demande reçue !</h1>
+          <p className="text-lg text-[#005157]/80 mb-8">
             Notre technicien vous contacte sous 24h avec une offre de rachat.
           </p>
           <Button 
@@ -93,10 +93,10 @@ const BuybackPage = () => {
       {/* Hero */}
       <section className="py-16 lg:py-20 hero-gradient">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-[#111111] tracking-tight">
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-[#005157] tracking-tight">
             Donnez une seconde vie à vos <span className="text-[#005157]">appareils</span>
           </h1>
-          <p className="mt-6 text-lg text-[#111111]/80 max-w-2xl leading-relaxed">
+          <p className="mt-6 text-lg text-[#005157]/80 max-w-2xl leading-relaxed">
             Repair & Co rachète vos smartphones et vous propose des appareils 
             reconditionnés testés et garantis.
           </p>
@@ -113,17 +113,17 @@ const BuybackPage = () => {
                 <div className="w-14 h-14 bg-[#e8f5f5] rounded-2xl flex items-center justify-center mb-6">
                   <Smartphone className="text-[#005157]" size={28} />
                 </div>
-                <h2 className="text-2xl font-bold text-[#111111] mb-4">
+                <h2 className="text-2xl font-bold text-[#005157] mb-4">
                   Je vends mon appareil
                 </h2>
-                <p className="text-[#111111]/70 mb-6">
+                <p className="text-[#005157]/70 mb-6">
                   Votre vieux smartphone prend la poussière ? On l'évalue et on vous 
                   fait une offre de rachat immédiate.
                 </p>
 
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                   <div>
-                    <Label htmlFor="brand" className="text-[#111111] mb-2 block">Marque</Label>
+                    <Label htmlFor="brand" className="text-[#005157] mb-2 block">Marque</Label>
                     <Select onValueChange={(value) => setValue('brand', value)}>
                       <SelectTrigger data-testid="buyback-brand" className="form-select">
                         <SelectValue placeholder="Sélectionnez une marque" />
@@ -140,7 +140,7 @@ const BuybackPage = () => {
                   </div>
 
                   <div>
-                    <Label htmlFor="model" className="text-[#111111] mb-2 block">Modèle</Label>
+                    <Label htmlFor="model" className="text-[#005157] mb-2 block">Modèle</Label>
                     <Input
                       {...register('model')}
                       data-testid="buyback-model"
@@ -153,7 +153,7 @@ const BuybackPage = () => {
                   </div>
 
                   <div>
-                    <Label className="text-[#111111] mb-2 block">État de l'appareil</Label>
+                    <Label className="text-[#005157] mb-2 block">État de l'appareil</Label>
                     <Select onValueChange={(value) => setValue('condition', value)}>
                       <SelectTrigger data-testid="buyback-condition" className="form-select">
                         <SelectValue placeholder="Sélectionnez l'état" />
@@ -172,7 +172,7 @@ const BuybackPage = () => {
                   </div>
 
                   <div>
-                    <Label htmlFor="name" className="text-[#111111] mb-2 block">Nom</Label>
+                    <Label htmlFor="name" className="text-[#005157] mb-2 block">Nom</Label>
                     <Input
                       {...register('name')}
                       data-testid="buyback-name"
@@ -185,7 +185,7 @@ const BuybackPage = () => {
                   </div>
 
                   <div>
-                    <Label htmlFor="phone" className="text-[#111111] mb-2 block">Téléphone</Label>
+                    <Label htmlFor="phone" className="text-[#005157] mb-2 block">Téléphone</Label>
                     <Input
                       {...register('phone')}
                       data-testid="buyback-phone"
@@ -198,7 +198,7 @@ const BuybackPage = () => {
                   </div>
 
                   <div>
-                    <Label htmlFor="store" className="text-[#111111] mb-2 block">Magasin</Label>
+                    <Label htmlFor="store" className="text-[#005157] mb-2 block">Magasin</Label>
                     <Select onValueChange={(value) => setValue('store', value)}>
                       <SelectTrigger data-testid="buyback-store" className="form-select">
                         <SelectValue placeholder="Choisissez un magasin" />
@@ -236,7 +236,7 @@ const BuybackPage = () => {
                   </Button>
                 </form>
 
-                <p className="mt-4 text-sm text-[#111111]/60 text-center">
+                <p className="mt-4 text-sm text-[#005157]/60 text-center">
                   Notre technicien vous contacte sous 24h avec une offre.
                 </p>
               </CardContent>
@@ -248,14 +248,14 @@ const BuybackPage = () => {
                 <div className="w-14 h-14 bg-[#e8f5f5] rounded-2xl flex items-center justify-center mb-6">
                   <Recycle className="text-[#005157]" size={28} />
                 </div>
-                <h2 className="text-2xl font-bold text-[#111111] mb-4">
+                <h2 className="text-2xl font-bold text-[#005157] mb-4">
                   J'achète un <span className="text-[#005157]">reconditionné</span>
                 </h2>
-                <p className="text-[#111111]/70 mb-4">
+                <p className="text-[#005157]/70 mb-4">
                   Smartphones reconditionnés, testés, validés et garantis. 
                   À retrouver directement en magasin.
                 </p>
-                <p className="text-[#111111]/70 mb-6">
+                <p className="text-[#005157]/70 mb-6">
                   Sans vous déplacer, sollicitez-nous et nous nous faisons fort de vous trouver 
                   votre smartphone au meilleur rapport qualité/prix.
                 </p>
@@ -263,19 +263,19 @@ const BuybackPage = () => {
                 <div className="space-y-4 mb-6">
                   <div className="flex items-start gap-3">
                     <CheckCircle className="text-[#005157] flex-shrink-0 mt-0.5" size={20} />
-                    <span className="text-[#111111]">Appareils testés et certifiés</span>
+                    <span className="text-[#005157]">Appareils testés et certifiés</span>
                   </div>
                   <div className="flex items-start gap-3">
                     <CheckCircle className="text-[#005157] flex-shrink-0 mt-0.5" size={20} />
-                    <span className="text-[#111111]">Garantie sur tous les produits</span>
+                    <span className="text-[#005157]">Garantie sur tous les produits</span>
                   </div>
                   <div className="flex items-start gap-3">
                     <CheckCircle className="text-[#005157] flex-shrink-0 mt-0.5" size={20} />
-                    <span className="text-[#111111]">Prix jusqu'à 50% moins cher</span>
+                    <span className="text-[#005157]">Prix jusqu'à 50% moins cher</span>
                   </div>
                   <div className="flex items-start gap-3">
                     <CheckCircle className="text-[#005157] flex-shrink-0 mt-0.5" size={20} />
-                    <span className="text-[#111111]">Démarche éco-responsable</span>
+                    <span className="text-[#005157]">Démarche éco-responsable</span>
                   </div>
                 </div>
 
@@ -285,7 +285,7 @@ const BuybackPage = () => {
                     <Shield className="text-[#005157] flex-shrink-0" size={24} />
                     <div>
                       <p className="font-semibold text-[#005157]">Nos smartphones sont garantis 24 mois.</p>
-                      <p className="text-sm text-[#111111]/70 mt-1">
+                      <p className="text-sm text-[#005157]/70 mt-1">
                         Une garantie étendue pour vous assurer une tranquillité totale.
                       </p>
                     </div>
@@ -302,7 +302,7 @@ const BuybackPage = () => {
                   </Button>
                 </Link>
 
-                <p className="mt-4 text-sm text-[#111111]/60 text-center">
+                <p className="mt-4 text-sm text-[#005157]/60 text-center">
                   Sélection disponible en boutique — stock variable selon les magasins.
                 </p>
 
@@ -312,7 +312,7 @@ const BuybackPage = () => {
                     <BadgeCheck className="text-[#005157] flex-shrink-0" size={24} />
                     <div>
                       <p className="font-semibold text-[#005157]">Éco-responsable</p>
-                      <p className="text-sm text-[#111111]/70 mt-1">
+                      <p className="text-sm text-[#005157]/70 mt-1">
                         En choisissant un reconditionné, vous participez à réduire les déchets électroniques.
                       </p>
                     </div>
@@ -339,10 +339,10 @@ const BuybackPage = () => {
               className="h-16 mx-auto mb-4 hover:opacity-80 transition-opacity"
             />
           </a>
-          <h2 className="text-xl font-bold text-[#111111] mb-3">
+          <h2 className="text-xl font-bold text-[#005157] mb-3">
             Label <span className="text-[#005157]">QualiRépar</span>
           </h2>
-          <p className="text-[#111111]/80 max-w-xl mx-auto text-sm">
+          <p className="text-[#005157]/80 max-w-xl mx-auto text-sm">
             Tous nos magasins sont labellisés QualiRépar. Bénéficiez d'une aide 
             entre 15 et 80€ sur vos réparations.
           </p>

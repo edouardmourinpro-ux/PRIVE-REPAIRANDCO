@@ -48,7 +48,7 @@ export const Navbar = () => {
               className="flex items-center gap-2"
             >
               <span className="text-2xl font-extrabold text-[#005157] tracking-tight">
-                Repair<span className="text-[#86cbd4]">&</span>Co
+                Repair<span className="text-[#22c55e]">&</span>Co
               </span>
             </Link>
 

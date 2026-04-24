@@ -6,46 +6,30 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
-import { STORES, REVIEWS } from '../data/stores';
+import { STORES, FEATURED_STORE_IDS, REVIEWS } from '../data/stores';
+
+const featuredStores = STORES.filter(s => FEATURED_STORE_IDS.includes(s.id));
 
 const HomePage = () => {
   const universes = [
-    {
-      id: 'smart-connect',
-      title: 'SMART & CONNECT',
-      subtitle: 'Smartphones, Tablettes, Consoles & Informatique',
-      icon: Smartphone,
-      link: '/services#smart-connect'
-    },
-    {
-      id: 'home',
-      title: 'HOME',
-      subtitle: 'Petit Électroménager',
-      icon: Coffee,
-      link: '/services#home'
-    },
-    {
-      id: 'mobility',
-      title: 'MOBILITY',
-      subtitle: 'Vélos électriques et Trottinettes',
-      icon: Bike,
-      link: '/services#mobility'
-    }
+    { id: 'smart-connect', title: 'SMART & CONNECT', subtitle: 'Smartphones, Tablettes, Consoles & Informatique', icon: Smartphone, link: '/services#smart-connect', price: 'À partir de 29€' },
+    { id: 'home', title: 'HOME', subtitle: 'Petit Électroménager', icon: Coffee, link: '/services#home', price: 'À partir de 39€' },
+    { id: 'mobility', title: 'MOBILITY', subtitle: 'Vélos électriques et Trottinettes', icon: Bike, link: '/services#mobility', price: 'À partir de 79€' },
   ];
 
   return (
     <div data-testid="home-page">
-      {/* Hero Section */}
+      {/* Hero */}
       <section className="hero-gradient py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="animate-fade-in-up">
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#111111] leading-tight tracking-tight">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight tracking-tight">
                 Votre expert en{' '}
-                <span className="text-[#005157]">réparation</span>{' '}
+                <span className="text-[#22c55e]">réparation</span>{' '}
                 et reconditionnement
               </h1>
-              <p className="mt-4 text-lg text-[#111111]/80 leading-relaxed max-w-xl">
+              <p className="mt-4 text-lg text-[#005157]/80 leading-relaxed max-w-xl">
                 <strong>Smartphones & Tablettes / Informatique / Petit Électroménager / Vélos et Trottinettes.</strong>
                 <br />
                 Pour tous ces univers, les équipes techniques Repair&Co réparent au prix le plus juste.
@@ -53,28 +37,16 @@ const HomePage = () => {
               <p className="mt-3 text-base text-[#005157] font-medium">
                 Retrouvez-nous dans nos ateliers en proximité ou en ligne.
               </p>
-              
-              {/* QualiRépar Badge */}
-              <Link 
-                to="/rendez-vous"
-                className="inline-block mt-4" 
-                data-testid="hero-qualirepar-link"
-              >
+              <Link to="/rendez-vous" className="inline-block mt-4" data-testid="hero-qualirepar-link">
                 <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-2 shadow-sm border border-[#e8f5f5] hover:shadow-md transition-shadow">
-                  <img
-                    src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
-                    alt="Label QualiRépar"
-                    className="h-10"
-                  />
-                  <span className="text-sm text-[#005157] font-medium">Entre 15 et 80€ de bonus</span>
+                  <img src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png" alt="Label QualiRépar" className="h-10" />
+                  <span className="text-sm text-[#005157] font-medium">Jusqu'à 80€ de bonus</span>
                 </div>
               </Link>
-              
               <div className="mt-6 flex flex-col sm:flex-row gap-4">
                 <Link to="/devis" data-testid="hero-cta-quote">
                   <Button className="w-full sm:w-auto bg-[#005157] text-white hover:bg-[#005157]/90 rounded-full px-8 py-6 text-lg font-semibold transition-all duration-300 hover:-translate-y-1">
-                    Devis gratuit en ligne
-                    <ArrowRight className="ml-2" size={20} />
+                    Devis gratuit en ligne <ArrowRight className="ml-2" size={20} />
                   </Button>
                 </Link>
                 <Link to="/rendez-vous" data-testid="hero-cta-appointment">
@@ -85,18 +57,14 @@ const HomePage = () => {
               </div>
             </div>
             <div className="relative animate-fade-in-up animate-delay-200">
-              <img
-                src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/p6booyft_IMG_9355-scaled%20%281%29.webp"
-                alt="Magasin Repair & Co - réparation smartphone Nîmes"
-                className="rounded-2xl shadow-xl w-full object-cover"
-              />
+              <img src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/p6booyft_IMG_9355-scaled%20%281%29.webp" alt="Magasin Repair & Co" className="rounded-2xl shadow-xl w-full object-cover" />
               <div className="absolute -bottom-4 -left-4 bg-white rounded-2xl shadow-lg p-4 flex items-center gap-3">
                 <div className="w-12 h-12 bg-[#e8f5f5] rounded-full flex items-center justify-center">
                   <Zap className="text-[#005157]" size={24} />
                 </div>
                 <div>
-                  <p className="font-semibold text-[#111111]">Réparation express</p>
-                  <p className="text-sm text-[#111111]/60">En moins d'1 heure</p>
+                  <p className="font-semibold text-[#005157]">Réparation express</p>
+                  <p className="text-sm text-[#005157]/60">En moins d'1 heure</p>
                 </div>
               </div>
             </div>
@@ -104,26 +72,21 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Reassurance Band */}
+      {/* Reassurance */}
       <section className="bg-white py-8 border-y border-[#e8f5f5]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="flex items-center gap-3">
-              <Zap className="text-[#005157] flex-shrink-0" size={24} />
-              <span className="text-[#111111] font-medium">Réparation rapide</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <MessageSquare className="text-[#005157] flex-shrink-0" size={24} />
-              <span className="text-[#111111] font-medium">Devis instantané</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <Recycle className="text-[#005157] flex-shrink-0" size={24} />
-              <span className="text-[#111111] font-medium">Reconditionnés</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <MapPin className="text-[#005157] flex-shrink-0" size={24} />
-              <span className="text-[#111111] font-medium">5 magasins</span>
-            </div>
+            {[
+              { icon: Zap, text: 'Réparation rapide' },
+              { icon: MessageSquare, text: 'Devis instantané' },
+              { icon: Recycle, text: 'Reconditionnés' },
+              { icon: MapPin, text: '9 magasins' },
+            ].map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-3">
+                <Icon className="text-[#005157] flex-shrink-0" size={24} />
+                <span className="text-[#005157] font-medium">{text}</span>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -132,46 +95,26 @@ const HomePage = () => {
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-8">
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1 mb-2">
-                <Star className="text-[#005157] fill-[#005157]" size={24} />
-                <span className="text-3xl font-bold text-[#111111]">4,7/5</span>
+            {[
+              { icon: Star, value: '4,7/5', label: '225 avis Google', fill: true },
+              { icon: MapPin, value: '9', label: 'Magasins en France' },
+              { icon: Zap, value: '<1h', label: 'Réparations courantes' },
+              { icon: Shield, value: '100%', label: 'Garantie réparations' },
+              { icon: BadgeCheck, value: '80€', label: 'Bonus QualiRépar max', span: true },
+            ].map(({ icon: Icon, value, label, fill, span }) => (
+              <div key={label} className={`text-center ${span ? 'col-span-2 lg:col-span-1' : ''}`}>
+                <div className="flex items-center justify-center gap-1 mb-2">
+                  <Icon className={`text-[#005157] ${fill ? 'fill-[#005157]' : ''}`} size={24} />
+                  <span className="text-3xl font-bold text-[#005157]">{value}</span>
+                </div>
+                <p className="text-[#005157]/60 text-sm">{label}</p>
               </div>
-              <p className="text-[#111111]/60 text-sm">225 avis Google</p>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1 mb-2">
-                <MapPin className="text-[#005157]" size={24} />
-                <span className="text-3xl font-bold text-[#111111]">5</span>
-              </div>
-              <p className="text-[#111111]/60 text-sm">Magasins en France</p>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1 mb-2">
-                <Zap className="text-[#005157]" size={24} />
-                <span className="text-3xl font-bold text-[#111111]">&lt;1h</span>
-              </div>
-              <p className="text-[#111111]/60 text-sm">Réparations courantes</p>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1 mb-2">
-                <Shield className="text-[#005157]" size={24} />
-                <span className="text-3xl font-bold text-[#111111]">100%</span>
-              </div>
-              <p className="text-[#111111]/60 text-sm">Garantie réparations</p>
-            </div>
-            <div className="text-center col-span-2 lg:col-span-1">
-              <div className="flex items-center justify-center gap-1 mb-2">
-                <BadgeCheck className="text-[#005157]" size={24} />
-                <span className="text-3xl font-bold text-[#111111]">15-80€</span>
-              </div>
-              <p className="text-[#111111]/60 text-sm">Bonus QualiRépar</p>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* QualiRépar Section */}
+      {/* QualiRépar */}
       <section id="qualirepar" className="py-16 lg:py-24 bg-[#e8f5f5] scroll-mt-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -180,20 +123,18 @@ const HomePage = () => {
                 <BadgeCheck className="text-[#005157]" size={18} />
                 Label officiel de l'État
               </div>
-              <h2 className="text-3xl lg:text-4xl font-bold text-[#111111] tracking-tight">
-                Économisez entre <span className="text-[#005157]">15 et 80€</span> grâce au bonus réparation
+              <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
+                Économisez jusqu'à <span className="text-[#22c55e]">80€</span> grâce au bonus réparation
               </h2>
-              <p className="mt-6 text-lg text-[#111111]/80 leading-relaxed">
+              <p className="mt-6 text-lg text-[#005157]/80 leading-relaxed">
                 Repair & Co est labellisé <strong>QualiRépar</strong>. Ce label officiel vous permet 
                 de bénéficier d'une aide de l'État directement déduite <strong>de votre facture, d'un montant 
-                allant jusqu'à 50 euros selon l'appareil réparé.</strong> Réparer plutôt que remplacer, c'est bon pour 
-                votre portefeuille et pour la planète.
+                allant jusqu'à 80 euros selon l'appareil réparé.</strong>
               </p>
               <div className="mt-8">
                 <Link to="/rendez-vous" data-testid="qualirepar-learn-more">
                   <Button className="bg-[#005157] text-white hover:bg-[#005157]/90 rounded-full px-6 py-3">
-                    En savoir plus
-                    <ChevronRight className="ml-1" size={18} />
+                    En savoir plus <ChevronRight className="ml-1" size={18} />
                   </Button>
                 </Link>
               </div>
@@ -201,24 +142,14 @@ const HomePage = () => {
             <div className="flex justify-center">
               <a href="https://www.label-qualirepar.fr/" target="_blank" rel="noopener noreferrer" className="block">
                 <div className="bg-white rounded-2xl p-8 shadow-lg max-w-sm hover:shadow-xl transition-shadow">
-                  <img
-                    src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
-                    alt="Label QualiRépar - Réparation certifiée"
-                    className="w-full"
-                  />
+                  <img src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png" alt="Label QualiRépar" className="w-full" />
                   <div className="mt-6 space-y-3">
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="text-[#005157] flex-shrink-0 mt-0.5" size={20} />
-                      <span className="text-[#111111]">Entre 15 et 80€ d'aide directe</span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="text-[#005157] flex-shrink-0 mt-0.5" size={20} />
-                      <span className="text-[#111111]">Déduit automatiquement de la facture</span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="text-[#005157] flex-shrink-0 mt-0.5" size={20} />
-                      <span className="text-[#111111]">Tous nos magasins labellisés</span>
-                    </div>
+                    {["Jusqu'à 80€ d'aide directe", "Déduit automatiquement de la facture", "Tous nos magasins labellisés"].map((t) => (
+                      <div key={t} className="flex items-start gap-3">
+                        <CheckCircle className="text-[#22c55e] flex-shrink-0 mt-0.5" size={20} />
+                        <span className="text-[#005157]">{t}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </a>
@@ -227,170 +158,120 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Services Section - 3 Universes */}
+      {/* Services — 3 Universes with prices */}
       <section className="py-16 lg:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-left mb-12">
-            <h2 className="text-3xl lg:text-4xl font-bold text-[#111111] tracking-tight">
-              Nos services de <span className="text-[#005157]">réparation</span>
+            <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
+              Nos services de <span className="text-[#22c55e]">réparation</span>
             </h2>
-            <p className="mt-4 text-lg text-[#111111]/70 max-w-2xl">
+            <p className="mt-4 text-lg text-[#005157]/70 max-w-2xl">
               Diagnostic gratuit, devis immédiat, réparation garantie. Toutes marques, tous appareils, <strong>avec ou sans RDV.</strong>
             </p>
           </div>
-          
           <div className="grid md:grid-cols-3 gap-6">
-            {universes.map((universe) => (
-              <Link 
-                key={universe.id}
-                to={universe.link}
-                className="block"
-                data-testid={`universe-card-${universe.id}`}
-              >
+            {universes.map((u) => (
+              <Link key={u.id} to={u.link} className="block" data-testid={`universe-card-${u.id}`}>
                 <Card className="service-card group cursor-pointer h-full">
                   <CardContent className="p-6">
                     <div className="w-14 h-14 bg-[#e8f5f5] rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-                      <universe.icon className="text-[#005157]" size={28} />
+                      <u.icon className="text-[#005157]" size={28} />
                     </div>
-                    <h3 className="text-xl font-bold text-[#111111] mb-2">{universe.title}</h3>
-                    <p className="text-[#111111]/70 text-sm leading-relaxed mb-4">
-                      {universe.subtitle}
-                    </p>
+                    <h3 className="text-xl font-bold mb-2">{u.title}</h3>
+                    <p className="text-[#005157]/70 text-sm leading-relaxed mb-3">{u.subtitle}</p>
+                    <p className="text-[#22c55e] font-bold text-sm mb-4">{u.price}</p>
                     <span className="inline-flex items-center text-[#005157] font-medium text-sm group-hover:underline transition-colors">
-                      Voir les réparations
-                      <ChevronRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" />
+                      Voir les réparations <ChevronRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" />
                     </span>
                   </CardContent>
                 </Card>
               </Link>
             ))}
           </div>
-          
           <div className="mt-10 text-center">
             <Link to="/services" data-testid="services-view-all">
               <Button variant="outline" className="border-[#005157] text-[#005157] hover:bg-[#e8f5f5] rounded-full px-8">
-                Voir tous nos services
-                <ChevronRight size={18} className="ml-1" />
+                Voir tous nos services <ChevronRight size={18} className="ml-1" />
               </Button>
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Stores Section */}
+      {/* Stores — 4 featured */}
       <section className="py-16 lg:py-24 bg-[#e8f5f5]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-left mb-12">
-            <h2 className="text-3xl lg:text-4xl font-bold text-[#111111] tracking-tight">
-              Près de chez vous, dans votre <span className="text-[#005157]">centre commercial</span>
+            <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
+              Près de chez vous, dans votre <span className="text-[#22c55e]">centre commercial</span>
             </h2>
-            <p className="mt-4 text-lg text-[#111111]/70 max-w-2xl">
-              5 magasins dans le Sud de la France pour vous servir.
+            <p className="mt-4 text-lg text-[#005157]/70 max-w-2xl">
+              Retrouvez nos magasins partout en France.
             </p>
           </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {STORES.slice(0, 5).map((store) => (
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {featuredStores.map((store) => (
               <Card key={store.id} className="store-card" data-testid={`store-card-${store.id}`}>
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="text-xl font-semibold text-[#111111]">{store.name}</h3>
-                      <p className="text-[#111111]/60 text-sm">{store.location}</p>
-                    </div>
-                    {store.rating && (
-                      <div className="flex items-center gap-1 bg-[#e8f5f5] px-2 py-1 rounded-full">
-                        <Star className="text-[#005157] fill-[#005157]" size={14} />
-                        <span className="text-sm font-medium text-[#111111]">{store.rating}</span>
-                      </div>
-                    )}
+                <CardContent className="p-5">
+                  <h3 className="text-lg font-semibold mb-1">{store.name.replace('Repair&Co ', '')}</h3>
+                  {store.location && <p className="text-[#005157]/60 text-xs mb-3">{store.location}</p>}
+                  <div className="space-y-1.5 text-sm text-[#005157]/70 mb-3">
+                    <div className="flex items-start gap-2"><MapPin size={14} className="text-[#005157] mt-0.5 flex-shrink-0" /><span className="text-xs">{store.address}, {store.postalCode} {store.city}</span></div>
+                    <div className="flex items-center gap-2"><Clock size={14} className="text-[#005157] flex-shrink-0" /><span className="text-xs">{store.hours}</span></div>
+                    <div className="flex items-center gap-2"><Phone size={14} className="text-[#005157] flex-shrink-0" /><a href={`tel:${store.phone.replace(/\s/g, '')}`} className="text-xs hover:text-[#005157]">{store.phone}</a></div>
                   </div>
-                  
-                  <div className="space-y-2 text-sm text-[#111111]/70 mb-4">
-                    <div className="flex items-start gap-2">
-                      <MapPin size={16} className="text-[#005157] mt-0.5 flex-shrink-0" />
-                      <span>{store.address}, {store.postalCode} {store.city}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock size={16} className="text-[#005157] flex-shrink-0" />
-                      <span>{store.hours}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Phone size={16} className="text-[#005157] flex-shrink-0" />
-                      <a href={`tel:${store.phone.replace(/\s/g, '')}`} className="hover:text-[#005157]">
-                        {store.phone}
-                      </a>
-                    </div>
-                  </div>
-
                   {store.qualirepar && (
-                    <div className="qualirepar-badge mb-4">
-                      <BadgeCheck size={16} className="text-[#005157]" />
-                      <span>QualiRépar</span>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#e8f5f5] rounded-full text-[#005157] text-xs font-medium mb-3">
+                      <BadgeCheck size={14} className="text-[#005157]" /> QualiRépar
                     </div>
                   )}
-                  
                   <div className="flex gap-2">
-                    <Link to={`/magasins#${store.id}`} className="flex-1">
-                      <Button size="sm" variant="outline" className="w-full border-[#005157] text-[#005157] hover:bg-[#e8f5f5] rounded-full text-xs">
-                        Voir le magasin
-                      </Button>
-                    </Link>
+                    <a href={store.mapsUrl} target="_blank" rel="noopener noreferrer" className="flex-1">
+                      <Button size="sm" variant="outline" className="w-full border-[#005157] text-[#005157] hover:bg-[#e8f5f5] rounded-full text-xs">Voir le magasin</Button>
+                    </a>
                     <Link to="/rendez-vous" className="flex-1">
-                      <Button size="sm" className="w-full bg-[#005157] text-white hover:bg-[#005157]/90 rounded-full text-xs">
-                        Prendre RDV
-                      </Button>
+                      <Button size="sm" className="w-full bg-[#005157] text-white hover:bg-[#005157]/90 rounded-full text-xs">Prendre RDV</Button>
                     </Link>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
-          
           <div className="mt-10 text-center">
             <Link to="/magasins" data-testid="stores-view-all">
               <Button className="bg-[#005157] text-white hover:bg-[#005157]/90 rounded-full px-8">
-                Tous nos magasins
-                <ChevronRight size={18} className="ml-1" />
+                Voir tous nos magasins <ChevronRight size={18} className="ml-1" />
               </Button>
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Reviews Section */}
+      {/* Reviews */}
       <section className="py-16 lg:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-left mb-12">
-            <h2 className="text-3xl lg:text-4xl font-bold text-[#111111] tracking-tight">
-              Ce que disent nos <span className="text-[#005157]">clients</span>
+            <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
+              Ce que disent nos <span className="text-[#22c55e]">clients</span>
             </h2>
             <div className="mt-4 flex items-center gap-4">
               <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Star key={star} className={`${star <= 4 ? 'text-[#005157] fill-[#005157]' : 'text-[#005157]'}`} size={20} />
-                ))}
+                {[1,2,3,4,5].map((s) => <Star key={s} className={`${s<=4?'text-[#22c55e] fill-[#22c55e]':'text-[#22c55e]'}`} size={20} />)}
               </div>
-              <span className="text-[#111111]/70">4,7/5 · +500 avis cumulés</span>
+              <span className="text-[#005157]/70">4,7/5 · +500 avis cumulés</span>
             </div>
           </div>
-
           <div className="grid md:grid-cols-3 gap-6">
-            {REVIEWS.map((review) => (
-              <Card key={review.id} className="card-repair" data-testid={`review-${review.id}`}>
+            {REVIEWS.map((r) => (
+              <Card key={r.id} className="card-repair" data-testid={`review-${r.id}`}>
                 <CardContent className="p-6">
                   <div className="flex items-center gap-1 mb-4">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star key={star} className={`${star <= review.rating ? 'text-[#005157] fill-[#005157]' : 'text-[#e8f5f5]'}`} size={18} />
-                    ))}
+                    {[1,2,3,4,5].map((s) => <Star key={s} className={`${s<=r.rating?'text-[#22c55e] fill-[#22c55e]':'text-[#e8f5f5]'}`} size={18} />)}
                   </div>
-                  <p className="text-[#111111] leading-relaxed mb-4">"{review.text}"</p>
+                  <p className="text-[#005157] leading-relaxed mb-4">"{r.text}"</p>
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-[#111111]">{review.name}</p>
-                      <p className="text-sm text-[#111111]/60">{review.store}</p>
-                    </div>
-                    <p className="text-xs text-[#111111]/50">{review.date}</p>
+                    <div><p className="font-semibold text-[#005157]">{r.name}</p><p className="text-sm text-[#005157]/60">{r.store}</p></div>
+                    <p className="text-xs text-[#005157]/50">{r.date}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -399,24 +280,20 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Buyback Teaser */}
+      {/* Buyback */}
       <section className="py-16 lg:py-24 bg-[#e8f5f5]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <h2 className="text-3xl lg:text-4xl font-bold text-[#111111] tracking-tight">
-                Votre ancien appareil a de la <span className="text-[#005157]">valeur</span>
+              <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
+                Votre ancien appareil a de la <span className="text-[#22c55e]">valeur</span>
               </h2>
-              <p className="mt-6 text-lg text-[#111111]/80 leading-relaxed">
-                Repair & Co rachète et reconditionne vos smartphones. 
-                Obtenez une estimation en ligne en 2 minutes.
+              <p className="mt-6 text-lg text-[#005157]/80 leading-relaxed">
+                Repair & Co rachète et reconditionne vos smartphones. Obtenez une estimation en ligne en 2 minutes.
               </p>
               <div className="mt-8">
                 <Link to="/rachat" data-testid="buyback-cta">
-                  <Button className="bg-[#005157] text-white hover:bg-[#005157]/90 rounded-full px-8">
-                    Estimer mon appareil
-                    <ArrowRight className="ml-2" size={18} />
-                  </Button>
+                  <Button className="bg-[#005157] text-white hover:bg-[#005157]/90 rounded-full px-8">Estimer mon appareil <ArrowRight className="ml-2" size={18} /></Button>
                 </Link>
               </div>
             </div>
@@ -424,12 +301,8 @@ const HomePage = () => {
               <Link to="/rachat" className="block">
                 <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow">
                   <Recycle className="text-[#005157] mx-auto mb-4" size={64} />
-                  <h3 className="text-xl font-semibold text-[#111111] text-center mb-2">
-                    Recyclage & Reconditionnement
-                  </h3>
-                  <p className="text-[#111111]/70 text-center text-sm">
-                    Donnez une seconde vie à vos appareils et participez à l'économie circulaire.
-                  </p>
+                  <h3 className="text-xl font-semibold text-center mb-2">Recyclage & Reconditionnement</h3>
+                  <p className="text-[#005157]/70 text-center text-sm">Donnez une seconde vie à vos appareils et participez à l'économie circulaire.</p>
                 </div>
               </Link>
             </div>
@@ -437,7 +310,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* B2B Teaser */}
+      {/* B2B */}
       <section className="py-16 lg:py-24 bg-[#005157]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -451,19 +324,12 @@ const HomePage = () => {
               </p>
               <div className="mt-8">
                 <Link to="/entreprises" data-testid="b2b-cta">
-                  <Button className="bg-white text-[#005157] hover:bg-[#e8f5f5] rounded-full px-8">
-                    Découvrir les services entreprise
-                    <ArrowRight className="ml-2" size={18} />
-                  </Button>
+                  <Button className="bg-white text-[#005157] hover:bg-[#e8f5f5] rounded-full px-8">Découvrir les services entreprise <ArrowRight className="ml-2" size={18} /></Button>
                 </Link>
               </div>
             </div>
             <div className="flex justify-center">
-              <img
-                src="https://images.pexels.com/photos/7988665/pexels-photo-7988665.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
-                alt="Services entreprise - réparation flotte mobile"
-                className="rounded-2xl shadow-xl max-w-md w-full object-cover"
-              />
+              <img src="https://images.pexels.com/photos/7988665/pexels-photo-7988665.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940" alt="Services entreprise" className="rounded-2xl shadow-xl max-w-md w-full object-cover" />
             </div>
           </div>
         </div>

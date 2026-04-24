@@ -15,10 +15,10 @@ const FAQPage = () => {
       {/* Hero */}
       <section className="py-16 lg:py-20 hero-gradient">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-[#111111] tracking-tight">
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-[#005157] tracking-tight">
             Questions <span className="text-[#005157]">fréquentes</span>
           </h1>
-          <p className="mt-6 text-lg text-[#111111]/80 max-w-2xl leading-relaxed">
+          <p className="mt-6 text-lg text-[#005157]/80 max-w-2xl leading-relaxed">
             Trouvez rapidement les réponses à vos questions sur nos services, 
             le label QualiRépar, nos tarifs et nos magasins.
           </p>
@@ -30,7 +30,7 @@ const FAQPage = () => {
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           {FAQ_DATA.map((category, categoryIndex) => (
             <div key={categoryIndex} className="mb-12 last:mb-0">
-              <h2 className="text-2xl font-bold text-[#111111] mb-6">
+              <h2 className="text-2xl font-bold text-[#005157] mb-6">
                 {category.category}
               </h2>
               <Accordion type="single" collapsible className="space-y-2">
@@ -41,10 +41,10 @@ const FAQPage = () => {
                     className="border border-[#e8f5f5] rounded-xl px-6 data-[state=open]:bg-[#e8f5f5]"
                     data-testid={`faq-item-${categoryIndex}-${itemIndex}`}
                   >
-                    <AccordionTrigger className="text-left text-[#111111] hover:text-[#005157] hover:no-underline py-5">
+                    <AccordionTrigger className="text-left text-[#005157] hover:text-[#22c55e] hover:no-underline py-5">
                       {item.q}
                     </AccordionTrigger>
-                    <AccordionContent className="text-[#111111]/80 pb-5 leading-relaxed">
+                    <AccordionContent className="text-[#005157]/80 pb-5 leading-relaxed">
                       {item.a}
                     </AccordionContent>
                   </AccordionItem>
@@ -65,10 +65,10 @@ const FAQPage = () => {
                   <BadgeCheck className="text-[#005157]" size={18} />
                   Label QualiRépar
                 </div>
-                <h2 className="text-2xl lg:text-3xl font-bold text-[#111111] mb-4">
+                <h2 className="text-2xl lg:text-3xl font-bold text-[#005157] mb-4">
                   Économisez entre <span className="text-[#005157]">15 et 80€</span> sur vos réparations
                 </h2>
-                <p className="text-[#111111]/80 leading-relaxed mb-6">
+                <p className="text-[#005157]/80 leading-relaxed mb-6">
                   Le bonus réparation est une aide financière de l'État qui vous permet de 
                   réduire le coût de vos réparations. Tous nos magasins Repair & Co sont 
                   labellisés QualiRépar, ce qui vous permet d'en bénéficier directement.
@@ -112,10 +112,10 @@ const FAQPage = () => {
       {/* Still have questions */}
       <section className="py-16 lg:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-2xl font-bold text-[#111111] mb-4">
+          <h2 className="text-2xl font-bold text-[#005157] mb-4">
             Vous n'avez pas trouvé votre réponse ?
           </h2>
-          <p className="text-lg text-[#111111]/70 mb-8">
+          <p className="text-lg text-[#005157]/70 mb-8">
             Contactez-nous directement, notre équipe est là pour vous aider.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">

@@ -76,8 +76,8 @@ const AppointmentPage = () => {
           <div className="w-20 h-20 bg-[#e8f5f5] rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="text-[#005157]" size={48} />
           </div>
-          <h1 className="text-3xl font-bold text-[#111111] mb-4">Demande reçue !</h1>
-          <p className="text-lg text-[#111111]/80 mb-8">
+          <h1 className="text-3xl font-bold text-[#005157] mb-4">Demande reçue !</h1>
+          <p className="text-lg text-[#005157]/80 mb-8">
             Nous vous contacterons rapidement pour confirmer votre rendez-vous.
           </p>
           <Button 
@@ -98,10 +98,10 @@ const AppointmentPage = () => {
       {/* Hero */}
       <section className="py-16 lg:py-20 hero-gradient">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-[#111111] tracking-tight">
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-[#005157] tracking-tight">
             Prendre <span className="text-[#005157]">rendez-vous</span>
           </h1>
-          <p className="mt-6 text-lg text-[#111111]/80 max-w-2xl leading-relaxed">
+          <p className="mt-6 text-lg text-[#005157]/80 max-w-2xl leading-relaxed">
             Réservez un créneau pour votre réparation ou passez directement en magasin.
           </p>
           
@@ -135,10 +135,10 @@ const AppointmentPage = () => {
                   <Calendar className="text-[#005157]" size={16} />
                   Réservation en ligne
                 </div>
-                <h2 className="text-2xl font-bold text-[#111111] mb-4">
+                <h2 className="text-2xl font-bold text-[#005157] mb-4">
                   Nîmes Étoile
                 </h2>
-                <p className="text-[#111111]/70 mb-6">
+                <p className="text-[#005157]/70 mb-6">
                   Réservez directement votre créneau en ligne pour notre magasin 
                   Carrefour Nîmes Étoile.
                 </p>
@@ -175,17 +175,17 @@ const AppointmentPage = () => {
             {/* Other stores - Contact form */}
             <Card className={`card-repair ${selectedStore && selectedStore !== 'nimes-etoile' ? 'border-2 border-[#86cbd4]' : ''}`}>
               <CardContent className="p-8">
-                <h2 className="text-2xl font-bold text-[#111111] mb-4">
+                <h2 className="text-2xl font-bold text-[#005157] mb-4">
                   Autres magasins
                 </h2>
-                <p className="text-[#111111]/70 mb-6">
+                <p className="text-[#005157]/70 mb-6">
                   La réservation en ligne pour tous nos magasins arrive bientôt. 
                   En attendant, contactez-nous via ce formulaire.
                 </p>
 
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                   <div>
-                    <Label htmlFor="name" className="text-[#111111] mb-2 block">Nom</Label>
+                    <Label htmlFor="name" className="text-[#005157] mb-2 block">Nom</Label>
                     <Input
                       {...register('name')}
                       data-testid="appointment-name"
@@ -199,7 +199,7 @@ const AppointmentPage = () => {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="phone" className="text-[#111111] mb-2 block">Téléphone</Label>
+                      <Label htmlFor="phone" className="text-[#005157] mb-2 block">Téléphone</Label>
                       <Input
                         {...register('phone')}
                         data-testid="appointment-phone"
@@ -211,7 +211,7 @@ const AppointmentPage = () => {
                       )}
                     </div>
                     <div>
-                      <Label htmlFor="email" className="text-[#111111] mb-2 block">Email</Label>
+                      <Label htmlFor="email" className="text-[#005157] mb-2 block">Email</Label>
                       <Input
                         {...register('email')}
                         data-testid="appointment-email"
@@ -226,7 +226,7 @@ const AppointmentPage = () => {
                   </div>
 
                   <div>
-                    <Label htmlFor="store" className="text-[#111111] mb-2 block">Magasin</Label>
+                    <Label htmlFor="store" className="text-[#005157] mb-2 block">Magasin</Label>
                     <Select 
                       onValueChange={(value) => setValue('store', value)}
                       value={selectedStore && selectedStore !== 'nimes-etoile' ? selectedStore : undefined}
@@ -248,7 +248,7 @@ const AppointmentPage = () => {
                   </div>
 
                   <div>
-                    <Label htmlFor="subject" className="text-[#111111] mb-2 block">Objet</Label>
+                    <Label htmlFor="subject" className="text-[#005157] mb-2 block">Objet</Label>
                     <Select onValueChange={(value) => setValue('subject', value)}>
                       <SelectTrigger data-testid="appointment-subject" className="form-select">
                         <SelectValue placeholder="Sélectionnez" />
@@ -267,7 +267,7 @@ const AppointmentPage = () => {
                   </div>
 
                   <div>
-                    <Label htmlFor="message" className="text-[#111111] mb-2 block">
+                    <Label htmlFor="message" className="text-[#005157] mb-2 block">
                       Message (optionnel)
                     </Label>
                     <Textarea
@@ -301,7 +301,7 @@ const AppointmentPage = () => {
 
           {/* Note */}
           <div className="mt-12 text-center">
-            <p className="text-[#111111]/60">
+            <p className="text-[#005157]/60">
               Vous pouvez également venir directement en magasin sans rendez-vous, 
               selon la disponibilité de nos techniciens.
             </p>
