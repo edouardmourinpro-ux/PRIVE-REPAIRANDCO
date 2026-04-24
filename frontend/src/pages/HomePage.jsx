@@ -26,31 +26,31 @@ const HomePage = () => {
             <div className="animate-fade-in-up">
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight tracking-tight">
                 Votre expert en{' '}
-                <span className="text-[#22c55e]">réparation</span>{' '}
+                <span className="text-[#2ECC71]">réparation</span>{' '}
                 et reconditionnement
               </h1>
-              <p className="mt-4 text-lg text-[#005157]/80 leading-relaxed max-w-xl">
+              <p className="mt-4 text-lg text-[#1A5C3A]/80 leading-relaxed max-w-xl">
                 <strong>Smartphones & Tablettes / Informatique / Petit Électroménager / Vélos et Trottinettes.</strong>
                 <br />
                 Pour tous ces univers, les équipes techniques Repair&Co réparent au prix le plus juste.
               </p>
-              <p className="mt-3 text-base text-[#005157] font-medium">
+              <p className="mt-3 text-base text-[#1A5C3A] font-medium">
                 Retrouvez-nous dans nos ateliers en proximité ou en ligne.
               </p>
               <Link to="/rendez-vous" className="inline-block mt-4" data-testid="hero-qualirepar-link">
-                <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-2 shadow-sm border border-[#e8f5f5] hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-2 shadow-sm border border-[#E8F5EE] hover:shadow-md transition-shadow">
                   <img src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png" alt="Label QualiRépar" className="h-10" />
-                  <span className="text-sm text-[#005157] font-medium">Jusqu'à 80€ de bonus</span>
+                  <span className="text-sm text-[#1A5C3A] font-medium">Jusqu'à 80€ de bonus</span>
                 </div>
               </Link>
               <div className="mt-6 flex flex-col sm:flex-row gap-4">
                 <Link to="/devis" data-testid="hero-cta-quote">
-                  <Button className="w-full sm:w-auto bg-[#005157] text-white hover:bg-[#005157]/90 rounded-full px-8 py-6 text-lg font-semibold transition-all duration-300 hover:-translate-y-1">
+                  <Button className="w-full sm:w-auto bg-[#1A5C3A] text-white hover:bg-[#1A5C3A]/90 rounded-full px-8 py-6 text-lg font-semibold transition-all duration-300 hover:-translate-y-1">
                     Devis gratuit en ligne <ArrowRight className="ml-2" size={20} />
                   </Button>
                 </Link>
                 <Link to="/rendez-vous" data-testid="hero-cta-appointment">
-                  <Button variant="outline" className="w-full sm:w-auto border-2 border-[#005157] text-[#005157] hover:bg-[#e8f5f5] rounded-full px-8 py-6 text-lg font-semibold transition-all duration-300">
+                  <Button variant="outline" className="w-full sm:w-auto border-2 border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full px-8 py-6 text-lg font-semibold transition-all duration-300">
                     Prendre rendez-vous
                   </Button>
                 </Link>
@@ -59,12 +59,12 @@ const HomePage = () => {
             <div className="relative animate-fade-in-up animate-delay-200">
               <img src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/p6booyft_IMG_9355-scaled%20%281%29.webp" alt="Magasin Repair & Co" className="rounded-2xl shadow-xl w-full object-cover" />
               <div className="absolute -bottom-4 -left-4 bg-white rounded-2xl shadow-lg p-4 flex items-center gap-3">
-                <div className="w-12 h-12 bg-[#e8f5f5] rounded-full flex items-center justify-center">
-                  <Zap className="text-[#005157]" size={24} />
+                <div className="w-12 h-12 bg-[#E8F5EE] rounded-full flex items-center justify-center">
+                  <Zap className="text-[#1A5C3A]" size={24} />
                 </div>
                 <div>
-                  <p className="font-semibold text-[#005157]">Réparation express</p>
-                  <p className="text-sm text-[#005157]/60">En moins d'1 heure</p>
+                  <p className="font-semibold text-[#1A5C3A]">Réparation express</p>
+                  <p className="text-sm text-[#1A5C3A]/60">En moins d'1 heure</p>
                 </div>
               </div>
             </div>
@@ -73,7 +73,7 @@ const HomePage = () => {
       </section>
 
       {/* Reassurance */}
-      <section className="bg-white py-8 border-y border-[#e8f5f5]">
+      <section className="bg-white py-8 border-y border-[#E8F5EE]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {[
@@ -83,8 +83,8 @@ const HomePage = () => {
               { icon: MapPin, text: '9 magasins' },
             ].map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
-                <Icon className="text-[#005157] flex-shrink-0" size={24} />
-                <span className="text-[#005157] font-medium">{text}</span>
+                <Icon className="text-[#1A5C3A] flex-shrink-0" size={24} />
+                <span className="text-[#1A5C3A] font-medium">{text}</span>
               </div>
             ))}
           </div>
@@ -104,10 +104,10 @@ const HomePage = () => {
             ].map(({ icon: Icon, value, label, fill, span }) => (
               <div key={label} className={`text-center ${span ? 'col-span-2 lg:col-span-1' : ''}`}>
                 <div className="flex items-center justify-center gap-1 mb-2">
-                  <Icon className={`text-[#005157] ${fill ? 'fill-[#005157]' : ''}`} size={24} />
-                  <span className="text-3xl font-bold text-[#005157]">{value}</span>
+                  <Icon className={`text-[#1A5C3A] ${fill ? 'fill-[#1A5C3A]' : ''}`} size={24} />
+                  <span className="text-3xl font-bold text-[#1A5C3A]">{value}</span>
                 </div>
-                <p className="text-[#005157]/60 text-sm">{label}</p>
+                <p className="text-[#1A5C3A]/60 text-sm">{label}</p>
               </div>
             ))}
           </div>
@@ -115,25 +115,25 @@ const HomePage = () => {
       </section>
 
       {/* QualiRépar */}
-      <section id="qualirepar" className="py-16 lg:py-24 bg-[#e8f5f5] scroll-mt-24">
+      <section id="qualirepar" className="py-16 lg:py-24 bg-[#E8F5EE] scroll-mt-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full text-[#005157] text-sm font-medium mb-6">
-                <BadgeCheck className="text-[#005157]" size={18} />
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full text-[#1A5C3A] text-sm font-medium mb-6">
+                <BadgeCheck className="text-[#1A5C3A]" size={18} />
                 Label officiel de l'État
               </div>
               <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
-                Économisez jusqu'à <span className="text-[#22c55e]">80€</span> grâce au bonus réparation
+                Économisez jusqu'à <span className="text-[#2ECC71]">80€</span> grâce au bonus réparation
               </h2>
-              <p className="mt-6 text-lg text-[#005157]/80 leading-relaxed">
+              <p className="mt-6 text-lg text-[#1A5C3A]/80 leading-relaxed">
                 Repair & Co est labellisé <strong>QualiRépar</strong>. Ce label officiel vous permet 
                 de bénéficier d'une aide de l'État directement déduite <strong>de votre facture, d'un montant 
                 allant jusqu'à 80 euros selon l'appareil réparé.</strong>
               </p>
               <div className="mt-8">
                 <Link to="/rendez-vous" data-testid="qualirepar-learn-more">
-                  <Button className="bg-[#005157] text-white hover:bg-[#005157]/90 rounded-full px-6 py-3">
+                  <Button className="bg-[#1A5C3A] text-white hover:bg-[#1A5C3A]/90 rounded-full px-6 py-3">
                     En savoir plus <ChevronRight className="ml-1" size={18} />
                   </Button>
                 </Link>
@@ -146,8 +146,8 @@ const HomePage = () => {
                   <div className="mt-6 space-y-3">
                     {["Jusqu'à 80€ d'aide directe", "Déduit automatiquement de la facture", "Tous nos magasins labellisés"].map((t) => (
                       <div key={t} className="flex items-start gap-3">
-                        <CheckCircle className="text-[#22c55e] flex-shrink-0 mt-0.5" size={20} />
-                        <span className="text-[#005157]">{t}</span>
+                        <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={20} />
+                        <span className="text-[#1A5C3A]">{t}</span>
                       </div>
                     ))}
                   </div>
@@ -163,9 +163,9 @@ const HomePage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-left mb-12">
             <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
-              Nos services de <span className="text-[#22c55e]">réparation</span>
+              Nos services de <span className="text-[#2ECC71]">réparation</span>
             </h2>
-            <p className="mt-4 text-lg text-[#005157]/70 max-w-2xl">
+            <p className="mt-4 text-lg text-[#1A5C3A]/70 max-w-2xl">
               Diagnostic gratuit, devis immédiat, réparation garantie. Toutes marques, tous appareils, <strong>avec ou sans RDV.</strong>
             </p>
           </div>
@@ -174,13 +174,13 @@ const HomePage = () => {
               <Link key={u.id} to={u.link} className="block" data-testid={`universe-card-${u.id}`}>
                 <Card className="service-card group cursor-pointer h-full">
                   <CardContent className="p-6">
-                    <div className="w-14 h-14 bg-[#e8f5f5] rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-                      <u.icon className="text-[#005157]" size={28} />
+                    <div className="w-14 h-14 bg-[#E8F5EE] rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                      <u.icon className="text-[#1A5C3A]" size={28} />
                     </div>
                     <h3 className="text-xl font-bold mb-2">{u.title}</h3>
-                    <p className="text-[#005157]/70 text-sm leading-relaxed mb-3">{u.subtitle}</p>
-                    <p className="text-[#22c55e] font-bold text-sm mb-4">{u.price}</p>
-                    <span className="inline-flex items-center text-[#005157] font-medium text-sm group-hover:underline transition-colors">
+                    <p className="text-[#1A5C3A]/70 text-sm leading-relaxed mb-3">{u.subtitle}</p>
+                    <p className="text-[#2ECC71] font-bold text-sm mb-4">{u.price}</p>
+                    <span className="inline-flex items-center text-[#1A5C3A] font-medium text-sm group-hover:underline transition-colors">
                       Voir les réparations <ChevronRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" />
                     </span>
                   </CardContent>
@@ -190,7 +190,7 @@ const HomePage = () => {
           </div>
           <div className="mt-10 text-center">
             <Link to="/services" data-testid="services-view-all">
-              <Button variant="outline" className="border-[#005157] text-[#005157] hover:bg-[#e8f5f5] rounded-full px-8">
+              <Button variant="outline" className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full px-8">
                 Voir tous nos services <ChevronRight size={18} className="ml-1" />
               </Button>
             </Link>
@@ -199,13 +199,13 @@ const HomePage = () => {
       </section>
 
       {/* Stores — 4 featured */}
-      <section className="py-16 lg:py-24 bg-[#e8f5f5]">
+      <section className="py-16 lg:py-24 bg-[#E8F5EE]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-left mb-12">
             <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
-              Près de chez vous, dans votre <span className="text-[#22c55e]">centre commercial</span>
+              Près de chez vous, dans votre <span className="text-[#2ECC71]">centre commercial</span>
             </h2>
-            <p className="mt-4 text-lg text-[#005157]/70 max-w-2xl">
+            <p className="mt-4 text-lg text-[#1A5C3A]/70 max-w-2xl">
               Retrouvez nos magasins partout en France.
             </p>
           </div>
@@ -214,23 +214,23 @@ const HomePage = () => {
               <Card key={store.id} className="store-card" data-testid={`store-card-${store.id}`}>
                 <CardContent className="p-5">
                   <h3 className="text-lg font-semibold mb-1">{store.name.replace('Repair&Co ', '')}</h3>
-                  {store.location && <p className="text-[#005157]/60 text-xs mb-3">{store.location}</p>}
-                  <div className="space-y-1.5 text-sm text-[#005157]/70 mb-3">
-                    <div className="flex items-start gap-2"><MapPin size={14} className="text-[#005157] mt-0.5 flex-shrink-0" /><span className="text-xs">{store.address}, {store.postalCode} {store.city}</span></div>
-                    <div className="flex items-center gap-2"><Clock size={14} className="text-[#005157] flex-shrink-0" /><span className="text-xs">{store.hours}</span></div>
-                    <div className="flex items-center gap-2"><Phone size={14} className="text-[#005157] flex-shrink-0" /><a href={`tel:${store.phone.replace(/\s/g, '')}`} className="text-xs hover:text-[#005157]">{store.phone}</a></div>
+                  {store.location && <p className="text-[#1A5C3A]/60 text-xs mb-3">{store.location}</p>}
+                  <div className="space-y-1.5 text-sm text-[#1A5C3A]/70 mb-3">
+                    <div className="flex items-start gap-2"><MapPin size={14} className="text-[#1A5C3A] mt-0.5 flex-shrink-0" /><span className="text-xs">{store.address}, {store.postalCode} {store.city}</span></div>
+                    <div className="flex items-center gap-2"><Clock size={14} className="text-[#1A5C3A] flex-shrink-0" /><span className="text-xs">{store.hours}</span></div>
+                    <div className="flex items-center gap-2"><Phone size={14} className="text-[#1A5C3A] flex-shrink-0" /><a href={`tel:${store.phone.replace(/\s/g, '')}`} className="text-xs hover:text-[#1A5C3A]">{store.phone}</a></div>
                   </div>
                   {store.qualirepar && (
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#e8f5f5] rounded-full text-[#005157] text-xs font-medium mb-3">
-                      <BadgeCheck size={14} className="text-[#005157]" /> QualiRépar
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#E8F5EE] rounded-full text-[#1A5C3A] text-xs font-medium mb-3">
+                      <BadgeCheck size={14} className="text-[#1A5C3A]" /> QualiRépar
                     </div>
                   )}
                   <div className="flex gap-2">
                     <a href={store.mapsUrl} target="_blank" rel="noopener noreferrer" className="flex-1">
-                      <Button size="sm" variant="outline" className="w-full border-[#005157] text-[#005157] hover:bg-[#e8f5f5] rounded-full text-xs">Voir le magasin</Button>
+                      <Button size="sm" variant="outline" className="w-full border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full text-xs">Voir le magasin</Button>
                     </a>
                     <Link to="/rendez-vous" className="flex-1">
-                      <Button size="sm" className="w-full bg-[#005157] text-white hover:bg-[#005157]/90 rounded-full text-xs">Prendre RDV</Button>
+                      <Button size="sm" className="w-full bg-[#1A5C3A] text-white hover:bg-[#1A5C3A]/90 rounded-full text-xs">Prendre RDV</Button>
                     </Link>
                   </div>
                 </CardContent>
@@ -239,7 +239,7 @@ const HomePage = () => {
           </div>
           <div className="mt-10 text-center">
             <Link to="/magasins" data-testid="stores-view-all">
-              <Button className="bg-[#005157] text-white hover:bg-[#005157]/90 rounded-full px-8">
+              <Button className="bg-[#1A5C3A] text-white hover:bg-[#1A5C3A]/90 rounded-full px-8">
                 Voir tous nos magasins <ChevronRight size={18} className="ml-1" />
               </Button>
             </Link>
@@ -252,13 +252,13 @@ const HomePage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-left mb-12">
             <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
-              Ce que disent nos <span className="text-[#22c55e]">clients</span>
+              Ce que disent nos <span className="text-[#2ECC71]">clients</span>
             </h2>
             <div className="mt-4 flex items-center gap-4">
               <div className="flex items-center gap-1">
-                {[1,2,3,4,5].map((s) => <Star key={s} className={`${s<=4?'text-[#22c55e] fill-[#22c55e]':'text-[#22c55e]'}`} size={20} />)}
+                {[1,2,3,4,5].map((s) => <Star key={s} className={`${s<=4?'text-[#2ECC71] fill-[#2ECC71]':'text-[#2ECC71]'}`} size={20} />)}
               </div>
-              <span className="text-[#005157]/70">4,7/5 · +500 avis cumulés</span>
+              <span className="text-[#1A5C3A]/70">4,7/5 · +500 avis cumulés</span>
             </div>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
@@ -266,12 +266,12 @@ const HomePage = () => {
               <Card key={r.id} className="card-repair" data-testid={`review-${r.id}`}>
                 <CardContent className="p-6">
                   <div className="flex items-center gap-1 mb-4">
-                    {[1,2,3,4,5].map((s) => <Star key={s} className={`${s<=r.rating?'text-[#22c55e] fill-[#22c55e]':'text-[#e8f5f5]'}`} size={18} />)}
+                    {[1,2,3,4,5].map((s) => <Star key={s} className={`${s<=r.rating?'text-[#2ECC71] fill-[#2ECC71]':'text-[#E8F5EE]'}`} size={18} />)}
                   </div>
-                  <p className="text-[#005157] leading-relaxed mb-4">"{r.text}"</p>
+                  <p className="text-[#1A5C3A] leading-relaxed mb-4">"{r.text}"</p>
                   <div className="flex items-center justify-between">
-                    <div><p className="font-semibold text-[#005157]">{r.name}</p><p className="text-sm text-[#005157]/60">{r.store}</p></div>
-                    <p className="text-xs text-[#005157]/50">{r.date}</p>
+                    <div><p className="font-semibold text-[#1A5C3A]">{r.name}</p><p className="text-sm text-[#1A5C3A]/60">{r.store}</p></div>
+                    <p className="text-xs text-[#1A5C3A]/50">{r.date}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -281,28 +281,28 @@ const HomePage = () => {
       </section>
 
       {/* Buyback */}
-      <section className="py-16 lg:py-24 bg-[#e8f5f5]">
+      <section className="py-16 lg:py-24 bg-[#E8F5EE]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
               <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
-                Votre ancien appareil a de la <span className="text-[#22c55e]">valeur</span>
+                Votre ancien appareil a de la <span className="text-[#2ECC71]">valeur</span>
               </h2>
-              <p className="mt-6 text-lg text-[#005157]/80 leading-relaxed">
+              <p className="mt-6 text-lg text-[#1A5C3A]/80 leading-relaxed">
                 Repair & Co rachète et reconditionne vos smartphones. Obtenez une estimation en ligne en 2 minutes.
               </p>
               <div className="mt-8">
                 <Link to="/rachat" data-testid="buyback-cta">
-                  <Button className="bg-[#005157] text-white hover:bg-[#005157]/90 rounded-full px-8">Estimer mon appareil <ArrowRight className="ml-2" size={18} /></Button>
+                  <Button className="bg-[#1A5C3A] text-white hover:bg-[#1A5C3A]/90 rounded-full px-8">Estimer mon appareil <ArrowRight className="ml-2" size={18} /></Button>
                 </Link>
               </div>
             </div>
             <div className="flex justify-center">
               <Link to="/rachat" className="block">
                 <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow">
-                  <Recycle className="text-[#005157] mx-auto mb-4" size={64} />
+                  <Recycle className="text-[#1A5C3A] mx-auto mb-4" size={64} />
                   <h3 className="text-xl font-semibold text-center mb-2">Recyclage & Reconditionnement</h3>
-                  <p className="text-[#005157]/70 text-center text-sm">Donnez une seconde vie à vos appareils et participez à l'économie circulaire.</p>
+                  <p className="text-[#1A5C3A]/70 text-center text-sm">Donnez une seconde vie à vos appareils et participez à l'économie circulaire.</p>
                 </div>
               </Link>
             </div>
@@ -311,7 +311,7 @@ const HomePage = () => {
       </section>
 
       {/* B2B */}
-      <section className="py-16 lg:py-24 bg-[#005157]">
+      <section className="py-16 lg:py-24 bg-[#1A5C3A]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -324,7 +324,7 @@ const HomePage = () => {
               </p>
               <div className="mt-8">
                 <Link to="/entreprises" data-testid="b2b-cta">
-                  <Button className="bg-white text-[#005157] hover:bg-[#e8f5f5] rounded-full px-8">Découvrir les services entreprise <ArrowRight className="ml-2" size={18} /></Button>
+                  <Button className="bg-white text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full px-8">Découvrir les services entreprise <ArrowRight className="ml-2" size={18} /></Button>
                 </Link>
               </div>
             </div>

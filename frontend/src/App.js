@@ -60,7 +60,7 @@ function App() {
 const LegalPage = ({ title }) => (
   <div className="py-16 lg:py-24 min-h-[60vh]">
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-      <h1 className="text-3xl font-bold text-[#005157] mb-8">{title}</h1>
+      <h1 className="text-3xl font-bold text-[#1A5C3A] mb-8">{title}</h1>
       <div className="prose prose-lg text-[#1A1A2E]/80">
         <p>
           Contenu à venir. Cette page sera complétée avec les informations légales 
@@ -68,7 +68,7 @@ const LegalPage = ({ title }) => (
         </p>
         <p className="mt-4">
           Pour toute question, contactez-nous à{' '}
-          <a href="mailto:edouardmourinpro@gmail.com" className="text-[#005157] hover:text-[#86cbd4]">
+          <a href="mailto:edouardmourinpro@gmail.com" className="text-[#1A5C3A] hover:text-[#2ECC71]">
             edouardmourinpro@gmail.com
           </a>
         </p>

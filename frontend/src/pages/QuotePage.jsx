@@ -122,16 +122,16 @@ const QuotePage = () => {
     return (
       <div data-testid="quote-success" className="min-h-[70vh] flex items-center justify-center py-16">
         <div className="text-center max-w-md mx-auto px-4">
-          <div className="w-20 h-20 bg-[#e8f5f5] rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="text-[#005157]" size={48} />
+          <div className="w-20 h-20 bg-[#E8F5EE] rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="text-[#1A5C3A]" size={48} />
           </div>
-          <h1 className="text-3xl font-bold text-[#005157] mb-4">Demande reçue !</h1>
-          <p className="text-lg text-[#005157]/80 mb-8">
+          <h1 className="text-3xl font-bold text-[#1A5C3A] mb-4">Demande reçue !</h1>
+          <p className="text-lg text-[#1A5C3A]/80 mb-8">
             Un technicien vous rappelle sous 15 minutes pour confirmer votre devis.
           </p>
           <Button 
             onClick={() => window.location.href = '/'}
-            className="bg-[#005157] text-white hover:bg-[#86cbd4] rounded-full"
+            className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full"
           >
             Retour à l'accueil
           </Button>
@@ -145,10 +145,10 @@ const QuotePage = () => {
       {/* Hero */}
       <section className="py-12 lg:py-16 hero-gradient">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-[#005157] tracking-tight">
-            Devis <span className="text-[#005157]">gratuit</span>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-[#1A5C3A] tracking-tight">
+            Devis <span className="text-[#1A5C3A]">gratuit</span>
           </h1>
-          <p className="mt-4 text-lg text-[#005157]/80">
+          <p className="mt-4 text-lg text-[#1A5C3A]/80">
             Précisez-nous votre appareil et votre problème. 
             Nous vous rappelons sous 15 minutes.
           </p>
@@ -172,7 +172,7 @@ const QuotePage = () => {
                 {s < 4 && (
                   <div 
                     className={`w-10 sm:w-24 h-1 mx-1 sm:mx-2 rounded ${
-                      step > s ? 'bg-[#005157]' : 'bg-[#e8f5f5]'
+                      step > s ? 'bg-[#1A5C3A]' : 'bg-[#E8F5EE]'
                     }`}
                   />
                 )}
@@ -184,7 +184,7 @@ const QuotePage = () => {
             {/* Step 1: Device Type */}
             {step === 1 && (
               <div className="animate-fade-in-up" data-testid="quote-step-1">
-                <h2 className="text-2xl font-bold text-[#005157] mb-6">
+                <h2 className="text-2xl font-bold text-[#1A5C3A] mb-6">
                   Quel type d'appareil ?
                 </h2>
                 <div className="grid grid-cols-2 gap-4">
@@ -196,17 +196,17 @@ const QuotePage = () => {
                       data-testid={`device-${id}`}
                       className={`p-6 rounded-2xl border-2 transition-all duration-300 ${
                         deviceType === id
-                          ? 'border-[#86cbd4] bg-[#e8f5f5]'
-                          : 'border-[#e8f5f5] hover:border-[#86cbd4]/50'
+                          ? 'border-[#2ECC71] bg-[#E8F5EE]'
+                          : 'border-[#E8F5EE] hover:border-[#2ECC71]/50'
                       }`}
                     >
                       <Icon 
                         className={`mx-auto mb-3 ${
-                          deviceType === id ? 'text-[#005157]' : 'text-[#005157]'
+                          deviceType === id ? 'text-[#1A5C3A]' : 'text-[#1A5C3A]'
                         }`} 
                         size={40} 
                       />
-                      <span className="font-semibold text-[#005157]">{label}</span>
+                      <span className="font-semibold text-[#1A5C3A]">{label}</span>
                     </button>
                   ))}
                 </div>
@@ -219,12 +219,12 @@ const QuotePage = () => {
             {/* Step 2: Brand & Model */}
             {step === 2 && (
               <div className="animate-fade-in-up" data-testid="quote-step-2">
-                <h2 className="text-2xl font-bold text-[#005157] mb-6">
+                <h2 className="text-2xl font-bold text-[#1A5C3A] mb-6">
                   Marque et modèle
                 </h2>
                 <div className="space-y-6">
                   <div>
-                    <Label htmlFor="brand" className="text-[#005157] mb-2 block">Marque</Label>
+                    <Label htmlFor="brand" className="text-[#1A5C3A] mb-2 block">Marque</Label>
                     <Select onValueChange={(value) => setValue('brand', value)}>
                       <SelectTrigger data-testid="brand-select" className="form-select">
                         <SelectValue placeholder="Sélectionnez une marque" />
@@ -240,7 +240,7 @@ const QuotePage = () => {
                     )}
                   </div>
                   <div>
-                    <Label htmlFor="model" className="text-[#005157] mb-2 block">Modèle</Label>
+                    <Label htmlFor="model" className="text-[#1A5C3A] mb-2 block">Modèle</Label>
                     <Input
                       {...register('model')}
                       data-testid="model-input"
@@ -258,7 +258,7 @@ const QuotePage = () => {
             {/* Step 3: Issue Type */}
             {step === 3 && (
               <div className="animate-fade-in-up" data-testid="quote-step-3">
-                <h2 className="text-2xl font-bold text-[#005157] mb-6">
+                <h2 className="text-2xl font-bold text-[#1A5C3A] mb-6">
                   Quel est le problème ?
                 </h2>
                 <div className="space-y-3">
@@ -267,8 +267,8 @@ const QuotePage = () => {
                       key={issue}
                       className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
                         selectedIssues.includes(issue)
-                          ? 'border-[#86cbd4] bg-[#e8f5f5]'
-                          : 'border-[#e8f5f5] hover:border-[#86cbd4]/50'
+                          ? 'border-[#2ECC71] bg-[#E8F5EE]'
+                          : 'border-[#E8F5EE] hover:border-[#2ECC71]/50'
                       }`}
                     >
                       <Checkbox
@@ -276,7 +276,7 @@ const QuotePage = () => {
                         onCheckedChange={() => handleIssueToggle(issue)}
                         data-testid={`issue-${issue.toLowerCase().replace(/\s/g, '-')}`}
                       />
-                      <span className="text-[#005157]">{issue}</span>
+                      <span className="text-[#1A5C3A]">{issue}</span>
                     </label>
                   ))}
                 </div>
@@ -286,7 +286,7 @@ const QuotePage = () => {
                 
                 {selectedIssues.includes('Autre') && (
                   <div className="mt-4">
-                    <Label htmlFor="other_issue" className="text-[#005157] mb-2 block">
+                    <Label htmlFor="other_issue" className="text-[#1A5C3A] mb-2 block">
                       Décrivez le problème
                     </Label>
                     <Textarea
@@ -304,12 +304,12 @@ const QuotePage = () => {
             {/* Step 4: Contact Info */}
             {step === 4 && (
               <div className="animate-fade-in-up" data-testid="quote-step-4">
-                <h2 className="text-2xl font-bold text-[#005157] mb-6">
+                <h2 className="text-2xl font-bold text-[#1A5C3A] mb-6">
                   Vos coordonnées
                 </h2>
                 <div className="space-y-6">
                   <div>
-                    <Label htmlFor="name" className="text-[#005157] mb-2 block">Nom complet</Label>
+                    <Label htmlFor="name" className="text-[#1A5C3A] mb-2 block">Nom complet</Label>
                     <Input
                       {...register('name')}
                       data-testid="name-input"
@@ -321,7 +321,7 @@ const QuotePage = () => {
                     )}
                   </div>
                   <div>
-                    <Label htmlFor="phone" className="text-[#005157] mb-2 block">Téléphone</Label>
+                    <Label htmlFor="phone" className="text-[#1A5C3A] mb-2 block">Téléphone</Label>
                     <Input
                       {...register('phone')}
                       data-testid="phone-input"
@@ -333,7 +333,7 @@ const QuotePage = () => {
                     )}
                   </div>
                   <div>
-                    <Label htmlFor="email" className="text-[#005157] mb-2 block">Email</Label>
+                    <Label htmlFor="email" className="text-[#1A5C3A] mb-2 block">Email</Label>
                     <Input
                       {...register('email')}
                       data-testid="email-input"
@@ -346,7 +346,7 @@ const QuotePage = () => {
                     )}
                   </div>
                   <div>
-                    <Label htmlFor="store" className="text-[#005157] mb-2 block">Magasin</Label>
+                    <Label htmlFor="store" className="text-[#1A5C3A] mb-2 block">Magasin</Label>
                     <Select onValueChange={(value) => setValue('store', value)}>
                       <SelectTrigger data-testid="store-select" className="form-select">
                         <SelectValue placeholder="Choisissez un magasin" />
@@ -364,7 +364,7 @@ const QuotePage = () => {
                     )}
                   </div>
                   <div>
-                    <Label htmlFor="preferred_time" className="text-[#005157] mb-2 block">
+                    <Label htmlFor="preferred_time" className="text-[#1A5C3A] mb-2 block">
                       Créneau souhaité (optionnel)
                     </Label>
                     <Input
@@ -386,7 +386,7 @@ const QuotePage = () => {
                   variant="outline"
                   onClick={prevStep}
                   data-testid="quote-prev"
-                  className="border-[#005157] text-[#005157] hover:bg-[#e8f5f5] rounded-full"
+                  className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full"
                 >
                   <ChevronLeft size={18} className="mr-1" />
                   Précédent
@@ -400,7 +400,7 @@ const QuotePage = () => {
                   type="button"
                   onClick={nextStep}
                   data-testid="quote-next"
-                  className="bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full"
+                  className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] hover:text-[#1A5C3A] rounded-full"
                 >
                   Suivant
                   <ChevronRight size={18} className="ml-1" />
@@ -410,7 +410,7 @@ const QuotePage = () => {
                   type="submit"
                   disabled={isSubmitting}
                   data-testid="quote-submit"
-                  className="bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full"
+                  className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] hover:text-[#1A5C3A] rounded-full"
                 >
                   {isSubmitting ? (
                     <>
@@ -426,12 +426,12 @@ const QuotePage = () => {
           </form>
 
           {/* QualiRépar Note */}
-          <div className="mt-12 p-6 bg-[#e8f5f5] rounded-2xl">
+          <div className="mt-12 p-6 bg-[#E8F5EE] rounded-2xl">
             <div className="flex items-start gap-4">
-              <BadgeCheck className="text-[#005157] flex-shrink-0" size={24} />
+              <BadgeCheck className="text-[#1A5C3A] flex-shrink-0" size={24} />
               <div>
-                <p className="font-semibold text-[#005157]">Label QualiRépar</p>
-                <p className="text-sm text-[#005157]/70 mt-1">
+                <p className="font-semibold text-[#1A5C3A]">Label QualiRépar</p>
+                <p className="text-sm text-[#1A5C3A]/70 mt-1">
                   Bénéficiez d'une aide de 15 à 80€ déduite directement de votre facture.
                 </p>
               </div>

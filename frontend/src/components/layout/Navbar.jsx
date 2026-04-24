@@ -9,137 +9,59 @@ export const Navbar = () => {
   const location = useLocation();
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, [location]);
+  useEffect(() => { setIsMobileMenuOpen(false); }, [location]);
 
   const navLinks = [
-    { to: '/', label: 'Accueil' },
-    { to: '/services', label: 'Services' },
-    { to: '/magasins', label: 'Magasins' },
-    { to: '/devis', label: 'Devis' },
-    { to: '/rendez-vous', label: 'Rendez-vous' },
-    { to: '/rachat', label: 'Boutique' },
+    { to: '/', label: 'Accueil' }, { to: '/services', label: 'Services' },
+    { to: '/magasins', label: 'Magasins' }, { to: '/devis', label: 'Devis' },
+    { to: '/rendez-vous', label: 'Rendez-vous' }, { to: '/rachat', label: 'Boutique' },
   ];
-
   const isActive = (path) => location.pathname === path;
 
   return (
     <>
-      <nav
-        data-testid="navbar"
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isScrolled ? 'bg-white shadow-md py-3' : 'bg-white/95 backdrop-blur-sm py-4'
-        }`}
-      >
+      <nav data-testid="navbar" className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-white shadow-md py-3' : 'bg-white/95 backdrop-blur-sm py-4'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
-            {/* Logo */}
-            <Link 
-              to="/" 
-              data-testid="logo-link"
-              className="flex items-center gap-2"
-            >
-              <span className="text-2xl font-extrabold text-[#005157] tracking-tight">
-                Repair<span className="text-[#22c55e]">&</span>Co
-              </span>
+            <Link to="/" data-testid="logo-link" className="flex items-center gap-2">
+              <span className="text-2xl font-extrabold text-[#1A5C3A] tracking-tight">Repair<span className="text-[#2ECC71]">&</span>Co</span>
             </Link>
-
-            {/* Desktop Navigation */}
             <div className="hidden lg:flex items-center gap-8">
               {navLinks.map((link) => (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  data-testid={`nav-${link.to.replace('/', '') || 'home'}`}
-                  className={`nav-link ${isActive(link.to) ? 'active' : ''}`}
-                >
-                  {link.label}
-                </Link>
+                <Link key={link.to} to={link.to} data-testid={`nav-${link.to.replace('/', '') || 'home'}`} className={`nav-link ${isActive(link.to) ? 'active' : ''}`}>{link.label}</Link>
               ))}
             </div>
-
-            {/* CTA Buttons */}
             <div className="hidden lg:flex items-center gap-3">
-              <Link to="/qui-sommes-nous" data-testid="nav-about">
-                <Button variant="outline" className="border-[#005157] text-[#005157] hover:bg-[#e8f5f5] rounded-full">
-                  Qui sommes-nous
-                </Button>
-              </Link>
-              <Link to="/entreprises" data-testid="nav-b2b">
-                <Button className="bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full">
-                  Services Entreprise
-                </Button>
-              </Link>
+              <Link to="/qui-sommes-nous" data-testid="nav-about"><Button variant="outline" className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full">Qui sommes-nous</Button></Link>
+              <Link to="/entreprises" data-testid="nav-b2b"><Button className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full">Services Entreprise</Button></Link>
             </div>
-
-            {/* Mobile Menu Button */}
-            <button
-              data-testid="mobile-menu-toggle"
-              className="lg:hidden p-2 text-[#005157]"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              aria-label="Toggle menu"
-            >
+            <button data-testid="mobile-menu-toggle" className="lg:hidden p-2 text-[#1A5C3A]" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} aria-label="Toggle menu">
               {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
           </div>
         </div>
       </nav>
-
-      {/* Mobile Menu */}
-      <div
-        data-testid="mobile-menu"
-        className={`mobile-menu ${isMobileMenuOpen ? 'open' : 'closed'} lg:hidden`}
-      >
+      <div data-testid="mobile-menu" className={`mobile-menu ${isMobileMenuOpen ? 'open' : 'closed'} lg:hidden`}>
         <div className="pt-20 px-6 pb-6 h-full overflow-y-auto">
           <div className="flex flex-col gap-4">
             {navLinks.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                data-testid={`mobile-nav-${link.to.replace('/', '') || 'home'}`}
-                className={`text-lg font-medium py-3 border-b border-[#e8f5f5] ${
-                  isActive(link.to) ? 'text-[#005157]' : 'text-[#1A1A2E]'
-                }`}
-              >
-                {link.label}
-              </Link>
+              <Link key={link.to} to={link.to} data-testid={`mobile-nav-${link.to.replace('/', '') || 'home'}`} className={`text-lg font-medium py-3 border-b border-[#E8F5EE] ${isActive(link.to) ? 'text-[#1A5C3A]' : 'text-[#1A1A2E]'}`}>{link.label}</Link>
             ))}
-            
             <div className="pt-4 flex flex-col gap-3">
-              <Link to="/qui-sommes-nous" data-testid="mobile-nav-about">
-                <Button variant="outline" className="w-full border-[#005157] text-[#005157] hover:bg-[#e8f5f5] rounded-full">
-                  Qui sommes-nous
-                </Button>
-              </Link>
-              <Link to="/entreprises" data-testid="mobile-nav-b2b">
-                <Button className="w-full bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full">
-                  Services Entreprise
-                </Button>
-              </Link>
+              <Link to="/qui-sommes-nous" data-testid="mobile-nav-about"><Button variant="outline" className="w-full border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full">Qui sommes-nous</Button></Link>
+              <Link to="/entreprises" data-testid="mobile-nav-b2b"><Button className="w-full bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full">Services Entreprise</Button></Link>
             </div>
-
-            <div className="pt-6 border-t border-[#e8f5f5]">
-              <a 
-                href="tel:0466848079" 
-                className="flex items-center gap-3 text-[#005157] font-medium"
-              >
-                <Phone size={20} className="text-[#005157]" />
-                04 66 84 80 79
-              </a>
+            <div className="pt-6 border-t border-[#E8F5EE]">
+              <a href="tel:0466848079" className="flex items-center gap-3 text-[#1A5C3A] font-medium"><Phone size={20} className="text-[#2ECC71]" /> 04 66 84 80 79</a>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Spacer for fixed navbar */}
       <div className="h-20" />
     </>
   );

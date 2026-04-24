@@ -53,23 +53,23 @@ const AboutPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-10 items-center">
             <div>
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-[#005157] tracking-tight">
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-[#1A5C3A] tracking-tight">
                 Qui sommes-nous ?
               </h1>
-              <p className="mt-5 text-base text-[#005157]/80 leading-relaxed font-semibold">
+              <p className="mt-5 text-base text-[#1A5C3A]/80 leading-relaxed font-semibold">
                 REPAIR&CO, une entreprise engagée et éco-responsable
               </p>
-              <p className="mt-3 text-base text-[#005157]/80 leading-relaxed">
+              <p className="mt-3 text-base text-[#1A5C3A]/80 leading-relaxed">
                 Spécialiste de la seconde vie des appareils numériques et des objets connectés 
                 (smartphones, informatique, petit électroménager…), et des solutions de mobilité douce 
                 (vélos et trottinettes électriques), REPAIR&CO place la durabilité au cœur de son expertise.
               </p>
-              <p className="mt-3 text-base text-[#005157]/80 leading-relaxed">
+              <p className="mt-3 text-base text-[#1A5C3A]/80 leading-relaxed">
                 Grâce à une large gamme de services de réparation et d'intervention, nos équipes 
                 accompagnent au quotidien les particuliers, les entreprises et les acteurs de l'Économie 
                 Sociale et Solidaire, en les aidant à faire le choix du "réparer plutôt que jeter".
               </p>
-              <p className="mt-3 text-base text-[#005157]/80 leading-relaxed">
+              <p className="mt-3 text-base text-[#1A5C3A]/80 leading-relaxed">
                 Depuis plus de <strong>10 ans</strong>, nous œuvrons auprès de particuliers et des entreprises 
                 pour une consommation plus responsable, durable et respectueuse de l'environnement.
               </p>
@@ -86,7 +86,7 @@ const AboutPage = () => {
       </section>
 
       {/* Mission Statement */}
-      <section className="py-10 lg:py-12 bg-[#005157]">
+      <section className="py-10 lg:py-12 bg-[#1A5C3A]">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-xl lg:text-2xl text-white font-medium italic leading-relaxed">
             "Développer des services de réparation et de reconditionnement en proximité pour 
@@ -102,18 +102,18 @@ const AboutPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-10 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#e8f5f5] rounded-full text-[#005157] text-sm font-medium mb-4">
-                <Leaf className="text-[#005157]" size={16} />
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#E8F5EE] rounded-full text-[#1A5C3A] text-sm font-medium mb-4">
+                <Leaf className="text-[#1A5C3A]" size={16} />
                 Économie Sociale et Solidaire
               </div>
-              <h2 className="text-2xl font-bold text-[#005157] mb-4">
-                Repair&Co au service de <span className="text-[#005157]">l'ESS</span>
+              <h2 className="text-2xl font-bold text-[#1A5C3A] mb-4">
+                Repair&Co au service de <span className="text-[#1A5C3A]">l'ESS</span>
               </h2>
-              <p className="text-[#005157]/80 leading-relaxed mb-4">
+              <p className="text-[#1A5C3A]/80 leading-relaxed mb-4">
                 Notre engagement va au-delà de la simple réparation. Nous participons activement 
                 à l'économie circulaire et à la transition écologique.
               </p>
-              <p className="text-[#005157]/80 leading-relaxed">
+              <p className="text-[#1A5C3A]/80 leading-relaxed">
                 Nous accompagnons également les <strong>entreprises et collectivités</strong> dans 
                 leur démarche RSE, en proposant des solutions de réparation et de reconditionnement 
                 adaptées à leurs besoins.
@@ -121,14 +121,14 @@ const AboutPage = () => {
             </div>
             <div className="grid grid-cols-1 gap-4">
               {values.map((value, index) => (
-                <Card key={index} className="border border-[#e8f5f5]">
+                <Card key={index} className="border border-[#E8F5EE]">
                   <CardContent className="p-4 flex items-start gap-4">
-                    <div className="w-10 h-10 bg-[#e8f5f5] rounded-lg flex items-center justify-center flex-shrink-0">
-                      <value.icon className="text-[#005157]" size={20} />
+                    <div className="w-10 h-10 bg-[#E8F5EE] rounded-lg flex items-center justify-center flex-shrink-0">
+                      <value.icon className="text-[#1A5C3A]" size={20} />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-[#005157] text-sm">{value.title}</h3>
-                      <p className="text-[#005157]/70 text-sm mt-1">{value.description}</p>
+                      <h3 className="font-semibold text-[#1A5C3A] text-sm">{value.title}</h3>
+                      <p className="text-[#1A5C3A]/70 text-sm mt-1">{value.description}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -159,32 +159,32 @@ const AboutPage = () => {
               </a>
             </div>
             <div className="order-1 lg:order-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white rounded-full text-[#005157] text-sm font-medium mb-4">
-                <BadgeCheck className="text-[#005157]" size={16} />
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white rounded-full text-[#1A5C3A] text-sm font-medium mb-4">
+                <BadgeCheck className="text-[#1A5C3A]" size={16} />
                 Engagement qualité
               </div>
-              <h2 className="text-2xl font-bold text-[#005157] mb-4">
-                Label <span className="text-[#005157]">QualiRépar</span>
+              <h2 className="text-2xl font-bold text-[#1A5C3A] mb-4">
+                Label <span className="text-[#1A5C3A]">QualiRépar</span>
               </h2>
-              <p className="text-[#005157]/80 leading-relaxed mb-3">
+              <p className="text-[#1A5C3A]/80 leading-relaxed mb-3">
                 Tous nos magasins sont labellisés <strong>QualiRépar</strong>, le label officiel 
                 de l'État français pour les réparateurs de qualité.
               </p>
-              <ul className="space-y-2 text-[#005157]/80 text-sm">
+              <ul className="space-y-2 text-[#1A5C3A]/80 text-sm">
                 <li className="flex items-start gap-2">
-                  <CheckCircle className="text-[#005157] flex-shrink-0 mt-0.5" size={16} />
+                  <CheckCircle className="text-[#1A5C3A] flex-shrink-0 mt-0.5" size={16} />
                   Des techniciens qualifiés et formés
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckCircle className="text-[#005157] flex-shrink-0 mt-0.5" size={16} />
+                  <CheckCircle className="text-[#1A5C3A] flex-shrink-0 mt-0.5" size={16} />
                   Des pièces de qualité
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckCircle className="text-[#005157] flex-shrink-0 mt-0.5" size={16} />
+                  <CheckCircle className="text-[#1A5C3A] flex-shrink-0 mt-0.5" size={16} />
                   Une garantie sur les réparations
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckCircle className="text-[#005157] flex-shrink-0 mt-0.5" size={16} />
+                  <CheckCircle className="text-[#1A5C3A] flex-shrink-0 mt-0.5" size={16} />
                   De 15€ à 80€ d'aide directe selon l'appareil
                 </li>
               </ul>
@@ -197,10 +197,10 @@ const AboutPage = () => {
       <section className="py-12 lg:py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <h2 className="text-2xl font-bold text-[#005157] mb-4">
-              L'équipe <span className="text-[#005157]">Repair&Co</span>
+            <h2 className="text-2xl font-bold text-[#1A5C3A] mb-4">
+              L'équipe <span className="text-[#1A5C3A]">Repair&Co</span>
             </h2>
-            <p className="text-base text-[#005157]/70 max-w-2xl mx-auto">
+            <p className="text-base text-[#1A5C3A]/70 max-w-2xl mx-auto">
               Chez Repair&Co, notre force, c'est notre équipe. Des techniciens expérimentés, 
               des conseillers à l'écoute, et des passionnés du numérique qui œuvrent chaque jour 
               pour donner une seconde vie à vos appareils.
@@ -211,13 +211,13 @@ const AboutPage = () => {
             {teamBlocks.map((block, index) => (
               <Card key={index} className="card-repair text-center">
                 <CardContent className="p-6">
-                  <div className="w-14 h-14 bg-[#e8f5f5] rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <block.icon className="text-[#005157]" size={28} />
+                  <div className="w-14 h-14 bg-[#E8F5EE] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <block.icon className="text-[#1A5C3A]" size={28} />
                   </div>
-                  <h3 className="text-lg font-semibold text-[#005157] mb-2">
+                  <h3 className="text-lg font-semibold text-[#1A5C3A] mb-2">
                     {block.title}
                   </h3>
-                  <p className="text-[#005157]/70 text-sm leading-relaxed">
+                  <p className="text-[#1A5C3A]/70 text-sm leading-relaxed">
                     {block.description}
                   </p>
                 </CardContent>
@@ -231,7 +231,7 @@ const AboutPage = () => {
       <section className="py-12 lg:py-16 section-mint">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-2xl font-bold mb-8 text-center">
-            Nos <span className="text-[#22c55e]">implantations</span>
+            Nos <span className="text-[#2ECC71]">implantations</span>
           </h2>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -239,23 +239,23 @@ const AboutPage = () => {
               <Card key={store.id} className="store-card">
                 <CardContent className="p-5">
                   <h3 className="text-lg font-semibold mb-1">{store.name.replace('Repair&Co ', '')}</h3>
-                  {store.location && <p className="text-[#005157]/60 text-xs mb-3">{store.location}</p>}
-                  <div className="space-y-1.5 text-sm text-[#005157]/70 mb-3">
-                    <div className="flex items-start gap-2"><MapPin size={14} className="text-[#005157] mt-0.5 flex-shrink-0" /><span className="text-xs">{store.address}, {store.postalCode} {store.city}</span></div>
-                    <div className="flex items-center gap-2"><Clock size={14} className="text-[#005157] flex-shrink-0" /><span className="text-xs">{store.hours}</span></div>
-                    <div className="flex items-center gap-2"><Phone size={14} className="text-[#005157] flex-shrink-0" /><a href={`tel:${store.phone.replace(/\s/g, '')}`} className="text-xs hover:underline">{store.phone}</a></div>
+                  {store.location && <p className="text-[#1A5C3A]/60 text-xs mb-3">{store.location}</p>}
+                  <div className="space-y-1.5 text-sm text-[#1A5C3A]/70 mb-3">
+                    <div className="flex items-start gap-2"><MapPin size={14} className="text-[#1A5C3A] mt-0.5 flex-shrink-0" /><span className="text-xs">{store.address}, {store.postalCode} {store.city}</span></div>
+                    <div className="flex items-center gap-2"><Clock size={14} className="text-[#1A5C3A] flex-shrink-0" /><span className="text-xs">{store.hours}</span></div>
+                    <div className="flex items-center gap-2"><Phone size={14} className="text-[#1A5C3A] flex-shrink-0" /><a href={`tel:${store.phone.replace(/\s/g, '')}`} className="text-xs hover:underline">{store.phone}</a></div>
                   </div>
                   {store.qualirepar && (
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#e8f5f5] rounded-full text-[#005157] text-xs font-medium mb-3">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#E8F5EE] rounded-full text-[#1A5C3A] text-xs font-medium mb-3">
                       <BadgeCheck size={14} /> QualiRépar
                     </div>
                   )}
                   <div className="flex gap-2">
                     <a href={store.mapsUrl} target="_blank" rel="noopener noreferrer" className="flex-1">
-                      <Button size="sm" variant="outline" className="w-full border-[#005157] text-[#005157] hover:bg-[#e8f5f5] rounded-full text-xs">Voir le magasin</Button>
+                      <Button size="sm" variant="outline" className="w-full border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full text-xs">Voir le magasin</Button>
                     </a>
                     <Link to="/rendez-vous" className="flex-1">
-                      <Button size="sm" className="w-full bg-[#005157] text-white hover:bg-[#005157]/90 rounded-full text-xs">Prendre RDV</Button>
+                      <Button size="sm" className="w-full bg-[#1A5C3A] text-white hover:bg-[#1A5C3A]/90 rounded-full text-xs">Prendre RDV</Button>
                     </Link>
                   </div>
                 </CardContent>
@@ -265,7 +265,7 @@ const AboutPage = () => {
 
           <div className="text-center">
             <Link to="/magasins" data-testid="about-stores-link">
-              <Button className="bg-[#005157] text-white hover:bg-[#005157]/90 rounded-full px-6">
+              <Button className="bg-[#1A5C3A] text-white hover:bg-[#1A5C3A]/90 rounded-full px-6">
                 Voir tous nos magasins
               </Button>
             </Link>
@@ -274,9 +274,9 @@ const AboutPage = () => {
       </section>
 
       {/* Contact Press */}
-      <section className="py-12 lg:py-16 bg-[#005157]">
+      <section className="py-12 lg:py-16 bg-[#1A5C3A]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <Award className="text-[#86cbd4] mx-auto mb-4" size={40} />
+          <Award className="text-[#2ECC71] mx-auto mb-4" size={40} />
           <h2 className="text-2xl font-bold text-white mb-4">
             Presse & Partenariats
           </h2>
@@ -284,7 +284,7 @@ const AboutPage = () => {
             Vous êtes journaliste ou souhaitez établir un partenariat avec Repair & Co ?
           </p>
           <Link to="/contact" data-testid="about-contact-link">
-            <Button className="bg-white text-[#005157] hover:bg-[#e8f5f5] rounded-full px-6">
+            <Button className="bg-white text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full px-6">
               Contactez-nous
             </Button>
           </Link>

@@ -102,16 +102,16 @@ const EnterprisePage = () => {
     return (
       <div data-testid="b2b-success" className="min-h-[70vh] flex items-center justify-center py-16">
         <div className="text-center max-w-md mx-auto px-4">
-          <div className="w-20 h-20 bg-[#e8f5f5] rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="text-[#005157]" size={48} />
+          <div className="w-20 h-20 bg-[#E8F5EE] rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="text-[#1A5C3A]" size={48} />
           </div>
-          <h1 className="text-3xl font-bold text-[#005157] mb-4">Demande reçue !</h1>
-          <p className="text-lg text-[#005157]/80 mb-8">
+          <h1 className="text-3xl font-bold text-[#1A5C3A] mb-4">Demande reçue !</h1>
+          <p className="text-lg text-[#1A5C3A]/80 mb-8">
             Notre équipe commerciale vous contactera rapidement pour discuter de vos besoins.
           </p>
           <Button 
             onClick={() => window.location.href = '/'}
-            className="bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full"
+            className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] hover:text-[#1A5C3A] rounded-full"
           >
             Retour à l'accueil
           </Button>
@@ -123,23 +123,23 @@ const EnterprisePage = () => {
   return (
     <div data-testid="enterprise-page">
       {/* Hero */}
-      <section className="py-12 lg:py-16 bg-[#005157]">
+      <section className="py-12 lg:py-16 bg-[#1A5C3A]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-10 items-center">
             <div>
               <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-                Repair & Co — <span className="text-[#86cbd4]">Services Entreprise</span>
+                Repair & Co — <span className="text-[#2ECC71]">Services Entreprise</span>
               </h1>
               <p className="mt-4 text-xl text-white/90 leading-relaxed">
                 Réparation de flottes mobiles, SAV externalisé, Programme RSE avantages collaborateurs, rachat et/ou vente de smartphones reconditionnés, …
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-full">
-                  <BadgeCheck className="text-[#86cbd4]" size={18} />
+                  <BadgeCheck className="text-[#2ECC71]" size={18} />
                   <span className="text-white text-sm">Label QualiRépar</span>
                 </div>
                 <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-full">
-                  <Building2 className="text-[#86cbd4]" size={18} />
+                  <Building2 className="text-[#2ECC71]" size={18} />
                   <span className="text-white text-sm">5 magasins</span>
                 </div>
               </div>
@@ -172,10 +172,10 @@ const EnterprisePage = () => {
       <section id="offres" className="py-12 lg:py-16 section-mint scroll-mt-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <h2 className="text-2xl font-bold text-[#005157] mb-3">
-              Des réponses adaptées à vos <span className="text-[#005157]">besoins</span>
+            <h2 className="text-2xl font-bold text-[#1A5C3A] mb-3">
+              Des réponses adaptées à vos <span className="text-[#1A5C3A]">besoins</span>
             </h2>
-            <p className="text-[#005157]/70 max-w-2xl mx-auto">
+            <p className="text-[#1A5C3A]/70 max-w-2xl mx-auto">
               L'offre Repair&Co s'adapte à votre entreprise : maintenances, SAV, réparations, 
               logistique, Programme RSE avantages collaborateurs, ventes et financements de mobiles reconditionnés.
             </p>
@@ -185,11 +185,11 @@ const EnterprisePage = () => {
             {adaptedSolutions.map((solution, index) => (
               <Card key={index} className="bg-white">
                 <CardContent className="p-5 text-center">
-                  <div className="w-12 h-12 bg-[#e8f5f5] rounded-xl flex items-center justify-center mx-auto mb-3">
-                    <solution.icon className="text-[#005157]" size={24} />
+                  <div className="w-12 h-12 bg-[#E8F5EE] rounded-xl flex items-center justify-center mx-auto mb-3">
+                    <solution.icon className="text-[#1A5C3A]" size={24} />
                   </div>
-                  <h3 className="font-semibold text-[#005157] mb-1">{solution.title}</h3>
-                  <p className="text-[#005157]/70 text-sm">{solution.description}</p>
+                  <h3 className="font-semibold text-[#1A5C3A] mb-1">{solution.title}</h3>
+                  <p className="text-[#1A5C3A]/70 text-sm">{solution.description}</p>
                 </CardContent>
               </Card>
             ))}
@@ -202,25 +202,25 @@ const EnterprisePage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-10">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#e8f5f5] rounded-full text-[#005157] text-sm font-medium mb-4">
-                <Gift className="text-[#005157]" size={16} />
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#E8F5EE] rounded-full text-[#1A5C3A] text-sm font-medium mb-4">
+                <Gift className="text-[#1A5C3A]" size={16} />
                 Programme dédié
               </div>
-              <h2 className="text-2xl font-bold text-[#005157] mb-4">
-                Programme RSE <span className="text-[#005157]">REPAIR</span>
+              <h2 className="text-2xl font-bold text-[#1A5C3A] mb-4">
+                Programme RSE <span className="text-[#1A5C3A]">REPAIR</span>
               </h2>
-              <p className="text-[#005157]/80 leading-relaxed mb-4">
+              <p className="text-[#1A5C3A]/80 leading-relaxed mb-4">
                 Nous accompagnons les entreprises dans la mise en œuvre concrète de leur politique RSE 
                 et de leur marque employeur auprès de leurs collaborateurs, grâce à un programme dédié. 
                 Notre objectif : encourager des comportements plus responsables et promouvoir le réflexe 
                 « réparer plutôt que jeter ».
               </p>
-              <p className="text-[#005157]/80 leading-relaxed mb-4">
+              <p className="text-[#1A5C3A]/80 leading-relaxed mb-4">
                 Offrez à vos collaborateurs tous les avantages du club Repair avec votre code entreprise 
                 et faites-leur bénéficier de <strong>-25 à -50%</strong> sur toutes leurs réparations. 
                 Une autre façon de soutenir « Le réparer plutôt que jeter » et d'illustrer votre politique RSE !
               </p>
-              <p className="text-[#005157]/80 leading-relaxed mb-6">
+              <p className="text-[#1A5C3A]/80 leading-relaxed mb-6">
                 REPAIR&CO étant labellisé QUALIREPAR, les collaborateurs peuvent en plus cumuler sur leurs 
                 futures réparations des réductions allant de <strong>15 à 80 euros</strong> selon la nature 
                 du produit réparé.
@@ -228,7 +228,7 @@ const EnterprisePage = () => {
 
               <Button 
                 onClick={() => scrollToSection('contact-b2b')}
-                className="bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full"
+                className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] hover:text-[#1A5C3A] rounded-full"
                 data-testid="rse-join-btn"
               >
                 Je souhaite le rejoindre
@@ -236,39 +236,39 @@ const EnterprisePage = () => {
               </Button>
             </div>
 
-            <Card className="bg-[#e8f5f5] border-none">
+            <Card className="bg-[#E8F5EE] border-none">
               <CardContent className="p-6">
-                <Award className="text-[#005157] mb-4" size={40} />
-                <h3 className="text-xl font-bold text-[#005157] mb-3">
+                <Award className="text-[#1A5C3A] mb-4" size={40} />
+                <h3 className="text-xl font-bold text-[#1A5C3A] mb-3">
                   Inscription gratuite
                 </h3>
-                <p className="text-[#005157]/80 text-sm leading-relaxed mb-4">
+                <p className="text-[#1A5C3A]/80 text-sm leading-relaxed mb-4">
                   Inscrivez votre entreprise au programme RSE REPAIR et offrez à vos collaborateurs 
                   des avantages exclusifs sur toutes leurs réparations.
                 </p>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="text-[#005157]" size={16} />
-                    <span className="text-[#005157]/80">Aucun engagement</span>
+                    <CheckCircle className="text-[#1A5C3A]" size={16} />
+                    <span className="text-[#1A5C3A]/80">Aucun engagement</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="text-[#005157]" size={16} />
-                    <span className="text-[#005157]/80">Mise en place rapide</span>
+                    <CheckCircle className="text-[#1A5C3A]" size={16} />
+                    <span className="text-[#1A5C3A]/80">Mise en place rapide</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="text-[#005157]" size={16} />
-                    <span className="text-[#005157]/80">Valable dans tous nos magasins</span>
+                    <CheckCircle className="text-[#1A5C3A]" size={16} />
+                    <span className="text-[#1A5C3A]/80">Valable dans tous nos magasins</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="text-[#005157]" size={16} />
-                    <span className="text-[#005157]/80">Cumul possible avec le bonus QualiRépar</span>
+                    <CheckCircle className="text-[#1A5C3A]" size={16} />
+                    <span className="text-[#1A5C3A]/80">Cumul possible avec le bonus QualiRépar</span>
                   </div>
                 </div>
 
                 <div className="mt-6">
                   <Button 
                     variant="outline"
-                    className="border-[#005157] text-[#005157] hover:bg-white rounded-full w-full"
+                    className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-white rounded-full w-full"
                     data-testid="download-brochure"
                     onClick={() => alert('Téléchargement de la plaquette (à configurer)')}
                   >
@@ -297,10 +297,10 @@ const EnterprisePage = () => {
               className="h-16 mx-auto mb-4 hover:opacity-80 transition-opacity"
             />
           </a>
-          <h2 className="text-xl font-bold text-[#005157] mb-3">
-            Tous nos magasins sont labellisés <span className="text-[#005157]">QualiRépar</span>
+          <h2 className="text-xl font-bold text-[#1A5C3A] mb-3">
+            Tous nos magasins sont labellisés <span className="text-[#1A5C3A]">QualiRépar</span>
           </h2>
-          <p className="text-[#005157]/80 max-w-xl mx-auto text-sm">
+          <p className="text-[#1A5C3A]/80 max-w-xl mx-auto text-sm">
             Vos collaborateurs bénéficient de 15€ à 80€ de réduction selon l'appareil réparé, 
             directement déduite de la facture.
           </p>
@@ -311,10 +311,10 @@ const EnterprisePage = () => {
       <section id="contact-b2b" className="py-12 lg:py-16 bg-white scroll-mt-24">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-[#005157] mb-3">
-              Contactez notre équipe <span className="text-[#005157]">B2B</span>
+            <h2 className="text-2xl font-bold text-[#1A5C3A] mb-3">
+              Contactez notre équipe <span className="text-[#1A5C3A]">B2B</span>
             </h2>
-            <p className="text-[#005157]/70">
+            <p className="text-[#1A5C3A]/70">
               Décrivez vos besoins, nous vous proposons une solution adaptée.
             </p>
           </div>
@@ -324,7 +324,7 @@ const EnterprisePage = () => {
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                 <div className="grid md:grid-cols-2 gap-5">
                   <div>
-                    <Label htmlFor="first_name" className="text-[#005157] mb-2 block text-sm">Prénom</Label>
+                    <Label htmlFor="first_name" className="text-[#1A5C3A] mb-2 block text-sm">Prénom</Label>
                     <Input
                       {...register('first_name')}
                       data-testid="b2b-first-name"
@@ -336,7 +336,7 @@ const EnterprisePage = () => {
                     )}
                   </div>
                   <div>
-                    <Label htmlFor="last_name" className="text-[#005157] mb-2 block text-sm">Nom</Label>
+                    <Label htmlFor="last_name" className="text-[#1A5C3A] mb-2 block text-sm">Nom</Label>
                     <Input
                       {...register('last_name')}
                       data-testid="b2b-last-name"
@@ -350,7 +350,7 @@ const EnterprisePage = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="company" className="text-[#005157] mb-2 block text-sm">Société</Label>
+                  <Label htmlFor="company" className="text-[#1A5C3A] mb-2 block text-sm">Société</Label>
                   <Input
                     {...register('company')}
                     data-testid="b2b-company"
@@ -364,7 +364,7 @@ const EnterprisePage = () => {
 
                 <div className="grid md:grid-cols-2 gap-5">
                   <div>
-                    <Label htmlFor="email" className="text-[#005157] mb-2 block text-sm">Email professionnel</Label>
+                    <Label htmlFor="email" className="text-[#1A5C3A] mb-2 block text-sm">Email professionnel</Label>
                     <Input
                       {...register('email')}
                       data-testid="b2b-email"
@@ -377,7 +377,7 @@ const EnterprisePage = () => {
                     )}
                   </div>
                   <div>
-                    <Label htmlFor="phone" className="text-[#005157] mb-2 block text-sm">Téléphone</Label>
+                    <Label htmlFor="phone" className="text-[#1A5C3A] mb-2 block text-sm">Téléphone</Label>
                     <Input
                       {...register('phone')}
                       data-testid="b2b-phone"
@@ -391,7 +391,7 @@ const EnterprisePage = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="need_type" className="text-[#005157] mb-2 block text-sm">
+                  <Label htmlFor="need_type" className="text-[#1A5C3A] mb-2 block text-sm">
                     Type de besoin
                   </Label>
                   <Select onValueChange={(value) => setValue('need_type', value)}>
@@ -412,7 +412,7 @@ const EnterprisePage = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="fleet_size" className="text-[#005157] mb-2 block text-sm">
+                  <Label htmlFor="fleet_size" className="text-[#1A5C3A] mb-2 block text-sm">
                     Taille de flotte estimée
                   </Label>
                   <Select onValueChange={(value) => setValue('fleet_size', value)}>
@@ -433,7 +433,7 @@ const EnterprisePage = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="message" className="text-[#005157] mb-2 block text-sm">
+                  <Label htmlFor="message" className="text-[#1A5C3A] mb-2 block text-sm">
                     Message (optionnel)
                   </Label>
                   <Textarea
@@ -449,7 +449,7 @@ const EnterprisePage = () => {
                   type="submit"
                   disabled={isSubmitting}
                   data-testid="b2b-submit"
-                  className="w-full bg-[#005157] text-white hover:bg-[#86cbd4] hover:text-[#005157] rounded-full py-5"
+                  className="w-full bg-[#1A5C3A] text-white hover:bg-[#2ECC71] hover:text-[#1A5C3A] rounded-full py-5"
                 >
                   {isSubmitting ? (
                     <>
@@ -469,11 +469,11 @@ const EnterprisePage = () => {
 
           {/* Contact info */}
           <div className="mt-6 flex flex-col sm:flex-row justify-center gap-6 text-center">
-            <a href="tel:0466848079" className="flex items-center justify-center gap-2 text-[#005157] hover:text-[#005157] text-sm">
+            <a href="tel:0466848079" className="flex items-center justify-center gap-2 text-[#1A5C3A] hover:text-[#1A5C3A] text-sm">
               <Phone size={18} />
               04 66 84 80 79
             </a>
-            <a href="mailto:edouardmourinpro@gmail.com" className="flex items-center justify-center gap-2 text-[#005157] hover:text-[#005157] text-sm">
+            <a href="mailto:edouardmourinpro@gmail.com" className="flex items-center justify-center gap-2 text-[#1A5C3A] hover:text-[#1A5C3A] text-sm">
               <Mail size={18} />
               edouardmourinpro@gmail.com
             </a>
@@ -482,10 +482,10 @@ const EnterprisePage = () => {
       </section>
 
       {/* Partners */}
-      <section className="py-10 bg-[#e8f5f5]">
+      <section className="py-10 bg-[#E8F5EE]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-[#005157]/60 mb-4 text-sm">Présents dans les enseignes</p>
-          <div className="flex flex-wrap justify-center items-center gap-6 text-[#005157] font-semibold">
+          <p className="text-[#1A5C3A]/60 mb-4 text-sm">Présents dans les enseignes</p>
+          <div className="flex flex-wrap justify-center items-center gap-6 text-[#1A5C3A] font-semibold">
             <span>Carrefour</span>
             <span>Intermarché</span>
             <span>Klepierre (Grand Sud)</span>
