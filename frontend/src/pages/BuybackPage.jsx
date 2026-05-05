@@ -52,7 +52,6 @@ const BuybackPage = () => {
       setIsSuccess(true);
       toast.success('Demande d\'estimation envoyée !');
     } catch (error) {
-      console.error('Buyback submission error:', error);
       toast.error('Une erreur est survenue. Veuillez réessayer.');
     } finally {
       setIsSubmitting(false);

@@ -111,7 +111,6 @@ const QuotePage = () => {
       setIsSuccess(true);
       toast.success('Demande envoyée avec succès !');
     } catch (error) {
-      console.error('Quote submission error:', error);
       toast.error('Une erreur est survenue. Veuillez réessayer.');
     } finally {
       setIsSubmitting(false);

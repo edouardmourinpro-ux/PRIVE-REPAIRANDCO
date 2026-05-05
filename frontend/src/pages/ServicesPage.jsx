@@ -119,7 +119,7 @@ const ServicesPage = () => {
 
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {universe.services.map((service, idx) => (
-                  <Card key={idx} className="border border-[#E8F5EE] hover:shadow-md transition-shadow">
+                  <Card key={service.name} className="border border-[#E8F5EE] hover:shadow-md transition-shadow">
                     <CardContent className="p-5">
                       <div className="flex items-center gap-3 mb-3">
                         <div className="w-10 h-10 bg-[#E8F5EE] rounded-lg flex items-center justify-center p-1.5">
@@ -129,8 +129,8 @@ const ServicesPage = () => {
                       </div>
                       <p className="text-xs text-[#1A1A2E]/60 mb-3">{service.brands}</p>
                       <ul className="space-y-1 mb-4">
-                        {service.repairs.slice(0, 4).map((repair, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm">
+                        {service.repairs.slice(0, 4).map((repair) => (
+                          <li key={repair} className="flex items-start gap-2 text-sm">
                             <CheckCircle className="text-[#1A5C3A] flex-shrink-0 mt-0.5" size={14} />
                             <span className="text-[#1A1A2E]/80">{repair}</span>
                           </li>

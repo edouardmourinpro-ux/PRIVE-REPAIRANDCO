@@ -56,7 +56,6 @@ const EnterprisePage = () => {
       setIsSuccess(true);
       toast.success('Demande envoyée avec succès !');
     } catch (error) {
-      console.error('B2B submission error:', error);
       toast.error('Une erreur est survenue. Veuillez réessayer.');
     } finally {
       setIsSubmitting(false);
@@ -183,7 +182,7 @@ const EnterprisePage = () => {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
             {adaptedSolutions.map((solution, index) => (
-              <Card key={index} className="bg-white">
+              <Card key={solution.title} className="bg-white">
                 <CardContent className="p-5 text-center">
                   <div className="w-12 h-12 bg-[#E8F5EE] rounded-xl flex items-center justify-center mx-auto mb-3">
                     <solution.icon className="text-[#1A5C3A]" size={24} />

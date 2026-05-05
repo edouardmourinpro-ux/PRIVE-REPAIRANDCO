@@ -121,7 +121,7 @@ const AboutPage = () => {
             </div>
             <div className="grid grid-cols-1 gap-4">
               {values.map((value, index) => (
-                <Card key={index} className="border border-[#E8F5EE]">
+                <Card key={value.title} className="border border-[#E8F5EE]">
                   <CardContent className="p-4 flex items-start gap-4">
                     <div className="w-10 h-10 bg-[#E8F5EE] rounded-lg flex items-center justify-center flex-shrink-0">
                       <value.icon className="text-[#1A5C3A]" size={20} />
@@ -209,7 +209,7 @@ const AboutPage = () => {
           
           <div className="grid md:grid-cols-3 gap-6">
             {teamBlocks.map((block, index) => (
-              <Card key={index} className="card-repair text-center">
+              <Card key={block.title} className="card-repair text-center">
                 <CardContent className="p-6">
                   <div className="w-14 h-14 bg-[#E8F5EE] rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <block.icon className="text-[#1A5C3A]" size={28} />
