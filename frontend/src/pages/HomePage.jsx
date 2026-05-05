@@ -261,17 +261,17 @@ const HomePage = () => {
               Ce que disent nos <span className="text-[#2ECC71]">clients</span>
             </h2>
             <div className="mt-4 flex items-center gap-4">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5">
                 {[1,2,3,4].map((s) => <Star key={s} className="text-[#2ECC71] fill-[#2ECC71]" size={20} />)}
-                {/* 5th star at ~70% fill for 4.7/5 */}
-                <svg key={5} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* 5th star: left half filled */}
+                <svg key={5} width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <defs>
-                    <linearGradient id="star-partial-header">
-                      <stop offset="70%" stopColor="#2ECC71" />
-                      <stop offset="70%" stopColor="transparent" />
-                    </linearGradient>
+                    <clipPath id="half-star-clip">
+                      <rect x="0" y="0" width="12" height="24" />
+                    </clipPath>
                   </defs>
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="url(#star-partial-header)" stroke="#2ECC71" strokeWidth="1.5" strokeLinejoin="round" />
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="none" stroke="#2ECC71" strokeWidth="1.5" strokeLinejoin="round" />
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#2ECC71" clipPath="url(#half-star-clip)" />
                 </svg>
               </div>
               <span className="text-[#1A5C3A]/70">4,7/5 · +500 avis cumulés</span>

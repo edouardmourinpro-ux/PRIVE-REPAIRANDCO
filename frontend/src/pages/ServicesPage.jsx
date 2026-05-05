@@ -105,14 +105,9 @@ const ServicesPage = () => {
           {universes.map((universe) => (
             <div key={universe.id} id={universe.id} data-testid={`universe-${universe.id}`} className="scroll-mt-24">
               <div className={`${universe.colorLight} rounded-2xl p-5 mb-6`}>
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 ${universe.color} rounded-xl flex items-center justify-center p-2`}>
-                    <img src={universe.picto} alt={universe.title} className="w-8 h-8 object-contain invert brightness-0" style={{filter: 'brightness(0) invert(1)'}} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-[#1A1A2E]">{universe.title}</h2>
-                    <p className="text-[#1A1A2E]/70 text-sm">{universe.subtitle}</p>
-                  </div>
+                <div>
+                  <h2 className="text-xl font-bold text-[#1A1A2E]">{universe.title}</h2>
+                  <p className="text-[#1A1A2E]/70 text-sm">{universe.subtitle}</p>
                 </div>
                 {universe.notice && (
                   <div className="mt-3 flex items-start gap-2 text-sm text-[#1A1A2E]/70 bg-white/50 rounded-lg px-3 py-2">
