@@ -66,7 +66,7 @@ const FAQPage = () => {
                   Label QualiRépar
                 </div>
                 <h2 className="text-2xl lg:text-3xl font-bold text-[#1A5C3A] mb-4">
-                  Économisez entre <span className="text-[#1A5C3A]">15 et 80€</span> sur vos réparations
+                  Économisez entre <span className="text-[#1A5C3A]">15 et 60€</span> sur vos réparations
                 </h2>
                 <p className="text-[#1A5C3A]/80 leading-relaxed mb-6">
                   Le bonus réparation est une aide financière de l'État qui vous permet de 

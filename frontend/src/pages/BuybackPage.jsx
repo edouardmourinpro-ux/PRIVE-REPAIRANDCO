@@ -344,7 +344,7 @@ const BuybackPage = () => {
           </h2>
           <p className="text-[#1A5C3A]/80 max-w-xl mx-auto text-sm">
             Tous nos magasins sont labellisés QualiRépar. Bénéficiez d'une aide 
-            entre 15 et 80€ sur vos réparations.
+            entre 15 et 60€ sur vos réparations.
           </p>
         </div>
       </section>

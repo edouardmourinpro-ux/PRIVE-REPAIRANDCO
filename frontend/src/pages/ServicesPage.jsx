@@ -6,77 +6,50 @@ import {
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 
+const PICTOS = {
+  smartphone: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/i65cqvig_Smartphone%20casse%CC%81.png',
+  gaming: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/41aczxo5_Gaming.png',
+  laptop: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/lmcslwwi_Ordinateur%20e%CC%81cran%20casse%CC%81.png',
+  coffee: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/96fmgzu8_Machine%20a%CC%80%20cafe%CC%81.png',
+  trottinette: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/5wivdev5_Trottinette%20e%CC%81lectrique.png',
+};
+
 const ServicesPage = () => {
   const universes = [
     {
       id: 'smart-connect',
       title: 'SMART & CONNECT',
       subtitle: 'Smartphones, Tablettes, Consoles & Informatique',
-      icon: Smartphone,
+      picto: PICTOS.smartphone,
       color: 'bg-[#1A5C3A]',
       colorLight: 'bg-[#E8F5EE]',
       services: [
-        {
-          name: 'Smartphones & Tablettes',
-          icon: Smartphone,
-          repairs: ['Écran cassé / remplacement de vitre', 'Batterie (autonomie dégradée)', 'Connecteur de charge', 'Caméra avant / arrière', 'Boutons volume / power', 'Haut-parleur / micro'],
-          brands: 'Apple, Samsung, Xiaomi, Huawei, OnePlus, Google, Oppo...',
-          delay: '30 min à 1h',
-          priceFrom: 29
-        },
-        {
-          name: 'Consoles de jeux',
-          icon: Gamepad2,
-          repairs: ['Manettes (drift, boutons)', 'Lecteur disque', 'Ports HDMI', 'Ventilateur / surchauffe', 'Disque dur / SSD'],
-          brands: 'PlayStation, Xbox, Nintendo Switch...',
-          delay: '1h à 48h',
-          priceFrom: 39
-        },
-        {
-          name: 'Informatique',
-          icon: Laptop,
-          repairs: ['Remplacement écran', 'Clavier', 'Batterie', 'Nettoyage / optimisation', 'Remplacement disque dur / SSD', 'Réinstallation système'],
-          brands: 'HP, Dell, Lenovo, Asus, Acer, Apple MacBook, MSI...',
-          delay: '24h à 48h',
-          priceFrom: 49
-        }
+        { name: 'Smartphones & Tablettes', picto: PICTOS.smartphone, repairs: ['Écran cassé / remplacement de vitre', 'Batterie (autonomie dégradée)', 'Connecteur de charge', 'Caméra avant / arrière', 'Boutons volume / power', 'Haut-parleur / micro'], brands: 'Apple, Samsung, Xiaomi, Huawei, OnePlus, Google, Oppo...', delay: '30 min à 1h', priceFrom: 29 },
+        { name: 'Consoles de jeux', picto: PICTOS.gaming, repairs: ['Manettes (drift, boutons)', 'Lecteur disque', 'Ports HDMI', 'Ventilateur / surchauffe', 'Disque dur / SSD'], brands: 'PlayStation, Xbox, Nintendo Switch...', delay: '1h à 48h', priceFrom: 39 },
+        { name: 'Informatique', picto: PICTOS.laptop, repairs: ['Remplacement écran', 'Clavier', 'Batterie', 'Nettoyage / optimisation', 'Remplacement disque dur / SSD', 'Réinstallation système'], brands: 'HP, Dell, Lenovo, Asus, Acer, Apple MacBook, MSI...', delay: '24h à 48h', priceFrom: 49 }
       ]
     },
     {
       id: 'home',
       title: 'HOME',
       subtitle: 'Petit Électroménager',
-      icon: Coffee,
+      picto: PICTOS.coffee,
       color: 'bg-[#1A5C3A]',
       colorLight: 'bg-[#E8F5EE]',
       services: [
-        {
-          name: 'Petit électroménager',
-          icon: Coffee,
-          repairs: ['Cafetières & machines à café', 'Aspirateurs', 'Grille-pain & bouilloires', 'Mixeurs & robots', 'Fers à repasser', 'Diagnostic + réparation sur place'],
-          brands: 'Philips, Bosch, Moulinex, SEB, Dyson, Nespresso, De\'Longhi...',
-          delay: 'Selon pièces disponibles',
-          priceFrom: null
-        }
+        { name: 'Petit électroménager', picto: PICTOS.coffee, repairs: ['Cafetières & machines à café', 'Aspirateurs', 'Grille-pain & bouilloires', 'Mixeurs & robots', 'Fers à repasser', 'Diagnostic + réparation sur place'], brands: 'Philips, Bosch, Moulinex, SEB, Dyson, Nespresso, De\'Longhi...', delay: 'Selon pièces disponibles', priceFrom: null }
       ]
     },
     {
       id: 'mobility',
       title: 'MOBILITY',
       subtitle: 'Vélos électriques (VAE) et Trottinettes',
-      icon: Bike,
+      picto: PICTOS.trottinette,
       color: 'bg-[#2ECC71]',
       colorLight: 'bg-[#E8F5EE]',
       notice: 'Service disponible uniquement dans les magasins de Montpellier Est et Béziers',
       services: [
-        {
-          name: 'Vélos électriques & Trottinettes',
-          icon: Bike,
-          repairs: ['Batterie (diagnostic & remplacement)', 'Moteur', 'Contrôleur', 'Freins', 'Pneus & chambres à air', 'Écran / tableau de bord'],
-          brands: 'Toutes marques de VAE et trottinettes électriques',
-          delay: '24h à 72h',
-          priceFrom: 35
-        }
+        { name: 'Vélos électriques & Trottinettes', picto: PICTOS.trottinette, repairs: ['Batterie (diagnostic & remplacement)', 'Moteur', 'Contrôleur', 'Freins', 'Pneus & chambres à air', 'Écran / tableau de bord'], brands: 'Toutes marques de VAE et trottinettes électriques', delay: '24h à 72h', priceFrom: 35 }
       ]
     }
   ];
@@ -117,7 +90,7 @@ const ServicesPage = () => {
                 onClick={() => scrollToUniverse(universe.id)}
                 className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-[#1A5C3A] font-medium text-sm hover:bg-[#E8F5EE] transition-colors border border-[#E8F5EE]"
               >
-                <universe.icon size={18} />
+                <img src={universe.picto} alt={universe.title} className="w-5 h-5 object-contain" />
                 {universe.title}
                 <ChevronRight size={14} />
               </button>
@@ -133,8 +106,8 @@ const ServicesPage = () => {
             <div key={universe.id} id={universe.id} data-testid={`universe-${universe.id}`} className="scroll-mt-24">
               <div className={`${universe.colorLight} rounded-2xl p-5 mb-6`}>
                 <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 ${universe.color} rounded-xl flex items-center justify-center`}>
-                    <universe.icon className="text-white" size={24} />
+                  <div className={`w-12 h-12 ${universe.color} rounded-xl flex items-center justify-center p-2`}>
+                    <img src={universe.picto} alt={universe.title} className="w-8 h-8 object-contain invert brightness-0" style={{filter: 'brightness(0) invert(1)'}} />
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-[#1A1A2E]">{universe.title}</h2>
@@ -154,8 +127,8 @@ const ServicesPage = () => {
                   <Card key={idx} className="border border-[#E8F5EE] hover:shadow-md transition-shadow">
                     <CardContent className="p-5">
                       <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 bg-[#E8F5EE] rounded-lg flex items-center justify-center">
-                          <service.icon className="text-[#1A5C3A]" size={20} />
+                        <div className="w-10 h-10 bg-[#E8F5EE] rounded-lg flex items-center justify-center p-1.5">
+                          <img src={service.picto} alt={service.name} className="w-7 h-7 object-contain" />
                         </div>
                         <h3 className="font-semibold text-[#1A1A2E]">{service.name}</h3>
                       </div>
@@ -211,7 +184,7 @@ const ServicesPage = () => {
                   Label QualiRépar
                 </div>
                 <h2 className="text-2xl font-bold text-[#1A1A2E] mb-3">
-                  De <span className="text-[#1A5C3A]">15€ à 80€</span> de réduction selon l'appareil
+                  De <span className="text-[#1A5C3A]">15€ à 60€</span> de réduction selon l'appareil
                 </h2>
                 <p className="text-[#1A1A2E]/80 leading-relaxed text-sm">
                   Tous nos magasins sont labellisés QualiRépar. Bénéficiez d'une aide financière 
