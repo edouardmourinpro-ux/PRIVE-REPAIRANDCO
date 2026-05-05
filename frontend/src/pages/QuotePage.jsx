@@ -69,10 +69,10 @@ const QuotePage = () => {
   const deviceType = watch('device_type');
 
   const deviceTypes = [
-    { id: 'smartphone', label: 'Smartphone', icon: Smartphone },
-    { id: 'tablette', label: 'Tablette', icon: Tablet },
-    { id: 'pc', label: 'PC', icon: Laptop },
-    { id: 'electromenager', label: 'Électroménager', icon: Coffee },
+    { id: 'smartphone', label: 'Smartphone', picto: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/i65cqvig_Smartphone%20casse%CC%81.png' },
+    { id: 'tablette', label: 'Tablette', picto: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/i65cqvig_Smartphone%20casse%CC%81.png' },
+    { id: 'pc', label: 'PC', picto: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/lmcslwwi_Ordinateur%20e%CC%81cran%20casse%CC%81.png' },
+    { id: 'electromenager', label: 'Électroménager', picto: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/96fmgzu8_Machine%20a%CC%80%20cafe%CC%81.png' },
   ];
 
   const handleDeviceSelect = (type) => {

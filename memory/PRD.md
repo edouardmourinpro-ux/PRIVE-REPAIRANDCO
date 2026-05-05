@@ -14,20 +14,26 @@
 | Fond cards, sections claires | Blanc | `#FFFFFF` |
 | Texte principal (body) | Bleu nuit | `#1A1A2E` |
 
-5 couleurs UNIQUEMENT. Pas de rouge, pas de teal, pas de bleu clair.
+## Pictos personnalisés
+- Smartphone cassé: `i65cqvig_Smartphone%20casse%CC%81.png`
+- Machine à café: `96fmgzu8_Machine%20a%CC%80%20cafe%CC%81.png`
+- Trottinette: `5wivdev5_Trottinette%20e%CC%81lectrique.png`
+- Ordinateur cassé: `lmcslwwi_Ordinateur%20e%CC%81cran%20casse%CC%81.png`
+- Gaming: `41aczxo5_Gaming.png`
+- Vélo: `v0enbfpd_Ve%CC%81lo%20e%CC%81lectrique.png`
+- V3 logos groupés (RDV page): `n5lml0g5_V3%20-%20logos%20groupe%CC%81s.png`
 
-## Magasins (9)
-Lattes, Montpellier Nord, Montpellier Sud, Nîmes Costières, Nîmes Étoile, Béziers, Boulogne, Plaisir, Les Ulis
+## QualiRépar: montant = 60€ (15-60€)
 
-## Pages (10)
-Accueil, Services, Magasins, Devis, RDV, Boutique, Services Entreprise, Qui sommes-nous, FAQ, Contact
+## Magasins (9): Lattes, Montpellier Nord/Sud, Nîmes Costières/Étoile, Béziers, Boulogne, Plaisir, Les Ulis
 
-## Mock
-- Endpoints formulaires, GA4 non configuré, URL RDV Nîmes = placeholder
+## Contact B2B: 04 67 71 67 69 / contact@repair-and-co.fr
 
 ## Historique
-- S1: MVP — S2: 3 univers — S3: Couleurs teal — S4: Hiérarchie noir — S5: Contraste footer — S6: DA pop #22c55e — **S7: Palette officielle #1A5C3A/#2ECC71/#E8F5EE/#1A1A2E**
+- S1-S6: voir changelog
+- **S7**: Palette officielle #1A5C3A/#2ECC71/#E8F5EE
+- **S8 (V4)**: QualiRépar 60€, pictos personnalisés, page RDV refonte (sélection magasin obligatoire + V3 picto), About Presse en mint, Enterprise nettoyée, titre magasins "atelier Repair&Co"
 
 ## Backlog
-- P1: GA4 (attente ID), PDF B2B, Email formulaires
+- P1: GA4, PDF B2B, Email formulaires
 - P2: URL RDV → .env, SEO Schema.org

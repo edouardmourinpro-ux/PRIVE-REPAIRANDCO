@@ -187,7 +187,7 @@ export const FAQ_DATA = [
     { q: "Que se passe-t-il si la réparation est impossible ?", a: "Le diagnostic est gratuit. Si nous ne pouvons pas réparer, nous vous le restituons sans frais." }
   ]},
   { category: "QualiRépar", questions: [
-    { q: "C'est quoi le label QualiRépar ?", a: "QualiRépar est un label officiel de l'État français qui vous permet de bénéficier d'une aide financière directement déduite de votre facture, jusqu'à 80€ selon l'appareil réparé." },
+    { q: "C'est quoi le label QualiRépar ?", a: "QualiRépar est un label officiel de l'État français qui vous permet de bénéficier d'une aide financière directement déduite de votre facture, jusqu'à 60€ selon l'appareil réparé." },
     { q: "Tous vos magasins sont labellisés ?", a: "Oui, tous nos magasins Repair & Co sont labellisés QualiRépar." }
   ]},
   { category: "Tarifs & Paiement", questions: [
