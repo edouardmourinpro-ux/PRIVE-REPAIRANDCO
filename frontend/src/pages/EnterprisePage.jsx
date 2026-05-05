@@ -140,7 +140,7 @@ const EnterprisePage = () => {
                 </div>
                 <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-full">
                   <Building2 className="text-[#2ECC71]" size={18} />
-                  <span className="text-white text-sm">5 magasins</span>
+                  <span className="text-white text-sm">9 magasins</span>
                 </div>
               </div>
               {/* Internal nav */}
@@ -222,7 +222,7 @@ const EnterprisePage = () => {
               </p>
               <p className="text-[#1A5C3A]/80 leading-relaxed mb-6">
                 REPAIR&CO étant labellisé QUALIREPAR, les collaborateurs peuvent en plus cumuler sur leurs 
-                futures réparations des réductions allant de <strong>15 à 80 euros</strong> selon la nature 
+                futures réparations des réductions allant de <strong>15 à 60 euros</strong> selon la nature 
                 du produit réparé.
               </p>
 
@@ -279,31 +279,6 @@ const EnterprisePage = () => {
               </CardContent>
             </Card>
           </div>
-        </div>
-      </section>
-
-      {/* QualiRépar B2B */}
-      <section id="qualirepar-b2b" className="py-12 lg:py-16 section-mint scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <a 
-            href="https://www.label-qualirepar.fr/" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="inline-block"
-          >
-            <img
-              src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png"
-              alt="Label QualiRépar"
-              className="h-16 mx-auto mb-4 hover:opacity-80 transition-opacity"
-            />
-          </a>
-          <h2 className="text-xl font-bold text-[#1A5C3A] mb-3">
-            Tous nos magasins sont labellisés <span className="text-[#1A5C3A]">QualiRépar</span>
-          </h2>
-          <p className="text-[#1A5C3A]/80 max-w-xl mx-auto text-sm">
-            Vos collaborateurs bénéficient de 15€ à 80€ de réduction selon l'appareil réparé, 
-            directement déduite de la facture.
-          </p>
         </div>
       </section>
 
@@ -469,26 +444,14 @@ const EnterprisePage = () => {
 
           {/* Contact info */}
           <div className="mt-6 flex flex-col sm:flex-row justify-center gap-6 text-center">
-            <a href="tel:0466848079" className="flex items-center justify-center gap-2 text-[#1A5C3A] hover:text-[#1A5C3A] text-sm">
+            <a href="tel:0467716769" className="flex items-center justify-center gap-2 text-[#1A5C3A] hover:text-[#2ECC71] text-sm">
               <Phone size={18} />
-              04 66 84 80 79
+              04 67 71 67 69
             </a>
-            <a href="mailto:edouardmourinpro@gmail.com" className="flex items-center justify-center gap-2 text-[#1A5C3A] hover:text-[#1A5C3A] text-sm">
+            <a href="mailto:contact@repair-and-co.fr" className="flex items-center justify-center gap-2 text-[#1A5C3A] hover:text-[#2ECC71] text-sm">
               <Mail size={18} />
-              edouardmourinpro@gmail.com
+              contact@repair-and-co.fr
             </a>
-          </div>
-        </div>
-      </section>
-
-      {/* Partners */}
-      <section className="py-10 bg-[#E8F5EE]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-[#1A5C3A]/60 mb-4 text-sm">Présents dans les enseignes</p>
-          <div className="flex flex-wrap justify-center items-center gap-6 text-[#1A5C3A] font-semibold">
-            <span>Carrefour</span>
-            <span>Intermarché</span>
-            <span>Klepierre (Grand Sud)</span>
           </div>
         </div>
       </section>

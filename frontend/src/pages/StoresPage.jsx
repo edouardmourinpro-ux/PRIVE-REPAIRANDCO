@@ -31,8 +31,8 @@ const StoresPage = () => {
             <form onSubmit={handleSearch} className="max-w-md">
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#1A5C3A]/40" size={18} />
-                  <Input type="text" placeholder="Votre code postal" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} className="pl-10 form-input" data-testid="postal-code-input" />
+                  <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-[#1A5C3A]/40" size={16} />
+                  <Input type="text" placeholder="Votre code postal" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} className="!pl-10 form-input" data-testid="postal-code-input" />
                 </div>
                 <Button type="submit" className="bg-[#1A5C3A] text-white hover:bg-[#1A5C3A]/90 rounded-xl" data-testid="postal-code-search">Trouver</Button>
               </div>
@@ -113,7 +113,7 @@ const StoresPage = () => {
             <img src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png" alt="Label QualiRépar" className="h-16 mx-auto mb-4 hover:opacity-80 transition-opacity" />
           </a>
           <h2 className="text-xl font-bold mb-3">Tous nos magasins sont labellisés <span className="text-[#2ECC71]">QualiRépar</span></h2>
-          <p className="text-[#1A5C3A]/80 max-w-xl mx-auto text-sm">Bénéficiez d'une aide jusqu'à 80€ selon l'appareil réparé, directement déduite de votre facture.</p>
+          <p className="text-[#1A5C3A]/80 max-w-xl mx-auto text-sm">Bénéficiez d'une aide jusqu'à 60€ selon l'appareil réparé, directement déduite de votre facture.</p>
         </div>
       </section>
     </div>

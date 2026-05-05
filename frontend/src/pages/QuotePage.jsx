@@ -188,7 +188,7 @@ const QuotePage = () => {
                   Quel type d'appareil ?
                 </h2>
                 <div className="grid grid-cols-2 gap-4">
-                  {deviceTypes.map(({ id, label, icon: Icon }) => (
+                  {deviceTypes.map(({ id, label, picto }) => (
                     <button
                       key={id}
                       type="button"
@@ -200,12 +200,7 @@ const QuotePage = () => {
                           : 'border-[#E8F5EE] hover:border-[#2ECC71]/50'
                       }`}
                     >
-                      <Icon 
-                        className={`mx-auto mb-3 ${
-                          deviceType === id ? 'text-[#1A5C3A]' : 'text-[#1A5C3A]'
-                        }`} 
-                        size={40} 
-                      />
+                      <img src={picto} alt={label} className="mx-auto mb-3 w-10 h-10 object-contain" />
                       <span className="font-semibold text-[#1A5C3A]">{label}</span>
                     </button>
                   ))}
@@ -432,7 +427,7 @@ const QuotePage = () => {
               <div>
                 <p className="font-semibold text-[#1A5C3A]">Label QualiRépar</p>
                 <p className="text-sm text-[#1A5C3A]/70 mt-1">
-                  Bénéficiez d'une aide de 15 à 80€ déduite directement de votre facture.
+                  Bénéficiez d'une aide de 15 à 60€ déduite directement de votre facture.
                 </p>
               </div>
             </div>

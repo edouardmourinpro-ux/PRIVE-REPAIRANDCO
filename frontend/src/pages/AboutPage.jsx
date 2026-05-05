@@ -185,7 +185,7 @@ const AboutPage = () => {
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle className="text-[#1A5C3A] flex-shrink-0 mt-0.5" size={16} />
-                  De 15€ à 80€ d'aide directe selon l'appareil
+                  De 15€ à 60€ d'aide directe selon l'appareil
                 </li>
               </ul>
             </div>
@@ -273,18 +273,18 @@ const AboutPage = () => {
         </div>
       </section>
 
-      {/* Contact Press */}
-      <section className="py-12 lg:py-16 bg-[#1A5C3A]">
+      {/* Contact Press — fond menthe, séparé du footer */}
+      <section className="py-12 lg:py-16 bg-[#E8F5EE]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <Award className="text-[#2ECC71] mx-auto mb-4" size={40} />
-          <h2 className="text-2xl font-bold text-white mb-4">
+          <Award className="text-[#1A5C3A] mx-auto mb-4" size={40} />
+          <h2 className="text-2xl font-bold mb-4">
             Presse & Partenariats
           </h2>
-          <p className="text-base text-white/80 mb-6 max-w-xl mx-auto">
+          <p className="text-base text-[#1A1A2E]/80 mb-6 max-w-xl mx-auto">
             Vous êtes journaliste ou souhaitez établir un partenariat avec Repair & Co ?
           </p>
           <Link to="/contact" data-testid="about-contact-link">
-            <Button className="bg-white text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full px-6">
+            <Button className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full px-6">
               Contactez-nous
             </Button>
           </Link>

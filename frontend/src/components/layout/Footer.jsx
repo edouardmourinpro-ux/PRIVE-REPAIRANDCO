@@ -32,7 +32,7 @@ export const Footer = () => {
             <h4 className="text-lg font-semibold text-white mb-6">Entreprise</h4>
             <ul className="space-y-3">
               <li><Link to="/entreprises" className="footer-link text-sm" data-testid="footer-b2b">Services Entreprise</Link></li>
-              <li><Link to="/qui-sommes-nous" className="footer-link text-sm" data-testid="footer-about">Qui sommes-nous</Link></li>
+              <li><Link to="/qui-sommes-nous" className="footer-link text-sm" data-testid="footer-about">Qui sommes-nous ?</Link></li>
               <li><Link to="/faq" className="footer-link text-sm" data-testid="footer-faq">FAQ</Link></li>
               <li><Link to="/contact" className="footer-link text-sm" data-testid="footer-contact">Contact</Link></li>
             </ul>

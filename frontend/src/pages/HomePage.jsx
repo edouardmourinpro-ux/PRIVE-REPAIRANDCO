@@ -10,11 +10,17 @@ import { STORES, FEATURED_STORE_IDS, REVIEWS } from '../data/stores';
 
 const featuredStores = STORES.filter(s => FEATURED_STORE_IDS.includes(s.id));
 
+const PICTOS = {
+  smartConnect: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/i65cqvig_Smartphone%20casse%CC%81.png',
+  home: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/96fmgzu8_Machine%20a%CC%80%20cafe%CC%81.png',
+  mobility: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/5wivdev5_Trottinette%20e%CC%81lectrique.png',
+};
+
 const HomePage = () => {
   const universes = [
-    { id: 'smart-connect', title: 'SMART & CONNECT', subtitle: 'Smartphones, Tablettes, Consoles & Informatique', icon: Smartphone, link: '/services#smart-connect', price: 'À partir de 29€' },
-    { id: 'home', title: 'HOME', subtitle: 'Petit Électroménager', icon: Coffee, link: '/services#home', price: 'À partir de 39€' },
-    { id: 'mobility', title: 'MOBILITY', subtitle: 'Vélos électriques et Trottinettes', icon: Bike, link: '/services#mobility', price: 'À partir de 79€' },
+    { id: 'smart-connect', title: 'SMART & CONNECT', subtitle: 'Smartphones, Tablettes, Consoles & Informatique', picto: PICTOS.smartConnect, link: '/services#smart-connect', price: 'À partir de 29€' },
+    { id: 'home', title: 'HOME', subtitle: 'Petit Électroménager', picto: PICTOS.home, link: '/services#home', price: 'À partir de 39€' },
+    { id: 'mobility', title: 'MOBILITY', subtitle: 'Vélos électriques et Trottinettes', picto: PICTOS.mobility, link: '/services#mobility', price: 'À partir de 79€' },
   ];
 
   return (
@@ -40,7 +46,7 @@ const HomePage = () => {
               <Link to="/rendez-vous" className="inline-block mt-4" data-testid="hero-qualirepar-link">
                 <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-2 shadow-sm border border-[#E8F5EE] hover:shadow-md transition-shadow">
                   <img src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png" alt="Label QualiRépar" className="h-10" />
-                  <span className="text-sm text-[#1A5C3A] font-medium">Jusqu'à 80€ de bonus</span>
+                  <span className="text-sm text-[#1A5C3A] font-medium">Jusqu'à 60€ de bonus</span>
                 </div>
               </Link>
               <div className="mt-6 flex flex-col sm:flex-row gap-4">
@@ -100,7 +106,7 @@ const HomePage = () => {
               { icon: MapPin, value: '9', label: 'Magasins en France' },
               { icon: Zap, value: '<1h', label: 'Réparations courantes' },
               { icon: Shield, value: '100%', label: 'Garantie réparations' },
-              { icon: BadgeCheck, value: '80€', label: 'Bonus QualiRépar max', span: true },
+              { icon: BadgeCheck, value: '60€', label: 'Bonus QualiRépar max', span: true },
             ].map(({ icon: Icon, value, label, fill, span }) => (
               <div key={label} className={`text-center ${span ? 'col-span-2 lg:col-span-1' : ''}`}>
                 <div className="flex items-center justify-center gap-1 mb-2">
@@ -124,12 +130,12 @@ const HomePage = () => {
                 Label officiel de l'État
               </div>
               <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
-                Économisez jusqu'à <span className="text-[#2ECC71]">80€</span> grâce au bonus réparation
+                Économisez jusqu'à <span className="text-[#2ECC71]">60€</span> grâce au bonus réparation
               </h2>
               <p className="mt-6 text-lg text-[#1A5C3A]/80 leading-relaxed">
                 Repair & Co est labellisé <strong>QualiRépar</strong>. Ce label officiel vous permet 
                 de bénéficier d'une aide de l'État directement déduite <strong>de votre facture, d'un montant 
-                allant jusqu'à 80 euros selon l'appareil réparé.</strong>
+                allant jusqu'à 60 euros selon l'appareil réparé.</strong>
               </p>
               <div className="mt-8">
                 <Link to="/rendez-vous" data-testid="qualirepar-learn-more">
@@ -144,7 +150,7 @@ const HomePage = () => {
                 <div className="bg-white rounded-2xl p-8 shadow-lg max-w-sm hover:shadow-xl transition-shadow">
                   <img src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png" alt="Label QualiRépar" className="w-full" />
                   <div className="mt-6 space-y-3">
-                    {["Jusqu'à 80€ d'aide directe", "Déduit automatiquement de la facture", "Tous nos magasins labellisés"].map((t) => (
+                    {["Jusqu'à 60€ d'aide directe", "Déduit automatiquement de la facture", "Tous nos magasins labellisés"].map((t) => (
                       <div key={t} className="flex items-start gap-3">
                         <CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={20} />
                         <span className="text-[#1A5C3A]">{t}</span>
@@ -174,8 +180,8 @@ const HomePage = () => {
               <Link key={u.id} to={u.link} className="block" data-testid={`universe-card-${u.id}`}>
                 <Card className="service-card group cursor-pointer h-full">
                   <CardContent className="p-6">
-                    <div className="w-14 h-14 bg-[#E8F5EE] rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-                      <u.icon className="text-[#1A5C3A]" size={28} />
+                    <div className="w-16 h-16 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                      <img src={u.picto} alt={u.title} className="w-14 h-14 object-contain" />
                     </div>
                     <h3 className="text-xl font-bold mb-2">{u.title}</h3>
                     <p className="text-[#1A5C3A]/70 text-sm leading-relaxed mb-3">{u.subtitle}</p>
@@ -203,7 +209,7 @@ const HomePage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-left mb-12">
             <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
-              Près de chez vous, dans votre <span className="text-[#2ECC71]">centre commercial</span>
+              Près de chez vous, votre <span className="text-[#2ECC71]">atelier Repair&Co</span>
             </h2>
             <p className="mt-4 text-lg text-[#1A5C3A]/70 max-w-2xl">
               Retrouvez nos magasins partout en France.
