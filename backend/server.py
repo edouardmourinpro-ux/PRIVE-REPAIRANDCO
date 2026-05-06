@@ -49,16 +49,17 @@ TWILIO_WHATSAPP_FROM = os.environ.get('TWILIO_WHATSAPP_FROM')
 twilio_client = TwilioClient(TWILIO_SID, TWILIO_TOKEN) if TWILIO_SID else None
 
 # Mapping magasin ID → numéro WhatsApp du responsable
+# TEMPORAIRE : tous les messages vont vers le numéro de test
 STORE_WHATSAPP = {
-    "lattes": "+33788809386",
-    "montpellier-nord": "+33987136893",
-    "montpellier-sud": "+33467588139",
-    "nimes-costieres": "+33466052432",
-    "nimes-etoile": "+33757532389",
-    "beziers": "+33467943034",
-    "boulogne": "+33767118896",
-    "plaisir": "+33130438907",
-    "les-ulis": "+33749952472",
+    "lattes": "+33616331164",
+    "montpellier-nord": "+33616331164",
+    "montpellier-sud": "+33616331164",
+    "nimes-costieres": "+33616331164",
+    "nimes-etoile": "+33616331164",
+    "beziers": "+33616331164",
+    "boulogne": "+33616331164",
+    "plaisir": "+33616331164",
+    "les-ulis": "+33616331164",
 }
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
