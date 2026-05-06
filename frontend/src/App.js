@@ -15,6 +15,7 @@ import EnterprisePage from "./pages/EnterprisePage";
 import AboutPage from "./pages/AboutPage";
 import FAQPage from "./pages/FAQPage";
 import ContactPage from "./pages/ContactPage";
+import AdminPage from "./pages/AdminPage";
 
 function App() {
   return (
@@ -49,6 +50,9 @@ function App() {
             <Route path="/mentions-legales" element={<LegalPage title="Mentions légales" />} />
             <Route path="/cgv" element={<LegalPage title="Conditions Générales de Vente" />} />
             <Route path="/rgpd" element={<LegalPage title="Politique de confidentialité" />} />
+            
+            {/* Admin */}
+            <Route path="/admin" element={<AdminPage />} />
           </Routes>
         </Layout>
       </BrowserRouter>

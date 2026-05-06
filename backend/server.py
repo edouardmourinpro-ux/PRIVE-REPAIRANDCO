@@ -1,5 +1,10 @@
-from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
+
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
@@ -9,14 +14,12 @@ import smtplib
 import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional
 import uuid
-from datetime import datetime, timezone
-
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+import bcrypt
+import jwt
+from datetime import datetime, timezone, timedelta
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -30,45 +33,97 @@ SMTP_USER = os.environ.get('SMTP_USER')
 SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD')
 NOTIFY_EMAIL = os.environ.get('NOTIFY_EMAIL')
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# JWT config
+JWT_SECRET = os.environ['JWT_SECRET']
+JWT_ALGORITHM = "HS256"
+
+# Admin config
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@repair-and-co.fr')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Create the main app
 app = FastAPI(title="Repair & Co API")
 api_router = APIRouter(prefix="/api")
+
+
+# ==================== AUTH HELPERS ====================
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+
+def create_access_token(user_id: str, email: str) -> str:
+    payload = {"sub": user_id, "email": email, "exp": datetime.now(timezone.utc) + timedelta(hours=24), "type": "access"}
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+async def get_current_admin(request: Request) -> dict:
+    auth_header = request.headers.get("Authorization", "")
+    token = None
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+    if not token:
+        token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user = await db.admin_users.find_one({"email": payload["email"]}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=401, detail="Utilisateur non trouvé")
+        return user
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expiré")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token invalide")
+
+
+# ==================== ADMIN SEED ====================
+
+async def seed_admin():
+    existing = await db.admin_users.find_one({"email": ADMIN_EMAIL})
+    if existing is None:
+        await db.admin_users.insert_one({
+            "email": ADMIN_EMAIL,
+            "password_hash": hash_password(ADMIN_PASSWORD),
+            "name": "Admin",
+            "role": "admin",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        logger.info(f"Admin user created: {ADMIN_EMAIL}")
+    elif not verify_password(ADMIN_PASSWORD, existing["password_hash"]):
+        await db.admin_users.update_one(
+            {"email": ADMIN_EMAIL},
+            {"$set": {"password_hash": hash_password(ADMIN_PASSWORD)}}
+        )
+        logger.info(f"Admin password updated: {ADMIN_EMAIL}")
 
 
 # ==================== EMAIL HELPER ====================
 
 def _send_smtp_email(subject: str, html_body: str):
-    """Send email via SMTP SSL (o2switch port 465). Runs in thread."""
+    recipients = [e.strip() for e in NOTIFY_EMAIL.split(',') if e.strip()]
     msg = MIMEMultipart("alternative")
     msg["From"] = SMTP_USER
-    msg["To"] = NOTIFY_EMAIL
+    msg["To"] = ", ".join(recipients)
     msg["Subject"] = subject
     msg.attach(MIMEText(html_body, "html", "utf-8"))
-
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context) as server:
         server.login(SMTP_USER, SMTP_PASSWORD)
-        server.sendmail(SMTP_USER, NOTIFY_EMAIL, msg.as_string())
-
+        server.sendmail(SMTP_USER, recipients, msg.as_string())
 
 async def send_notification(subject: str, html_body: str):
-    """Non-blocking email send. Logs errors but never fails the request."""
     try:
         await asyncio.to_thread(_send_smtp_email, subject, html_body)
         logger.info(f"Email sent: {subject}")
     except Exception as e:
         logger.error(f"Email send failed: {e}")
 
-
 def build_email_html(title: str, fields: dict) -> str:
-    """Build a clean HTML email from field dict."""
     rows = ""
     for label, value in fields.items():
         if value:
@@ -81,29 +136,11 @@ def build_email_html(title: str, fields: dict) -> str:
       <div style="border:1px solid #E8F5EE;border-top:none;border-radius:0 0 12px 12px;padding:4px 0">
         <table style="width:100%;border-collapse:collapse">{rows}</table>
       </div>
-      <p style="color:#999;font-size:12px;margin-top:16px;text-align:center">
-        Email envoyé automatiquement depuis le site repairandco.fr
-      </p>
+      <p style="color:#999;font-size:12px;margin-top:16px;text-align:center">Email envoyé automatiquement depuis le site repairandco.fr</p>
     </div>"""
 
 
-# ==================== MODELS ====================
-
-class QuoteRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    device_type: str
-    brand: str
-    model: str
-    issue_types: List[str]
-    other_issue: Optional[str] = None
-    name: str
-    phone: str
-    email: EmailStr
-    store: str
-    preferred_time: Optional[str] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    status: str = "pending"
+# ==================== FORM MODELS ====================
 
 class QuoteRequestCreate(BaseModel):
     device_type: str
@@ -117,17 +154,6 @@ class QuoteRequestCreate(BaseModel):
     store: str
     preferred_time: Optional[str] = None
 
-class ContactRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    name: str
-    email: EmailStr
-    phone: Optional[str] = None
-    subject: str
-    store: Optional[str] = None
-    message: str
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
 class ContactRequestCreate(BaseModel):
     name: str
     email: EmailStr
@@ -135,19 +161,6 @@ class ContactRequestCreate(BaseModel):
     subject: str
     store: Optional[str] = None
     message: str
-
-class B2BRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    first_name: str
-    last_name: str
-    company: str
-    email: EmailStr
-    phone: str
-    fleet_size: str
-    need_type: Optional[str] = None
-    message: Optional[str] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class B2BRequestCreate(BaseModel):
     first_name: str
@@ -159,17 +172,6 @@ class B2BRequestCreate(BaseModel):
     need_type: Optional[str] = None
     message: Optional[str] = None
 
-class BuybackRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    brand: str
-    model: str
-    condition: str
-    name: str
-    phone: str
-    store: str
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
 class BuybackRequestCreate(BaseModel):
     brand: str
     model: str
@@ -178,107 +180,128 @@ class BuybackRequestCreate(BaseModel):
     phone: str
     store: str
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
-# ==================== ROUTES ====================
+
+# ==================== AUTH ROUTES ====================
+
+@api_router.post("/auth/login")
+async def admin_login(input: LoginRequest):
+    user = await db.admin_users.find_one({"email": input.email.lower().strip()}, {"_id": 0})
+    if not user or not verify_password(input.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
+    token = create_access_token(user["email"], user["email"])
+    return {"token": token, "email": user["email"], "name": user["name"], "role": user["role"]}
+
+@api_router.get("/auth/me")
+async def get_me(user=Depends(get_current_admin)):
+    return {"email": user["email"], "name": user["name"], "role": user["role"]}
+
+
+# ==================== FORM ROUTES ====================
 
 @api_router.get("/")
 async def root():
     return {"message": "Repair & Co API", "status": "online"}
 
-
-# --- Devis (Quote) ---
-@api_router.post("/quote", response_model=QuoteRequest)
-async def create_quote_request(input: QuoteRequestCreate):
-    quote_obj = QuoteRequest(**input.model_dump())
-    doc = quote_obj.model_dump()
-    doc['created_at'] = doc['created_at'].isoformat()
+@api_router.post("/quote")
+async def create_quote(input: QuoteRequestCreate):
+    doc = input.model_dump()
+    doc["id"] = str(uuid.uuid4())
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    doc["status"] = "pending"
     await db.demandes_devis.insert_one(doc)
-
     asyncio.ensure_future(send_notification(
-        f"Nouvelle demande de devis — {quote_obj.device_type}",
+        f"Nouvelle demande de devis — {doc['device_type']}",
         build_email_html("Nouvelle demande de devis", {
-            "Type d'appareil": quote_obj.device_type,
-            "Marque": quote_obj.brand,
-            "Modèle": quote_obj.model,
-            "Problèmes": ", ".join(quote_obj.issue_types),
-            "Autre problème": quote_obj.other_issue,
-            "Nom": quote_obj.name,
-            "Téléphone": quote_obj.phone,
-            "Email": quote_obj.email,
-            "Magasin": quote_obj.store,
-            "Créneau préféré": quote_obj.preferred_time,
+            "Type d'appareil": doc['device_type'], "Marque": doc['brand'], "Modèle": doc['model'],
+            "Problèmes": ", ".join(doc['issue_types']), "Autre problème": doc.get('other_issue'),
+            "Nom": doc['name'], "Téléphone": doc['phone'], "Email": doc['email'],
+            "Magasin": doc['store'], "Créneau préféré": doc.get('preferred_time'),
         })
     ))
-    return quote_obj
+    return {"status": "success", "id": doc["id"]}
 
-
-# --- Contact / RDV ---
-@api_router.post("/contact", response_model=ContactRequest)
-async def create_contact_request(input: ContactRequestCreate):
-    contact_obj = ContactRequest(**input.model_dump())
-    doc = contact_obj.model_dump()
-    doc['created_at'] = doc['created_at'].isoformat()
+@api_router.post("/contact")
+async def create_contact(input: ContactRequestCreate):
+    doc = input.model_dump()
+    doc["id"] = str(uuid.uuid4())
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
     await db.demandes_contact.insert_one(doc)
-
     asyncio.ensure_future(send_notification(
-        f"Nouveau message — {contact_obj.subject}",
+        f"Nouveau message — {doc['subject']}",
         build_email_html("Nouveau message / RDV", {
-            "Nom": contact_obj.name,
-            "Email": contact_obj.email,
-            "Téléphone": contact_obj.phone,
-            "Objet": contact_obj.subject,
-            "Magasin": contact_obj.store,
-            "Message": contact_obj.message,
+            "Nom": doc['name'], "Email": doc['email'], "Téléphone": doc.get('phone'),
+            "Objet": doc['subject'], "Magasin": doc.get('store'), "Message": doc['message'],
         })
     ))
-    return contact_obj
+    return {"status": "success", "id": doc["id"]}
 
-
-# --- B2B (Services Entreprise) ---
-@api_router.post("/b2b", response_model=B2BRequest)
-async def create_b2b_request(input: B2BRequestCreate):
-    b2b_obj = B2BRequest(**input.model_dump())
-    doc = b2b_obj.model_dump()
-    doc['created_at'] = doc['created_at'].isoformat()
+@api_router.post("/b2b")
+async def create_b2b(input: B2BRequestCreate):
+    doc = input.model_dump()
+    doc["id"] = str(uuid.uuid4())
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
     await db.demandes_entreprise.insert_one(doc)
-
     asyncio.ensure_future(send_notification(
-        f"Demande B2B — {b2b_obj.company}",
+        f"Demande B2B — {doc['company']}",
         build_email_html("Demande Services Entreprise", {
-            "Prénom": b2b_obj.first_name,
-            "Nom": b2b_obj.last_name,
-            "Société": b2b_obj.company,
-            "Email": b2b_obj.email,
-            "Téléphone": b2b_obj.phone,
-            "Taille de flotte": b2b_obj.fleet_size,
-            "Type de besoin": b2b_obj.need_type,
-            "Message": b2b_obj.message,
+            "Prénom": doc['first_name'], "Nom": doc['last_name'], "Société": doc['company'],
+            "Email": doc['email'], "Téléphone": doc['phone'], "Taille de flotte": doc['fleet_size'],
+            "Type de besoin": doc.get('need_type'), "Message": doc.get('message'),
         })
     ))
-    return b2b_obj
+    return {"status": "success", "id": doc["id"]}
 
-
-# --- Rachat / Buyback ---
-@api_router.post("/buyback", response_model=BuybackRequest)
-async def create_buyback_request(input: BuybackRequestCreate):
-    buyback_obj = BuybackRequest(**input.model_dump())
-    doc = buyback_obj.model_dump()
-    doc['created_at'] = doc['created_at'].isoformat()
+@api_router.post("/buyback")
+async def create_buyback(input: BuybackRequestCreate):
+    doc = input.model_dump()
+    doc["id"] = str(uuid.uuid4())
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
     await db.demandes_rachat.insert_one(doc)
-
     conditions_map = {"bon": "Bon état", "moyen": "État moyen", "abime": "Abîmé"}
     asyncio.ensure_future(send_notification(
-        f"Demande de rachat — {buyback_obj.brand} {buyback_obj.model}",
+        f"Demande de rachat — {doc['brand']} {doc['model']}",
         build_email_html("Demande de rachat", {
-            "Marque": buyback_obj.brand,
-            "Modèle": buyback_obj.model,
-            "État": conditions_map.get(buyback_obj.condition, buyback_obj.condition),
-            "Nom": buyback_obj.name,
-            "Téléphone": buyback_obj.phone,
-            "Magasin": buyback_obj.store,
+            "Marque": doc['brand'], "Modèle": doc['model'],
+            "État": conditions_map.get(doc['condition'], doc['condition']),
+            "Nom": doc['name'], "Téléphone": doc['phone'], "Magasin": doc['store'],
         })
     ))
-    return buyback_obj
+    return {"status": "success", "id": doc["id"]}
+
+
+# ==================== ADMIN ROUTES ====================
+
+@api_router.get("/admin/demandes-devis")
+async def get_demandes_devis(user=Depends(get_current_admin)):
+    docs = await db.demandes_devis.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return docs
+
+@api_router.get("/admin/demandes-contact")
+async def get_demandes_contact(user=Depends(get_current_admin)):
+    docs = await db.demandes_contact.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return docs
+
+@api_router.get("/admin/demandes-entreprise")
+async def get_demandes_entreprise(user=Depends(get_current_admin)):
+    docs = await db.demandes_entreprise.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return docs
+
+@api_router.get("/admin/demandes-rachat")
+async def get_demandes_rachat(user=Depends(get_current_admin)):
+    docs = await db.demandes_rachat.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return docs
+
+@api_router.get("/admin/stats")
+async def get_admin_stats(user=Depends(get_current_admin)):
+    devis = await db.demandes_devis.count_documents({})
+    contact = await db.demandes_contact.count_documents({})
+    entreprise = await db.demandes_entreprise.count_documents({})
+    rachat = await db.demandes_rachat.count_documents({})
+    return {"devis": devis, "contact": contact, "entreprise": entreprise, "rachat": rachat, "total": devis + contact + entreprise + rachat}
 
 
 # ==================== APP CONFIG ====================
@@ -292,6 +315,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def startup():
+    await seed_admin()
+    await db.admin_users.create_index("email", unique=True)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
