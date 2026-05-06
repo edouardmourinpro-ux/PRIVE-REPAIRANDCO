@@ -265,12 +265,12 @@ async def create_quote(input: QuoteRequestCreate):
     ))
     asyncio.ensure_future(send_whatsapp(
         doc['store'],
-        f"📱 Nouvelle demande de devis\n\n"
-        f"Appareil : {doc['device_type']} {doc['brand']} {doc['model']}\n"
-        f"Problème : {', '.join(doc['issue_types'])}\n"
-        f"Client : {doc['name']}\n"
-        f"Tél : {doc['phone']}\n"
-        f"Créneau : {doc.get('preferred_time') or 'Non précisé'}"
+        f"🚨 *Nouvelle demande - Repair&Co*\n"
+        f"- *Type* : Demande de devis\n"
+        f"- *Client* : {doc['name']}\n"
+        f"- *Tél* : {doc['phone']}\n"
+        f"- *Détails* : {doc['device_type']} {doc['brand']} {doc['model']} — {', '.join(doc['issue_types'])}\n\n"
+        f"👉 *Action requise* : Appeler le client dans les *15 minutes* pour confirmer."
     ))
     return {"status": "success", "id": doc["id"]}
 
@@ -290,11 +290,12 @@ async def create_contact(input: ContactRequestCreate):
     if doc.get('store'):
         asyncio.ensure_future(send_whatsapp(
             doc['store'],
-            f"📋 Nouveau message / RDV\n\n"
-            f"Objet : {doc['subject']}\n"
-            f"Client : {doc['name']}\n"
-            f"Tél : {doc.get('phone') or 'Non précisé'}\n"
-            f"Message : {doc['message'][:100]}"
+            f"🚨 *Nouvelle demande - Repair&Co*\n"
+            f"- *Type* : Demande de RDV\n"
+            f"- *Client* : {doc['name']}\n"
+            f"- *Tél* : {doc.get('phone') or 'Non précisé'}\n"
+            f"- *Détails* : {doc['subject']}\n\n"
+            f"👉 *Action requise* : Appeler le client dans les *15 minutes* pour confirmer."
         ))
     return {"status": "success", "id": doc["id"]}
 
