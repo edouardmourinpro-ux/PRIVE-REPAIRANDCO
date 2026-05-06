@@ -20,6 +20,7 @@ import uuid
 import bcrypt
 import jwt
 from datetime import datetime, timezone, timedelta
+from twilio.rest import Client as TwilioClient
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -40,6 +41,25 @@ JWT_ALGORITHM = "HS256"
 # Admin config
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@repair-and-co.fr')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
+
+# Twilio WhatsApp config
+TWILIO_SID = os.environ.get('TWILIO_ACCOUNT_SID')
+TWILIO_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
+TWILIO_WHATSAPP_FROM = os.environ.get('TWILIO_WHATSAPP_FROM')
+twilio_client = TwilioClient(TWILIO_SID, TWILIO_TOKEN) if TWILIO_SID else None
+
+# Mapping magasin ID → numéro WhatsApp du responsable
+STORE_WHATSAPP = {
+    "lattes": "+33788809386",
+    "montpellier-nord": "+33987136893",
+    "montpellier-sud": "+33467588139",
+    "nimes-costieres": "+33466052432",
+    "nimes-etoile": "+33757532389",
+    "beziers": "+33467943034",
+    "boulogne": "+33767118896",
+    "plaisir": "+33130438907",
+    "les-ulis": "+33749952472",
+}
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -122,6 +142,26 @@ async def send_notification(subject: str, html_body: str):
         logger.info(f"Email sent: {subject}")
     except Exception as e:
         logger.error(f"Email send failed: {e}")
+
+
+async def send_whatsapp(store_id: str, message: str):
+    """Send WhatsApp notification to store manager. Non-blocking."""
+    if not twilio_client or not TWILIO_WHATSAPP_FROM:
+        return
+    to_number = STORE_WHATSAPP.get(store_id)
+    if not to_number:
+        return
+    try:
+        await asyncio.to_thread(
+            lambda: twilio_client.messages.create(
+                from_=TWILIO_WHATSAPP_FROM,
+                to=f"whatsapp:{to_number}",
+                body=message
+            )
+        )
+        logger.info(f"WhatsApp sent to {store_id} ({to_number})")
+    except Exception as e:
+        logger.error(f"WhatsApp send failed ({store_id}): {e}")
 
 def build_email_html(title: str, fields: dict) -> str:
     rows = ""
@@ -222,6 +262,15 @@ async def create_quote(input: QuoteRequestCreate):
             "Magasin": doc['store'], "Créneau préféré": doc.get('preferred_time'),
         })
     ))
+    asyncio.ensure_future(send_whatsapp(
+        doc['store'],
+        f"📱 Nouvelle demande de devis\n\n"
+        f"Appareil : {doc['device_type']} {doc['brand']} {doc['model']}\n"
+        f"Problème : {', '.join(doc['issue_types'])}\n"
+        f"Client : {doc['name']}\n"
+        f"Tél : {doc['phone']}\n"
+        f"Créneau : {doc.get('preferred_time') or 'Non précisé'}"
+    ))
     return {"status": "success", "id": doc["id"]}
 
 @api_router.post("/contact")
@@ -237,6 +286,15 @@ async def create_contact(input: ContactRequestCreate):
             "Objet": doc['subject'], "Magasin": doc.get('store'), "Message": doc['message'],
         })
     ))
+    if doc.get('store'):
+        asyncio.ensure_future(send_whatsapp(
+            doc['store'],
+            f"📋 Nouveau message / RDV\n\n"
+            f"Objet : {doc['subject']}\n"
+            f"Client : {doc['name']}\n"
+            f"Tél : {doc.get('phone') or 'Non précisé'}\n"
+            f"Message : {doc['message'][:100]}"
+        ))
     return {"status": "success", "id": doc["id"]}
 
 @api_router.post("/b2b")
@@ -269,6 +327,14 @@ async def create_buyback(input: BuybackRequestCreate):
             "État": conditions_map.get(doc['condition'], doc['condition']),
             "Nom": doc['name'], "Téléphone": doc['phone'], "Magasin": doc['store'],
         })
+    ))
+    asyncio.ensure_future(send_whatsapp(
+        doc['store'],
+        f"♻️ Demande de rachat\n\n"
+        f"Appareil : {doc['brand']} {doc['model']}\n"
+        f"État : {conditions_map.get(doc['condition'], doc['condition'])}\n"
+        f"Client : {doc['name']}\n"
+        f"Tél : {doc['phone']}"
     ))
     return {"status": "success", "id": doc["id"]}
 
