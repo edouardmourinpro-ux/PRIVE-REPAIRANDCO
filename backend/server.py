@@ -48,17 +48,16 @@ ULTRAMSG_TOKEN = os.environ.get('ULTRAMSG_TOKEN')
 WHATSAPP_TEST_NUMBER = os.environ.get('WHATSAPP_TEST_NUMBER', '')
 
 # Mapping magasin ID → numéro WhatsApp du responsable
-# TEMPORAIRE : tous les messages vont vers le numéro de test
 STORE_WHATSAPP = {
     "lattes": WHATSAPP_TEST_NUMBER,
-    "montpellier-nord": WHATSAPP_TEST_NUMBER,
+    "montpellier-nord": "33166848079",
     "montpellier-sud": WHATSAPP_TEST_NUMBER,
-    "nimes-costieres": WHATSAPP_TEST_NUMBER,
-    "nimes-etoile": WHATSAPP_TEST_NUMBER,
-    "beziers": WHATSAPP_TEST_NUMBER,
+    "nimes-costieres": "33466052432",
+    "nimes-etoile": "33757532389",
+    "beziers": "33467943034",
     "boulogne": WHATSAPP_TEST_NUMBER,
     "plaisir": WHATSAPP_TEST_NUMBER,
-    "les-ulis": WHATSAPP_TEST_NUMBER,
+    "les-ulis": "33749952472",
 }
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
