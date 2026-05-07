@@ -48,10 +48,10 @@ const AppointmentPage = () => {
   const deviceTypes = [
     { id: 'smartphone', label: 'Smartphone', picto: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/i65cqvig_Smartphone%20casse%CC%81.png' },
     { id: 'tablette', label: 'Tablette', picto: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/i65cqvig_Smartphone%20casse%CC%81.png' },
-    { id: 'pc', label: 'PC / Ordinateur', picto: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/lmcslwwi_Ordinateur%20e%CC%81cran%20casse%CC%81.png' },
+    { id: 'pc', label: 'PC', picto: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/lmcslwwi_Ordinateur%20e%CC%81cran%20casse%CC%81.png' },
     { id: 'electromenager', label: 'Électroménager', picto: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/96fmgzu8_Machine%20a%CC%80%20cafe%CC%81.png' },
-    { id: 'velo-trottinette', label: 'Vélo / Trottinette', picto: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/5wivdev5_Trottinette%20e%CC%81lectrique.png' },
-    { id: 'autre', label: 'Autre' },
+    { id: 'velo-trottinette', label: 'Mobilité', picto: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/5wivdev5_Trottinette%20e%CC%81lectrique.png' },
+    { id: 'autre', label: 'Autre', icon: 'dots' },
   ];
 
   const getBrands = () => {
@@ -185,10 +185,14 @@ const AppointmentPage = () => {
                       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                         {deviceTypes.map((dt) => (
                           <button key={dt.id} type="button" onClick={() => { setDeviceType(dt.id); setBrand(''); setIssueType(''); }}
-                            className={`p-3 rounded-xl border-2 transition-all text-center ${deviceType === dt.id ? 'border-[#2ECC71] bg-[#E8F5EE]' : 'border-[#E8F5EE] hover:border-[#2ECC71]/50'}`}
+                            className={`h-[100px] flex flex-col items-center justify-center rounded-xl border-2 transition-all text-center px-2 ${deviceType === dt.id ? 'border-[#2ECC71] bg-[#E8F5EE]' : 'border-[#E8F5EE] hover:border-[#2ECC71]/50'}`}
                             data-testid={`rdv-device-${dt.id}`}>
-                            {dt.picto && <img src={dt.picto} alt={dt.label} className="w-8 h-8 mx-auto mb-1 object-contain" />}
-                            <span className="text-xs font-medium text-[#1A5C3A] block">{dt.label}</span>
+                            {dt.picto ? (
+                              <img src={dt.picto} alt={dt.label} className="w-8 h-8 object-contain mb-1.5" />
+                            ) : (
+                              <span className="text-[#1A5C3A] text-2xl font-bold mb-1.5">...</span>
+                            )}
+                            <span className="text-[10px] sm:text-xs font-medium text-[#1A5C3A] leading-tight">{dt.label}</span>
                           </button>
                         ))}
                       </div>
