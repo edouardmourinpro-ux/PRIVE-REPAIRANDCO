@@ -12,6 +12,7 @@ import logging
 import asyncio
 import smtplib
 import ssl
+import requests as http_requests
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
@@ -20,7 +21,6 @@ import uuid
 import bcrypt
 import jwt
 from datetime import datetime, timezone, timedelta
-from twilio.rest import Client as TwilioClient
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -42,24 +42,23 @@ JWT_ALGORITHM = "HS256"
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@repair-and-co.fr')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
 
-# Twilio WhatsApp config
-TWILIO_SID = os.environ.get('TWILIO_ACCOUNT_SID')
-TWILIO_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
-TWILIO_WHATSAPP_FROM = os.environ.get('TWILIO_WHATSAPP_FROM')
-twilio_client = TwilioClient(TWILIO_SID, TWILIO_TOKEN) if TWILIO_SID else None
+# UltraMsg WhatsApp config
+ULTRAMSG_INSTANCE = os.environ.get('ULTRAMSG_INSTANCE')
+ULTRAMSG_TOKEN = os.environ.get('ULTRAMSG_TOKEN')
+WHATSAPP_TEST_NUMBER = os.environ.get('WHATSAPP_TEST_NUMBER', '')
 
 # Mapping magasin ID → numéro WhatsApp du responsable
 # TEMPORAIRE : tous les messages vont vers le numéro de test
 STORE_WHATSAPP = {
-    "lattes": "+33616331164",
-    "montpellier-nord": "+33616331164",
-    "montpellier-sud": "+33616331164",
-    "nimes-costieres": "+33616331164",
-    "nimes-etoile": "+33616331164",
-    "beziers": "+33616331164",
-    "boulogne": "+33616331164",
-    "plaisir": "+33616331164",
-    "les-ulis": "+33616331164",
+    "lattes": WHATSAPP_TEST_NUMBER,
+    "montpellier-nord": WHATSAPP_TEST_NUMBER,
+    "montpellier-sud": WHATSAPP_TEST_NUMBER,
+    "nimes-costieres": WHATSAPP_TEST_NUMBER,
+    "nimes-etoile": WHATSAPP_TEST_NUMBER,
+    "beziers": WHATSAPP_TEST_NUMBER,
+    "boulogne": WHATSAPP_TEST_NUMBER,
+    "plaisir": WHATSAPP_TEST_NUMBER,
+    "les-ulis": WHATSAPP_TEST_NUMBER,
 }
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -146,23 +145,33 @@ async def send_notification(subject: str, html_body: str):
 
 
 async def send_whatsapp(store_id: str, message: str):
-    """Send WhatsApp notification to store manager. Non-blocking."""
-    if not twilio_client or not TWILIO_WHATSAPP_FROM:
+    """Send WhatsApp notification via UltraMsg. Non-blocking."""
+    if not ULTRAMSG_INSTANCE or not ULTRAMSG_TOKEN:
         return
     to_number = STORE_WHATSAPP.get(store_id)
     if not to_number:
         return
     try:
-        await asyncio.to_thread(
-            lambda: twilio_client.messages.create(
-                from_=TWILIO_WHATSAPP_FROM,
-                to=f"whatsapp:{to_number}",
-                body=message
-            )
-        )
+        await asyncio.to_thread(_send_ultramsg, to_number, message)
         logger.info(f"WhatsApp sent to {store_id} ({to_number})")
     except Exception as e:
         logger.error(f"WhatsApp send failed ({store_id}): {e}")
+
+
+def _send_ultramsg(to_number: str, message: str):
+    """Blocking UltraMsg API call."""
+    url = f"https://api.ultramsg.com/{ULTRAMSG_INSTANCE}/messages/chat"
+    payload = {
+        'token': ULTRAMSG_TOKEN,
+        'to': to_number,
+        'body': message,
+    }
+    headers = {'content-type': 'application/x-www-form-urlencoded'}
+    resp = http_requests.post(url, data=payload, headers=headers, timeout=15)
+    result = resp.json()
+    if result.get('sent') != 'true':
+        raise Exception(f"UltraMsg error: {result}")
+    return result
 
 def build_email_html(title: str, fields: dict) -> str:
     rows = ""
