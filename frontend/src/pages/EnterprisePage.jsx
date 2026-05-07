@@ -93,8 +93,7 @@ const EnterprisePage = () => {
   const navItems = [
     { id: 'offres', label: 'Offres entreprises' },
     { id: 'programme-rse', label: 'Programme RSE collaborateurs' },
-    { id: 'qualirepar-b2b', label: 'Label QualiRépar' },
-    { id: 'contact-b2b', label: 'Contact' },
+    { id: 'contact-b2b', label: 'Contact', highlight: true },
   ];
 
   if (isSuccess) {
@@ -148,7 +147,11 @@ const EnterprisePage = () => {
                   <button
                     key={item.id}
                     onClick={() => scrollToSection(item.id)}
-                    className="px-4 py-2 rounded-full bg-white/10 text-white text-sm font-medium hover:bg-white/20 transition-colors"
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                      item.highlight
+                        ? 'bg-[#2ECC71] text-white hover:bg-[#2ECC71]/90'
+                        : 'bg-white/10 text-white hover:bg-white/20'
+                    }`}
                     data-testid={`b2b-nav-${item.id}`}
                   >
                     {item.label}

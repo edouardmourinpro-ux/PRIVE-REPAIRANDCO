@@ -433,6 +433,37 @@ const QuotePage = () => {
           </div>
         </div>
       </section>
+
+      {/* QualiRépar Banner */}
+      <section className="py-12 lg:py-16 bg-[#E8F5EE]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-10 items-center">
+            <div className="flex justify-center order-2 lg:order-1">
+              <a href="https://www.label-qualirepar.fr/" target="_blank" rel="noopener noreferrer" className="block">
+                <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow">
+                  <img src="https://customer-assets.emergentagent.com/job_a9a1908d-07fe-49dd-8812-d3607942c5a0/artifacts/j50pewh4_logo-label-quali-repar-300x169-1.png" alt="Label QualiRépar" className="max-w-[180px] mx-auto" />
+                </div>
+              </a>
+            </div>
+            <div className="order-1 lg:order-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white rounded-full text-[#1A5C3A] text-sm font-medium mb-4">
+                <BadgeCheck className="text-[#2ECC71]" size={16} />
+                Engagement qualité
+              </div>
+              <h2 className="text-2xl font-bold mb-4">Label <span className="text-[#2ECC71]">QualiRépar</span></h2>
+              <p className="text-[#1A1A2E]/80 leading-relaxed mb-3">
+                Tous nos magasins sont labellisés <strong>QualiRépar</strong>, le label officiel de l'État français pour les réparateurs de qualité.
+              </p>
+              <ul className="space-y-2 text-[#1A1A2E]/80 text-sm">
+                <li className="flex items-start gap-2"><CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={16} />Des techniciens qualifiés et formés</li>
+                <li className="flex items-start gap-2"><CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={16} />Des pièces de qualité</li>
+                <li className="flex items-start gap-2"><CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={16} />Une garantie sur les réparations</li>
+                <li className="flex items-start gap-2"><CheckCircle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={16} />De 15€ à 60€ d'aide directe selon l'appareil</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };

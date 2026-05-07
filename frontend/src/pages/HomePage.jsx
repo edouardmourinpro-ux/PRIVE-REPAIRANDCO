@@ -102,7 +102,7 @@ const HomePage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-8">
             {[
-              { icon: Star, value: '4,7/5', label: '225 avis Google', fill: true },
+              { icon: Star, value: '4,7/5', label: '+2000 avis Google', fill: true },
               { icon: MapPin, value: '9', label: 'Magasins en France' },
               { icon: Zap, value: '<1h', label: 'Réparations courantes' },
               { icon: Shield, value: '100%', label: 'Garantie réparations' },
@@ -180,8 +180,8 @@ const HomePage = () => {
               <Link key={u.id} to={u.link} className="block" data-testid={`universe-card-${u.id}`}>
                 <Card className="service-card group cursor-pointer h-full">
                   <CardContent className="p-6">
-                    <div className="w-16 h-16 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-                      <img src={u.picto} alt={u.title} className="w-14 h-14 object-contain" />
+                    <div className="w-24 h-24 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                      <img src={u.picto} alt={u.title} className="w-20 h-20 object-contain" />
                     </div>
                     <h3 className="text-xl font-bold mb-2">{u.title}</h3>
                     <p className="text-[#1A5C3A]/70 text-sm leading-relaxed mb-3">{u.subtitle}</p>
@@ -274,7 +274,7 @@ const HomePage = () => {
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#2ECC71" clipPath="url(#half-star-clip)" />
                 </svg>
               </div>
-              <span className="text-[#1A5C3A]/70">4,7/5 · +500 avis cumulés</span>
+              <span className="text-[#1A5C3A]/70">4,7/5 · +2000 avis cumulés</span>
             </div>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
