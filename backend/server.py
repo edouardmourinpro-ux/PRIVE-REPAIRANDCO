@@ -49,14 +49,14 @@ WHATSAPP_TEST_NUMBER = os.environ.get('WHATSAPP_TEST_NUMBER', '')
 
 # Mapping magasin ID → numéro WhatsApp du responsable
 STORE_WHATSAPP = {
-    "lattes": WHATSAPP_TEST_NUMBER,
-    "montpellier-nord": "33166848079",
-    "montpellier-sud": WHATSAPP_TEST_NUMBER,
+    "lattes": "33788809386",
+    "montpellier-nord": "33987136893",
+    "montpellier-sud": "33467588139",
     "nimes-costieres": "33466052432",
     "nimes-etoile": "33757532389",
     "beziers": "33467943034",
-    "boulogne": WHATSAPP_TEST_NUMBER,
-    "plaisir": WHATSAPP_TEST_NUMBER,
+    "boulogne": "33767118896",
+    "plaisir": "33130438907",
     "les-ulis": "33749952472",
 }
 
@@ -277,7 +277,11 @@ async def create_quote(input: QuoteRequestCreate):
         f"- *Type* : Demande de devis\n"
         f"- *Client* : {doc['name']}\n"
         f"- *Tél* : {doc['phone']}\n"
-        f"- *Détails* : {doc['device_type']} {doc['brand']} {doc['model']} — {', '.join(doc['issue_types'])}\n\n"
+        f"- *Email* : {doc['email']}\n"
+        f"- *Appareil* : {doc['device_type']} {doc['brand']} {doc['model']}\n"
+        f"- *Problème* : {', '.join(doc['issue_types'])}\n"
+        f"- *Magasin* : {doc['store']}\n"
+        f"- *Créneau* : {doc.get('preferred_time') or 'Non précisé'}\n\n"
         f"👉 *Action requise* : Appeler le client dans les *15 minutes* pour confirmer."
     ))
     return {"status": "success", "id": doc["id"]}
@@ -299,10 +303,13 @@ async def create_contact(input: ContactRequestCreate):
         asyncio.ensure_future(send_whatsapp(
             doc['store'],
             f"🚨 *Nouvelle demande - Repair&Co*\n"
-            f"- *Type* : Demande de RDV\n"
+            f"- *Type* : Message / RDV\n"
             f"- *Client* : {doc['name']}\n"
             f"- *Tél* : {doc.get('phone') or 'Non précisé'}\n"
-            f"- *Détails* : {doc['subject']}\n\n"
+            f"- *Email* : {doc['email']}\n"
+            f"- *Objet* : {doc['subject']}\n"
+            f"- *Magasin* : {doc.get('store')}\n"
+            f"- *Message* : {doc['message']}\n\n"
             f"👉 *Action requise* : Appeler le client dans les *15 minutes* pour confirmer."
         ))
     return {"status": "success", "id": doc["id"]}
@@ -340,11 +347,14 @@ async def create_buyback(input: BuybackRequestCreate):
     ))
     asyncio.ensure_future(send_whatsapp(
         doc['store'],
-        f"♻️ Demande de rachat\n\n"
-        f"Appareil : {doc['brand']} {doc['model']}\n"
-        f"État : {conditions_map.get(doc['condition'], doc['condition'])}\n"
-        f"Client : {doc['name']}\n"
-        f"Tél : {doc['phone']}"
+        f"🚨 *Nouvelle demande - Repair&Co*\n"
+        f"- *Type* : Demande de rachat\n"
+        f"- *Client* : {doc['name']}\n"
+        f"- *Tél* : {doc['phone']}\n"
+        f"- *Appareil* : {doc['brand']} {doc['model']}\n"
+        f"- *État* : {conditions_map.get(doc['condition'], doc['condition'])}\n"
+        f"- *Magasin* : {doc['store']}\n\n"
+        f"👉 *Action requise* : Appeler le client dans les *15 minutes* pour confirmer."
     ))
     return {"status": "success", "id": doc["id"]}
 
