@@ -362,7 +362,7 @@ async def create_quote(input: QuoteRequestCreate):
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "devis"})
     await db.demandes_devis.insert_one(doc)
     asyncio.ensure_future(send_notification(
-        f"[Repair&Co] Nouveau devis — {doc['device_type']} — {doc['name']}",
+        f"[Repair&Co] Nouveau devis — {doc['name']} — {store_name}",
         build_email_html(
             title="Nouvelle demande de devis",
             demand_type="Demande de devis",
@@ -400,11 +400,13 @@ async def create_contact(input: ContactRequestCreate):
     doc = input.model_dump()
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "contact"})
     await db.demandes_contact.insert_one(doc)
+    is_rdv = bool(doc.get('rdv_device_type') or doc.get('rdv_brand') or (doc.get('subject') or '').startswith('RDV'))
+    demand_label = "RDV" if is_rdv else "message"
     asyncio.ensure_future(send_notification(
-        f"[Repair&Co] Nouveau message — {doc['subject']} — {doc['name']}",
+        f"[Repair&Co] Nouveau {demand_label} — {doc['name']} — {store_name}",
         build_email_html(
-            title="Nouveau message / Rendez-vous",
-            demand_type="Message / RDV",
+            title="Nouvelle demande de rendez-vous" if is_rdv else "Nouveau message",
+            demand_type="Demande de rendez-vous" if is_rdv else "Message / Contact",
             store_name=store_name,
             client={"Nom": doc['name'], "Téléphone": doc.get('phone'), "Email": doc['email']},
             details={
@@ -415,30 +417,29 @@ async def create_contact(input: ContactRequestCreate):
                 "Panne": doc.get('rdv_issue'),
                 "Date du RDV": doc.get('rdv_date'),
                 "Créneau": doc.get('rdv_slot'),
-                "Message": doc.get('message'),
+                # Free-text message: only show if it's a non-RDV demand OR if the user added a real comment.
+                "Message": (None if is_rdv else doc.get('message')),
             },
             submitted_at=now_fr,
             demand_id=doc["id"],
         )
     ))
     if doc.get('store'):
-        msg_lines = doc['message'].split('\n') if doc.get('message') else []
-        rdv_date, rdv_slot = '', ''
-        for line in msg_lines:
-            if line.startswith('Date:'): rdv_date = line.replace('Date:', '').strip()
-            elif line.startswith('Créneau:'): rdv_slot = line.replace('Créneau:', '').strip()
-        rdv_info = f"- *RDV souhaité* : {rdv_date} — {rdv_slot}\n" if rdv_date and rdv_date != '-' else ""
+        rdv_date = doc.get('rdv_date') or ''
+        rdv_slot = doc.get('rdv_slot') or ''
+        rdv_info = f"- *RDV souhaité* : {rdv_date} — {rdv_slot}\n" if rdv_date else ""
+        free_msg = (doc.get('message') or '').strip() or 'Aucun'
         asyncio.ensure_future(send_whatsapp(doc['store'],
             f"🚨 *Nouvelle demande - Repair&Co*\n"
             f"- *Date* : {now_fr}\n"
-            f"- *Type* : Message / RDV\n"
+            f"- *Type* : {'RDV' if is_rdv else 'Message / Contact'}\n"
             f"- *Client* : {doc['name']}\n"
             f"- *Tél* : {doc.get('phone') or 'Non précisé'}\n"
             f"- *Email* : {doc['email']}\n"
             f"- *Objet* : {doc['subject']}\n"
             f"- *Magasin* : {store_name}\n"
             f"{rdv_info}"
-            f"- *Message* : {doc['message']}\n\n"
+            f"- *Message* : {free_msg}\n\n"
             f"👉 *Lien Admin* : https://repairandco.fr/admin\n"
             f"👉 *Action requise* : Appeler le client dans les *15 minutes*."
         ))
@@ -451,8 +452,9 @@ async def create_b2b(input: B2BRequestCreate):
     doc = input.model_dump()
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "entreprise"})
     await db.demandes_entreprise.insert_one(doc)
+    full_name = f"{doc['first_name']} {doc['last_name']}".strip()
     asyncio.ensure_future(send_notification(
-        f"[Repair&Co] Demande B2B — {doc['company']}",
+        f"[Repair&Co] Nouveau B2B — {full_name} — {doc['company']}",
         build_email_html(
             title="Demande Services Entreprise",
             demand_type="Demande B2B / Entreprise",
@@ -481,7 +483,7 @@ async def create_buyback(input: BuybackRequestCreate):
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "rachat"})
     await db.demandes_rachat.insert_one(doc)
     asyncio.ensure_future(send_notification(
-        f"[Repair&Co] Demande de rachat — {doc['brand']} {doc['model']} — {doc['name']}",
+        f"[Repair&Co] Nouveau rachat — {doc['name']} — {store_name}",
         build_email_html(
             title="Demande de rachat",
             demand_type="Demande de rachat",
@@ -604,7 +606,7 @@ async def submit_customer_survey(category: str, demand_id: str, body: CustomerSu
             "Type de besoin": demand.get("need_type"),
         }
         asyncio.ensure_future(send_notification(
-            f"[Repair&Co] Mini-enquête reçue — {category} — {client_label}",
+            f"[Repair&Co] Mini-enquête — {client_label} — {store_name}",
             build_email_html(
                 title=f"Mini-enquête client reçue ({category})",
                 demand_type=f"Mini-enquête / {category}",

@@ -92,7 +92,7 @@ const AppointmentPage = () => {
         ...data,
         store: selectedStoreId,
         subject: `RDV — ${deviceType || 'Non précisé'} ${finalBrand || ''} ${model || ''} — ${finalIssue || 'Non précisé'} — ${rdvDate || ''} ${rdvSlot || ''}`.trim(),
-        message: `Type: ${deviceType || '-'}\nMarque: ${finalBrand || '-'}\nModèle: ${model || '-'}\nPanne: ${finalIssue || '-'}\nDate: ${rdvDate || '-'}\nCréneau: ${rdvSlot || '-'}\n\n${data.message || ''}`,
+        message: data.message || '',
         rdv_device_type: deviceType || null,
         rdv_brand: finalBrand || null,
         rdv_model: model || null,
