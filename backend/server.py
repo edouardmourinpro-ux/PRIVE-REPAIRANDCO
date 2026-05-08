@@ -237,9 +237,6 @@ class LoginRequest(BaseModel):
 class UpdateStatusRequest(BaseModel):
     status: str
 
-class UpdateCARequest(BaseModel):
-    ca: float
-
 class CustomerSurveyRequest(BaseModel):
     customer_source: Optional[str] = None
     customer_feedback: Optional[str] = None
@@ -463,16 +460,6 @@ async def submit_customer_survey(category: str, demand_id: str, body: CustomerSu
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Demande non trouvée")
     return {"status": "saved"}
-
-@api_router.patch("/admin/demandes/{category}/{demand_id}/ca")
-async def update_demand_ca(category: str, demand_id: str, body: UpdateCARequest, user=Depends(get_current_admin)):
-    col_name = COLLECTIONS.get(category)
-    if not col_name:
-        raise HTTPException(status_code=400, detail="Catégorie invalide")
-    result = await db[col_name].update_one({"id": demand_id}, {"$set": {"ca": body.ca}})
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Demande non trouvée")
-    return {"status": "updated"}
 
 @api_router.get("/admin/stats")
 async def get_admin_stats(store: Optional[str] = Query(None), user=Depends(get_current_admin)):
