@@ -26,6 +26,49 @@ const SOURCE_LABELS = {
   autre: 'Autre',
 };
 
+const CONDITION_LABELS = {
+  bon: 'Bon état',
+  moyen: 'État moyen',
+  abime: 'Abîmé',
+};
+
+const DEVICE_TYPE_LABELS = {
+  smartphone: 'Smartphone',
+  tablette: 'Tablette',
+  pc: 'PC',
+  electromenager: 'Électroménager',
+  'velo-trottinette': 'Vélo / Trottinette',
+  autre: 'Autre',
+};
+
+// Parse legacy RDV message blob (created by AppointmentPage before structured fields existed)
+// Format example:
+//   Type: smartphone
+//   Marque: Apple
+//   Modèle: iPhone 14
+//   Panne: Écran cassé
+//   Date: 2026-05-15
+//   Créneau: Matin
+//   <free text>
+const parseRdvMessage = (msg) => {
+  if (!msg || typeof msg !== 'string') return {};
+  const lines = msg.split('\n');
+  const out = {};
+  const free = [];
+  const map = { 'Type': 'device_type', 'Marque': 'brand', 'Modèle': 'model', 'Panne': 'issue', 'Date': 'date', 'Créneau': 'slot' };
+  for (const line of lines) {
+    const m = line.match(/^([^:]+):\s*(.*)$/);
+    if (m && map[m[1].trim()]) {
+      const v = m[2].trim();
+      if (v && v !== '-') out[map[m[1].trim()]] = v;
+    } else if (line.trim()) {
+      free.push(line);
+    }
+  }
+  out.free = free.join('\n').trim();
+  return out;
+};
+
 const STORE_NAME_MAP = STORES.reduce((acc, s) => { acc[s.id] = s.name; return acc; }, {});
 
 const AdminPage = () => {
@@ -286,7 +329,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback }) => {
 
   const getDetails = () => {
     if (type === 'devis') return [
-      { label: 'Appareil', value: item.device_type },
+      { label: 'Appareil', value: DEVICE_TYPE_LABELS[item.device_type] || item.device_type },
       { label: 'Marque', value: item.brand },
       { label: 'Modèle', value: item.model },
       { label: 'Problèmes', value: item.issue_types?.join(', ') },
@@ -294,11 +337,36 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback }) => {
       { label: 'Magasin', value: STORE_NAME_MAP[item.store] || item.store },
       { label: 'Créneau', value: item.preferred_time },
     ];
-    if (type === 'contact') return [
-      { label: 'Objet', value: item.subject },
-      { label: 'Magasin', value: STORE_NAME_MAP[item.store] || item.store },
-      { label: 'Message', value: item.message },
-    ];
+    if (type === 'contact') {
+      const isRdv = (item.subject || '').startsWith('RDV') || item.rdv_device_type || item.rdv_brand || item.rdv_model;
+      if (isRdv) {
+        // Use structured fields when present, otherwise parse legacy message blob.
+        const legacy = parseRdvMessage(item.message);
+        const deviceType = item.rdv_device_type || legacy.device_type;
+        const brand = item.rdv_brand || legacy.brand;
+        const model = item.rdv_model || legacy.model;
+        const issue = item.rdv_issue || legacy.issue;
+        const date = item.rdv_date || legacy.date;
+        const slot = item.rdv_slot || legacy.slot;
+        const freeMsg = item.rdv_device_type ? item.message : legacy.free;
+        return [
+          { label: 'Objet', value: item.subject },
+          { label: 'Magasin', value: STORE_NAME_MAP[item.store] || item.store },
+          { label: 'Type d\'appareil', value: DEVICE_TYPE_LABELS[deviceType] || deviceType },
+          { label: 'Marque', value: brand },
+          { label: 'Modèle', value: model },
+          { label: 'Panne', value: issue },
+          { label: 'Date du RDV', value: date },
+          { label: 'Créneau', value: slot },
+          { label: 'Message', value: freeMsg },
+        ];
+      }
+      return [
+        { label: 'Objet', value: item.subject },
+        { label: 'Magasin', value: STORE_NAME_MAP[item.store] || item.store },
+        { label: 'Message', value: item.message },
+      ];
+    }
     if (type === 'entreprise') return [
       { label: 'Société', value: item.company },
       { label: 'Taille flotte', value: item.fleet_size },
@@ -308,7 +376,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback }) => {
     if (type === 'rachat') return [
       { label: 'Marque', value: item.brand },
       { label: 'Modèle', value: item.model },
-      { label: 'État', value: item.condition },
+      { label: 'État', value: CONDITION_LABELS[item.condition] || item.condition },
       { label: 'Magasin', value: STORE_NAME_MAP[item.store] || item.store },
     ];
     return [];

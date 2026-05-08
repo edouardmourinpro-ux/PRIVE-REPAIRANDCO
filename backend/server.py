@@ -278,6 +278,13 @@ class ContactRequestCreate(BaseModel):
     subject: str
     store: Optional[str] = None
     message: str
+    # Optional structured fields used by the RDV (appointment) form:
+    rdv_device_type: Optional[str] = None
+    rdv_brand: Optional[str] = None
+    rdv_model: Optional[str] = None
+    rdv_issue: Optional[str] = None
+    rdv_date: Optional[str] = None
+    rdv_slot: Optional[str] = None
 
 class B2BRequestCreate(BaseModel):
     first_name: str
@@ -400,7 +407,16 @@ async def create_contact(input: ContactRequestCreate):
             demand_type="Message / RDV",
             store_name=store_name,
             client={"Nom": doc['name'], "Téléphone": doc.get('phone'), "Email": doc['email']},
-            details={"Objet": doc['subject'], "Message": doc['message']},
+            details={
+                "Objet": doc['subject'],
+                "Type d'appareil": doc.get('rdv_device_type'),
+                "Marque": doc.get('rdv_brand'),
+                "Modèle": doc.get('rdv_model'),
+                "Panne": doc.get('rdv_issue'),
+                "Date du RDV": doc.get('rdv_date'),
+                "Créneau": doc.get('rdv_slot'),
+                "Message": doc.get('message'),
+            },
             submitted_at=now_fr,
             demand_id=doc["id"],
         )

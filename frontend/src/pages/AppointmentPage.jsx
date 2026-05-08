@@ -93,6 +93,12 @@ const AppointmentPage = () => {
         store: selectedStoreId,
         subject: `RDV — ${deviceType || 'Non précisé'} ${finalBrand || ''} ${model || ''} — ${finalIssue || 'Non précisé'} — ${rdvDate || ''} ${rdvSlot || ''}`.trim(),
         message: `Type: ${deviceType || '-'}\nMarque: ${finalBrand || '-'}\nModèle: ${model || '-'}\nPanne: ${finalIssue || '-'}\nDate: ${rdvDate || '-'}\nCréneau: ${rdvSlot || '-'}\n\n${data.message || ''}`,
+        rdv_device_type: deviceType || null,
+        rdv_brand: finalBrand || null,
+        rdv_model: model || null,
+        rdv_issue: finalIssue || null,
+        rdv_date: rdvDate || null,
+        rdv_slot: rdvSlot || null,
       });
       setDemandId(r.data?.id || null);
       setIsSuccess(true);
