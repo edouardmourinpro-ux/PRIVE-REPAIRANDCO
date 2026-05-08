@@ -35,6 +35,10 @@ dist
 *token.json*
 *credentials.json*
 
+# Internal memory / dev notes (contain credentials)
+memory/test_credentials.md
+test_credentials.md
+
 # Logs and debug files
 npm-debug.log*
 yarn-debug.log*
