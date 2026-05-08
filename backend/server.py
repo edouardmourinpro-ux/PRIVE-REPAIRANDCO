@@ -5,7 +5,10 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, Query
+from fastapi.responses import StreamingResponse
 from starlette.middleware.cors import CORSMiddleware
+import csv
+import io
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
@@ -441,6 +444,52 @@ async def get_admin_stats(store: Optional[str] = Query(None), user=Depends(get_c
     return stats
 
 # Keep old routes as aliases for backward compat
+@api_router.get("/admin/demandes/{category}/export")
+async def export_demandes_csv(category: str, store: Optional[str] = Query(None), user=Depends(get_current_admin)):
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    query = {"store": store} if store else {}
+    docs = await db[col_name].find(query, {"_id": 0}).sort("created_at", -1).to_list(5000)
+
+    # Build column set across all docs (preserves first-seen order)
+    columns = []
+    seen = set()
+    priority = ["created_at", "id", "status", "ca", "name", "first_name", "last_name", "company",
+                "email", "phone", "store", "device_type", "brand", "model",
+                "issue_types", "other_issue", "subject", "message", "fleet_size",
+                "need_type", "condition", "preferred_time", "type"]
+    for k in priority:
+        for d in docs:
+            if k in d and k not in seen:
+                columns.append(k); seen.add(k); break
+    for d in docs:
+        for k in d.keys():
+            if k not in seen:
+                columns.append(k); seen.add(k)
+
+    output = io.StringIO()
+    output.write('\ufeff')  # BOM for Excel UTF-8
+    writer = csv.DictWriter(output, fieldnames=columns, delimiter=';', extrasaction='ignore')
+    writer.writeheader()
+    for d in docs:
+        row = {}
+        for k in columns:
+            v = d.get(k)
+            if isinstance(v, list):
+                v = ', '.join(str(x) for x in v)
+            elif v is None:
+                v = ''
+            row[k] = v
+        writer.writerow(row)
+    output.seek(0)
+    filename = f"repairandco_{category}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
 @api_router.get("/admin/demandes-devis")
 async def get_demandes_devis_legacy(user=Depends(get_current_admin)):
     return await db.demandes_devis.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
