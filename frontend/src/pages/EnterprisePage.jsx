@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -41,6 +41,10 @@ const EnterprisePage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [demandId, setDemandId] = useState(null);
+
+  useEffect(() => {
+    if (isSuccess) window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [isSuccess]);
 
   const {
     register,

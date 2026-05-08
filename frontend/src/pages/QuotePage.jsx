@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -44,6 +44,10 @@ const QuotePage = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [demandId, setDemandId] = useState(null);
   const [selectedIssues, setSelectedIssues] = useState([]);
+
+  useEffect(() => {
+    if (isSuccess) window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [isSuccess]);
 
   const {
     register,

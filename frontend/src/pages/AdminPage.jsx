@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import {
   LogOut, FileText, MessageSquare, Building2, Recycle,
@@ -257,10 +257,24 @@ const AdminPage = () => {
 
 const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback }) => {
   const [open, setOpen] = useState(false);
+  const feedbackRef = useRef(null);
   const date = item.created_at ? new Date(item.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   const currentStatus = STATUS_OPTIONS.find(s => s.value === (item.status || 'en_attente')) || STATUS_OPTIONS[0];
   const isClosed = (item.status || 'en_attente') === 'cloture';
   const hasCustomerSurvey = item.customer_source || item.customer_feedback;
+
+  const handleStatusChange = async (newStatus) => {
+    if (newStatus === 'cloture') {
+      setOpen(true); // Reveal the staff feedback form immediately
+    }
+    await onStatusChange(item.id, newStatus);
+    if (newStatus === 'cloture') {
+      // Wait for StaffFeedbackForm to mount, then scroll into view.
+      setTimeout(() => {
+        feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 350);
+    }
+  };
 
   const getTitle = () => {
     if (type === 'devis') return `${item.brand || ''} ${item.model || ''} — ${item.name || ''}`.trim();
@@ -329,7 +343,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback }) => {
             </span>
             <select
               value={item.status || 'en_attente'}
-              onChange={e => onStatusChange(item.id, e.target.value)}
+              onChange={e => handleStatusChange(e.target.value)}
               onClick={e => e.stopPropagation()}
               className="px-2 py-1.5 border border-[#E8F5EE] rounded-lg text-xs text-[#1A1A2E] bg-white focus:outline-none focus:border-[#2ECC71]"
               data-testid={`demand-status-select-${item.id}`}
@@ -377,7 +391,9 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback }) => {
 
             {/* Staff feedback (visible inline once status = cloture) */}
             {isClosed && (
-              <StaffFeedbackForm item={item} onSave={onSaveStaffFeedback} />
+              <div ref={feedbackRef}>
+                <StaffFeedbackForm item={item} onSave={onSaveStaffFeedback} />
+              </div>
             )}
           </div>
         )}

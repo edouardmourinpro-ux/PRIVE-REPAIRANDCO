@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -38,6 +38,10 @@ const ContactPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [demandId, setDemandId] = useState(null);
+
+  useEffect(() => {
+    if (isSuccess) window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [isSuccess]);
 
   const {
     register,
@@ -80,7 +84,7 @@ const ContactPage = () => {
           </div>
           <h1 className="text-3xl font-bold text-[#1A5C3A] mb-4">Message envoyé !</h1>
           <p className="text-lg text-[#1A5C3A]/80 mb-6">
-            Nous vous répondrons dans les plus brefs délais.
+            Un membre de notre équipe vous rappelle sous 15 minutes.
           </p>
           <MiniSurvey demandId={demandId} category="contact" />
           <div className="mt-8">
