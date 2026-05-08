@@ -143,21 +143,88 @@ async def send_notification(subject: str, html_body: str):
     except Exception as e:
         logger.error(f"Email send failed: {e}")
 
-def build_email_html(title: str, fields: dict) -> str:
-    rows = ""
-    for label, value in fields.items():
-        if value:
-            rows += f'<tr><td style="padding:8px 12px;font-weight:600;color:#1A5C3A;vertical-align:top;white-space:nowrap">{label}</td><td style="padding:8px 12px;color:#1A1A2E">{value}</td></tr>'
+def build_email_html(*, title: str, demand_type: str, store_name: str, client: dict,
+                     details: dict, submitted_at: str, demand_id: str,
+                     survey: dict = None, header_note: str = None) -> str:
+    """Rich HTML email template (Repair&Co branding).
+
+    Sections: header (green) → meta (type/magasin/date) → client info → details → optional survey → CTA admin.
+    """
+
+    def _row(label, value):
+        if value in (None, "", []):
+            return ""
+        if isinstance(value, list):
+            value = ", ".join(str(v) for v in value)
+        return (
+            f'<tr>'
+            f'<td style="padding:8px 14px;font-weight:600;color:#1A5C3A;vertical-align:top;white-space:nowrap;width:35%">{label}</td>'
+            f'<td style="padding:8px 14px;color:#1A1A2E;word-break:break-word">{value}</td>'
+            f'</tr>'
+        )
+
+    def _section(title_, rows_html):
+        if not rows_html.strip():
+            return ""
+        return (
+            f'<div style="margin:0 0 18px 0">'
+            f'<h2 style="font-size:13px;color:#1A5C3A;text-transform:uppercase;letter-spacing:.5px;margin:0 0 6px 0;padding:0 14px">{title_}</h2>'
+            f'<table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #E8F5EE;border-radius:10px;overflow:hidden">{rows_html}</table>'
+            f'</div>'
+        )
+
+    meta_rows = _row("Type de demande", demand_type) + _row("Magasin", store_name) + _row("Soumis le", submitted_at) + _row("ID demande", demand_id)
+    client_rows = "".join(_row(k, v) for k, v in client.items())
+    details_rows = "".join(_row(k, v) for k, v in details.items())
+
+    survey_block = ""
+    if survey:
+        survey_rows = "".join(_row(k, v) for k, v in survey.items() if v)
+        survey_block = _section("Mini-enquête client", survey_rows)
+
+    note_block = (
+        f'<p style="margin:0 0 18px 0;padding:12px 14px;background:#E8F5EE;border-left:3px solid #2ECC71;color:#1A5C3A;font-size:13px;border-radius:6px">{header_note}</p>'
+        if header_note else ""
+    )
+
     return f"""
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-      <div style="background:#1A5C3A;padding:20px 24px;border-radius:12px 12px 0 0">
-        <h1 style="color:#fff;margin:0;font-size:20px">Repair&Co — {title}</h1>
+<div style="background:#f6f6f6;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif">
+  <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,.04)">
+    <div style="background:#1A5C3A;padding:22px 24px">
+      <h1 style="color:#fff;margin:0;font-size:20px;font-weight:700">Repair&amp;Co</h1>
+      <p style="color:#E8F5EE;margin:4px 0 0 0;font-size:14px">{title}</p>
+    </div>
+    <div style="padding:22px 14px 8px 14px">
+      {note_block}
+      {_section("Informations", meta_rows)}
+      {_section("Client", client_rows)}
+      {_section("Détails de la demande", details_rows)}
+      {survey_block}
+      <div style="text-align:center;margin:8px 0 4px 0">
+        <a href="https://repairandco.fr/admin"
+           style="display:inline-block;background:#1A5C3A;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 28px;border-radius:999px">
+          Ouvrir dans /admin
+        </a>
       </div>
-      <div style="border:1px solid #E8F5EE;border-top:none;border-radius:0 0 12px 12px;padding:4px 0">
-        <table style="width:100%;border-collapse:collapse">{rows}</table>
-      </div>
-      <p style="color:#999;font-size:12px;margin-top:16px;text-align:center">Email envoyé automatiquement depuis le site repairandco.fr</p>
-    </div>"""
+      <p style="color:#1A1A2E;font-size:12px;text-align:center;margin:14px 0 0 0;opacity:.6">
+        Action requise : appeler le client dans les 15 minutes.
+      </p>
+    </div>
+    <div style="background:#E8F5EE;padding:12px 16px;text-align:center">
+      <p style="color:#1A5C3A;font-size:11px;margin:0">Email automatique — Repair&amp;Co — repairandco.fr</p>
+    </div>
+  </div>
+</div>"""
+
+
+CONDITION_LABELS = {"bon": "Bon état", "moyen": "État moyen", "abime": "Abîmé"}
+SOURCE_LABELS = {
+    "google": "Google",
+    "reseaux_sociaux": "Réseaux sociaux",
+    "bouche_a_oreille": "Bouche à oreille",
+    "passage_magasin": "En passant devant le magasin",
+    "autre": "Autre",
+}
 
 
 # ==================== WHATSAPP ====================
@@ -288,12 +355,20 @@ async def create_quote(input: QuoteRequestCreate):
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "devis"})
     await db.demandes_devis.insert_one(doc)
     asyncio.ensure_future(send_notification(
-        f"Nouvelle demande de devis — {doc['device_type']}",
-        build_email_html("Nouvelle demande de devis", {
-            "Date": now_fr, "Type d'appareil": doc['device_type'], "Marque": doc['brand'], "Modèle": doc['model'],
-            "Problèmes": ", ".join(doc['issue_types']), "Autre problème": doc.get('other_issue'),
-            "Nom": doc['name'], "Téléphone": doc['phone'], "Email": doc['email'], "Magasin": store_name,
-        })
+        f"[Repair&Co] Nouveau devis — {doc['device_type']} — {doc['name']}",
+        build_email_html(
+            title="Nouvelle demande de devis",
+            demand_type="Demande de devis",
+            store_name=store_name,
+            client={"Nom": doc['name'], "Téléphone": doc['phone'], "Email": doc['email']},
+            details={
+                "Type d'appareil": doc['device_type'], "Marque": doc['brand'], "Modèle": doc['model'],
+                "Problèmes": doc['issue_types'], "Autre problème": doc.get('other_issue'),
+                "Créneau préféré": doc.get('preferred_time'),
+            },
+            submitted_at=now_fr,
+            demand_id=doc["id"],
+        )
     ))
     asyncio.ensure_future(send_whatsapp(input.store,
         f"🚨 *Nouvelle demande - Repair&Co*\n"
@@ -319,11 +394,16 @@ async def create_contact(input: ContactRequestCreate):
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "contact"})
     await db.demandes_contact.insert_one(doc)
     asyncio.ensure_future(send_notification(
-        f"Nouveau message — {doc['subject']}",
-        build_email_html("Nouveau message / RDV", {
-            "Date": now_fr, "Nom": doc['name'], "Email": doc['email'], "Téléphone": doc.get('phone'),
-            "Objet": doc['subject'], "Magasin": store_name, "Message": doc['message'],
-        })
+        f"[Repair&Co] Nouveau message — {doc['subject']} — {doc['name']}",
+        build_email_html(
+            title="Nouveau message / Rendez-vous",
+            demand_type="Message / RDV",
+            store_name=store_name,
+            client={"Nom": doc['name'], "Téléphone": doc.get('phone'), "Email": doc['email']},
+            details={"Objet": doc['subject'], "Message": doc['message']},
+            submitted_at=now_fr,
+            demand_id=doc["id"],
+        )
     ))
     if doc.get('store'):
         msg_lines = doc['message'].split('\n') if doc.get('message') else []
@@ -356,12 +436,23 @@ async def create_b2b(input: B2BRequestCreate):
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "entreprise"})
     await db.demandes_entreprise.insert_one(doc)
     asyncio.ensure_future(send_notification(
-        f"Demande B2B — {doc['company']}",
-        build_email_html("Demande Services Entreprise", {
-            "Date": now_fr, "Prénom": doc['first_name'], "Nom": doc['last_name'], "Société": doc['company'],
-            "Email": doc['email'], "Téléphone": doc['phone'], "Taille de flotte": doc['fleet_size'],
-            "Type de besoin": doc.get('need_type'), "Message": doc.get('message'),
-        })
+        f"[Repair&Co] Demande B2B — {doc['company']}",
+        build_email_html(
+            title="Demande Services Entreprise",
+            demand_type="Demande B2B / Entreprise",
+            store_name="—",
+            client={
+                "Prénom": doc['first_name'], "Nom": doc['last_name'], "Société": doc['company'],
+                "Email": doc['email'], "Téléphone": doc['phone'],
+            },
+            details={
+                "Taille de flotte": doc['fleet_size'],
+                "Type de besoin": doc.get('need_type'),
+                "Message": doc.get('message'),
+            },
+            submitted_at=now_fr,
+            demand_id=doc["id"],
+        )
     ))
     return {"status": "success", "id": doc["id"]}
 
@@ -370,17 +461,23 @@ async def create_buyback(input: BuybackRequestCreate):
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store)
-    conditions_map = {"bon": "Bon état", "moyen": "État moyen", "abime": "Abîmé"}
     doc = input.model_dump()
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "rachat"})
     await db.demandes_rachat.insert_one(doc)
     asyncio.ensure_future(send_notification(
-        f"Demande de rachat — {doc['brand']} {doc['model']}",
-        build_email_html("Demande de rachat", {
-            "Date": now_fr, "Marque": doc['brand'], "Modèle": doc['model'],
-            "État": conditions_map.get(doc['condition'], doc['condition']),
-            "Nom": doc['name'], "Téléphone": doc['phone'], "Magasin": store_name,
-        })
+        f"[Repair&Co] Demande de rachat — {doc['brand']} {doc['model']} — {doc['name']}",
+        build_email_html(
+            title="Demande de rachat",
+            demand_type="Demande de rachat",
+            store_name=store_name,
+            client={"Nom": doc['name'], "Téléphone": doc['phone']},
+            details={
+                "Marque": doc['brand'], "Modèle": doc['model'],
+                "État": CONDITION_LABELS.get(doc['condition'], doc['condition']),
+            },
+            submitted_at=now_fr,
+            demand_id=doc["id"],
+        )
     ))
     asyncio.ensure_future(send_whatsapp(input.store,
         f"🚨 *Nouvelle demande - Repair&Co*\n"
@@ -389,7 +486,7 @@ async def create_buyback(input: BuybackRequestCreate):
         f"- *Client* : {doc['name']}\n"
         f"- *Tél* : {doc['phone']}\n"
         f"- *Appareil* : {doc['brand']} {doc['model']}\n"
-        f"- *État* : {conditions_map.get(doc['condition'], doc['condition'])}\n"
+        f"- *État* : {CONDITION_LABELS.get(doc['condition'], doc['condition'])}\n"
         f"- *Magasin* : {store_name}\n\n"
         f"👉 *Lien Admin* : https://repairandco.fr/admin\n"
         f"👉 *Action requise* : Appeler le client dans les *15 minutes*."
@@ -445,7 +542,9 @@ async def update_staff_feedback(category: str, demand_id: str, body: StaffFeedba
 
 @api_router.post("/demandes/{category}/{demand_id}/survey")
 async def submit_customer_survey(category: str, demand_id: str, body: CustomerSurveyRequest):
-    """Public endpoint — customer fills mini-survey right after submitting their demand."""
+    """Public endpoint — customer fills mini-survey right after submitting their demand.
+    On save, sends a follow-up email with the survey responses linked to the demand.
+    """
     col_name = COLLECTIONS.get(category)
     if not col_name:
         raise HTTPException(status_code=400, detail="Catégorie invalide")
@@ -459,6 +558,49 @@ async def submit_customer_survey(category: str, demand_id: str, body: CustomerSu
     result = await db[col_name].update_one({"id": demand_id}, {"$set": update})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Demande non trouvée")
+
+    # Send a follow-up email with the demand + survey responses.
+    demand = await db[col_name].find_one({"id": demand_id}, {"_id": 0})
+    if demand:
+        client_label = demand.get("name") or f"{demand.get('first_name','')} {demand.get('last_name','')}".strip() or "Client"
+        store_name = STORE_NAMES.get(demand.get("store"), demand.get("store") or "—")
+        survey = {
+            "Comment nous a-t-il connus": SOURCE_LABELS.get(demand.get("customer_source"), demand.get("customer_source")),
+            "Point à améliorer (site)": demand.get("customer_feedback"),
+        }
+        client = {
+            "Nom": demand.get("name"),
+            "Prénom": demand.get("first_name"),
+            "Nom (B2B)": demand.get("last_name"),
+            "Société": demand.get("company"),
+            "Téléphone": demand.get("phone"),
+            "Email": demand.get("email"),
+        }
+        details = {
+            "Type d'appareil": demand.get("device_type"),
+            "Marque": demand.get("brand"),
+            "Modèle": demand.get("model"),
+            "Problèmes": demand.get("issue_types"),
+            "État": CONDITION_LABELS.get(demand.get("condition"), demand.get("condition")),
+            "Objet": demand.get("subject"),
+            "Message": demand.get("message"),
+            "Taille de flotte": demand.get("fleet_size"),
+            "Type de besoin": demand.get("need_type"),
+        }
+        asyncio.ensure_future(send_notification(
+            f"[Repair&Co] Mini-enquête reçue — {category} — {client_label}",
+            build_email_html(
+                title=f"Mini-enquête client reçue ({category})",
+                demand_type=f"Mini-enquête / {category}",
+                store_name=store_name,
+                client=client,
+                details=details,
+                submitted_at=format_now_fr(),
+                demand_id=demand_id,
+                survey=survey,
+                header_note="Le client vient de remplir la mini-enquête post-soumission.",
+            )
+        ))
     return {"status": "saved"}
 
 @api_router.get("/admin/stats")
