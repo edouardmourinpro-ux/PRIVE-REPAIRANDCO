@@ -3,7 +3,7 @@ import axios from 'axios';
 import {
   LogOut, FileText, MessageSquare, Building2, Recycle,
   Loader2, ChevronDown, ChevronUp, Clock, Phone, Mail,
-  Euro, Wrench, TrendingUp, Download, Filter,
+  Download, Filter, Sparkles, MessageCircle, Save,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -13,14 +13,20 @@ import { STORES } from '../data/stores';
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const STATUS_OPTIONS = [
-  { value: 'nouveau', label: 'Nouveau', color: 'bg-blue-100 text-blue-800' },
-  { value: 'contacte', label: 'Contacté', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'rdv_fixe', label: 'RDV Fixé', color: 'bg-purple-100 text-purple-800' },
-  { value: 'repare', label: 'Réparé', color: 'bg-[#E8F5EE] text-[#1A5C3A]' },
-  { value: 'annule', label: 'Annulé', color: 'bg-red-100 text-red-800' },
+  { value: 'en_attente', label: 'En attente', color: 'bg-blue-100 text-blue-800' },
+  { value: 'pris_en_charge', label: 'Pris en charge', color: 'bg-yellow-100 text-yellow-800' },
+  { value: 'cloture', label: 'Closé', color: 'bg-[#E8F5EE] text-[#1A5C3A]' },
 ];
 
-const formatCurrency = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n || 0);
+const SOURCE_LABELS = {
+  google: 'Google',
+  reseaux_sociaux: 'Réseaux sociaux',
+  bouche_a_oreille: 'Bouche à oreille',
+  passage_magasin: 'En passant devant le magasin',
+  autre: 'Autre',
+};
+
+const STORE_NAME_MAP = STORES.reduce((acc, s) => { acc[s.id] = s.name; return acc; }, {});
 
 const AdminPage = () => {
   const [token, setToken] = useState(localStorage.getItem('admin_token') || '');
@@ -39,7 +45,6 @@ const AdminPage = () => {
 
   const authHeaders = { Authorization: `Bearer ${token}` };
 
-  // Validate token on mount
   useEffect(() => {
     if (token) {
       axios.get(`${API_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
@@ -75,8 +80,6 @@ const AdminPage = () => {
     }
   }, [isLoggedIn, activeTab, storeFilter, loadStats, loadData]);
 
-  const handleTabChange = (tab) => setActiveTab(tab);
-
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -109,14 +112,9 @@ const AdminPage = () => {
     }
   };
 
-  const updateCA = async (id, newCA) => {
-    try {
-      await axios.patch(`${API_URL}/api/admin/demandes/${activeTab}/${id}/ca`, { ca: parseFloat(newCA) || 0 }, { headers: authHeaders });
-      setData(prev => prev.map(d => d.id === id ? { ...d, ca: parseFloat(newCA) || 0 } : d));
-      loadStats();
-    } catch (e) {
-      alert('Erreur lors de la mise à jour du CA');
-    }
+  const saveStaffFeedback = async (id, payload) => {
+    await axios.patch(`${API_URL}/api/admin/demandes/${activeTab}/${id}/feedback`, payload, { headers: authHeaders });
+    setData(prev => prev.map(d => d.id === id ? { ...d, ...payload } : d));
   };
 
   const handleExportCSV = async () => {
@@ -179,7 +177,9 @@ const AdminPage = () => {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-lg font-bold">Admin — Repair&Co</h1>
           <div className="flex items-center gap-3">
-            <span className="text-white/80 text-sm hidden sm:inline" data-testid="admin-total-count">{stats?.total || 0} demandes</span>
+            <span className="text-white/80 text-sm hidden sm:inline" data-testid="admin-total-count">
+              {stats?.total || 0} demandes · {stats?.en_attente || 0} en attente
+            </span>
             <Button onClick={handleLogout} variant="outline" size="sm" className="border-white text-white hover:bg-white/10 rounded-full text-xs" data-testid="admin-logout">
               <LogOut size={14} className="mr-1" /> Déconnexion
             </Button>
@@ -188,38 +188,6 @@ const AdminPage = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* KPI Banner */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6" data-testid="admin-kpi-banner">
-          <KpiCard
-            icon={Euro}
-            label="CA total (Réparé)"
-            value={formatCurrency(stats?.ca_total || 0)}
-            tone="primary"
-            testId="kpi-ca-total"
-          />
-          <KpiCard
-            icon={Wrench}
-            label="Réparations"
-            value={stats?.reparations || 0}
-            tone="accent"
-            testId="kpi-reparations"
-          />
-          <KpiCard
-            icon={TrendingUp}
-            label="Panier moyen"
-            value={formatCurrency(stats?.panier_moyen || 0)}
-            tone="primary"
-            testId="kpi-panier-moyen"
-          />
-          <KpiCard
-            icon={FileText}
-            label="Total demandes"
-            value={stats?.total || 0}
-            tone="muted"
-            testId="kpi-total"
-          />
-        </div>
-
         {/* Filters bar */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4 bg-white p-3 rounded-xl border border-[#E8F5EE]">
           <div className="flex items-center gap-2 text-sm text-[#1A1A2E]/70">
@@ -251,7 +219,7 @@ const AdminPage = () => {
           {tabs.map(t => (
             <button
               key={t.id}
-              onClick={() => handleTabChange(t.id)}
+              onClick={() => setActiveTab(t.id)}
               className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                 activeTab === t.id ? 'bg-[#1A5C3A] text-white' : 'bg-white text-[#1A1A2E] hover:bg-[#E8F5EE] border border-[#E8F5EE]'
               }`}
@@ -277,7 +245,7 @@ const AdminPage = () => {
                 item={item}
                 type={activeTab}
                 onStatusChange={updateStatus}
-                onCAChange={updateCA}
+                onSaveStaffFeedback={saveStaffFeedback}
               />
             ))}
           </div>
@@ -287,34 +255,12 @@ const AdminPage = () => {
   );
 };
 
-const KpiCard = ({ icon: Icon, label, value, tone, testId }) => {
-  const styles = {
-    primary: 'bg-[#1A5C3A] text-white',
-    accent: 'bg-[#2ECC71] text-white',
-    muted: 'bg-white text-[#1A1A2E] border border-[#E8F5EE]',
-  };
-  return (
-    <div className={`rounded-xl p-4 ${styles[tone] || styles.muted}`} data-testid={testId}>
-      <div className="flex items-center justify-between">
-        <p className={`text-xs font-medium ${tone === 'muted' ? 'text-[#1A1A2E]/60' : 'text-white/80'}`}>{label}</p>
-        <Icon size={18} className={tone === 'muted' ? 'text-[#1A5C3A]' : 'text-white/90'} />
-      </div>
-      <p className="text-2xl font-bold mt-2 truncate">{value}</p>
-    </div>
-  );
-};
-
-const STORE_NAME_MAP = STORES.reduce((acc, s) => { acc[s.id] = s.name; return acc; }, {});
-
-const DemandCard = ({ item, type, onStatusChange, onCAChange }) => {
+const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback }) => {
   const [open, setOpen] = useState(false);
-  const [caValue, setCaValue] = useState(item.ca ?? 0);
-  const [savingCA, setSavingCA] = useState(false);
-
-  useEffect(() => { setCaValue(item.ca ?? 0); }, [item.ca]);
-
   const date = item.created_at ? new Date(item.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-  const statusOpt = STATUS_OPTIONS.find(s => s.value === (item.status || 'nouveau')) || STATUS_OPTIONS[0];
+  const currentStatus = STATUS_OPTIONS.find(s => s.value === (item.status || 'en_attente')) || STATUS_OPTIONS[0];
+  const isClosed = (item.status || 'en_attente') === 'cloture';
+  const hasCustomerSurvey = item.customer_source || item.customer_feedback;
 
   const getTitle = () => {
     if (type === 'devis') return `${item.brand || ''} ${item.model || ''} — ${item.name || ''}`.trim();
@@ -354,20 +300,20 @@ const DemandCard = ({ item, type, onStatusChange, onCAChange }) => {
     return [];
   };
 
-  const handleCABlur = async () => {
-    if (parseFloat(caValue) === parseFloat(item.ca ?? 0)) return;
-    setSavingCA(true);
-    await onCAChange(item.id, caValue);
-    setSavingCA(false);
-  };
-
   return (
     <Card className="bg-white border border-gray-100 hover:shadow-sm transition-shadow" data-testid={`demand-card-${item.id}`}>
       <CardContent className="p-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <button onClick={() => setOpen(!open)} className="flex-1 flex items-center justify-between text-left min-w-0" data-testid={`demand-toggle-${item.id}`}>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-[#1A1A2E] truncate">{getTitle()}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-medium text-[#1A1A2E] truncate">{getTitle()}</p>
+                {hasCustomerSurvey && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#E8F5EE] text-[#1A5C3A]" data-testid={`survey-badge-${item.id}`}>
+                    <Sparkles size={10} /> retour client
+                  </span>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-[#1A1A2E]/60">
                 <span className="flex items-center gap-1"><Clock size={12} />{date}</span>
                 {item.phone && <span className="flex items-center gap-1"><Phone size={12} />{item.phone}</span>}
@@ -377,13 +323,12 @@ const DemandCard = ({ item, type, onStatusChange, onCAChange }) => {
             {open ? <ChevronUp size={20} className="text-[#1A5C3A] flex-shrink-0 ml-2" /> : <ChevronDown size={20} className="text-[#1A1A2E]/40 flex-shrink-0 ml-2" />}
           </button>
 
-          {/* Status + CA quick controls */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            <span className={`text-xs px-2 py-1 rounded-full font-medium hidden sm:inline ${statusOpt.color}`} data-testid={`demand-status-badge-${item.id}`}>
-              {statusOpt.label}
+            <span className={`text-xs px-2 py-1 rounded-full font-medium hidden sm:inline ${currentStatus.color}`} data-testid={`demand-status-badge-${item.id}`}>
+              {currentStatus.label}
             </span>
             <select
-              value={item.status || 'nouveau'}
+              value={item.status || 'en_attente'}
               onChange={e => onStatusChange(item.id, e.target.value)}
               onClick={e => e.stopPropagation()}
               className="px-2 py-1.5 border border-[#E8F5EE] rounded-lg text-xs text-[#1A1A2E] bg-white focus:outline-none focus:border-[#2ECC71]"
@@ -391,42 +336,132 @@ const DemandCard = ({ item, type, onStatusChange, onCAChange }) => {
             >
               {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
-            {item.status === 'repare' && (
-              <div className="flex items-center gap-1 bg-[#E8F5EE] rounded-lg px-2 py-1" data-testid={`demand-ca-wrapper-${item.id}`}>
-                <Euro size={12} className="text-[#1A5C3A]" />
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={caValue}
-                  onChange={e => setCaValue(e.target.value)}
-                  onBlur={handleCABlur}
-                  onClick={e => e.stopPropagation()}
-                  className="w-16 bg-transparent text-xs font-semibold text-[#1A5C3A] focus:outline-none"
-                  data-testid={`demand-ca-input-${item.id}`}
-                />
-                {savingCA && <Loader2 size={10} className="animate-spin text-[#1A5C3A]" />}
-              </div>
-            )}
           </div>
         </div>
 
         {open && (
-          <div className="mt-4 pt-4 border-t border-gray-100 grid sm:grid-cols-2 gap-3">
-            {getDetails().filter(d => d.value).map(d => (
-              <div key={d.label}>
-                <p className="text-xs font-medium text-[#1A5C3A]">{d.label}</p>
-                <p className="text-sm text-[#1A1A2E] whitespace-pre-line break-words">{d.value}</p>
+          <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
+            <div className="grid sm:grid-cols-2 gap-3">
+              {getDetails().filter(d => d.value).map(d => (
+                <div key={d.label}>
+                  <p className="text-xs font-medium text-[#1A5C3A]">{d.label}</p>
+                  <p className="text-sm text-[#1A1A2E] whitespace-pre-line break-words">{d.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Customer survey */}
+            {hasCustomerSurvey && (
+              <div className="p-3 rounded-xl bg-[#E8F5EE]/60 border border-[#E8F5EE]" data-testid={`customer-survey-${item.id}`}>
+                <div className="flex items-center gap-2 text-[#1A5C3A] mb-2">
+                  <Sparkles size={14} />
+                  <p className="text-xs font-semibold uppercase tracking-wide">Retour du client (mini-enquête)</p>
+                </div>
+                {item.customer_source && (
+                  <p className="text-sm text-[#1A1A2E] mb-1">
+                    <span className="font-medium">Comment nous a-t-il connus :</span> {SOURCE_LABELS[item.customer_source] || item.customer_source}
+                  </p>
+                )}
+                {item.customer_feedback && (
+                  <p className="text-sm text-[#1A1A2E] whitespace-pre-line">
+                    <span className="font-medium">Point à améliorer :</span> {item.customer_feedback}
+                  </p>
+                )}
               </div>
-            ))}
-            <div className="sm:col-span-2 flex flex-wrap gap-2 mt-2">
+            )}
+
+            <div className="flex flex-wrap gap-2">
               {item.phone && <a href={`tel:${item.phone}`} className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#E8F5EE] rounded-full text-xs text-[#1A5C3A] font-medium hover:bg-[#2ECC71]/20" data-testid={`demand-call-${item.id}`}><Phone size={12} />Appeler</a>}
               {item.email && <a href={`mailto:${item.email}`} className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#E8F5EE] rounded-full text-xs text-[#1A5C3A] font-medium hover:bg-[#2ECC71]/20" data-testid={`demand-email-${item.id}`}><Mail size={12} />Email</a>}
             </div>
+
+            {/* Staff feedback (visible inline once status = cloture) */}
+            {isClosed && (
+              <StaffFeedbackForm item={item} onSave={onSaveStaffFeedback} />
+            )}
           </div>
         )}
       </CardContent>
     </Card>
+  );
+};
+
+const StaffFeedbackForm = ({ item, onSave }) => {
+  const [staffSource, setStaffSource] = useState(item.staff_source || '');
+  const [staffOpinion, setStaffOpinion] = useState(item.staff_site_opinion || '');
+  const [staffDislikes, setStaffDislikes] = useState(item.staff_dislikes || '');
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
+
+  const submit = async () => {
+    setSaving(true);
+    try {
+      await onSave(item.id, {
+        staff_source: staffSource.trim() || null,
+        staff_site_opinion: staffOpinion.trim() || null,
+        staff_dislikes: staffDislikes.trim() || null,
+      });
+      setSavedAt(Date.now());
+    } catch {
+      alert('Erreur lors de la sauvegarde du feedback');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="p-4 rounded-xl bg-white border-2 border-[#2ECC71]/30" data-testid={`staff-feedback-${item.id}`}>
+      <div className="flex items-center gap-2 text-[#1A5C3A] mb-3">
+        <MessageCircle size={16} />
+        <p className="text-sm font-semibold">Feedback équipe (à compléter en magasin)</p>
+      </div>
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-[#1A1A2E] mb-1">Comment ils sont tombés sur nous ?</label>
+          <textarea
+            rows={2}
+            value={staffSource}
+            onChange={e => setStaffSource(e.target.value)}
+            className="w-full px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm focus:outline-none focus:border-[#2ECC71] resize-none"
+            data-testid={`staff-source-${item.id}`}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[#1A1A2E] mb-1">Ce qu'ils ont pensé du site ?</label>
+          <textarea
+            rows={2}
+            value={staffOpinion}
+            onChange={e => setStaffOpinion(e.target.value)}
+            className="w-full px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm focus:outline-none focus:border-[#2ECC71] resize-none"
+            data-testid={`staff-opinion-${item.id}`}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[#1A1A2E] mb-1">Ce qu'ils n'ont pas forcément aimé / compris ?</label>
+          <textarea
+            rows={2}
+            value={staffDislikes}
+            onChange={e => setStaffDislikes(e.target.value)}
+            className="w-full px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm focus:outline-none focus:border-[#2ECC71] resize-none"
+            data-testid={`staff-dislikes-${item.id}`}
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={submit}
+            disabled={saving}
+            className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full text-xs"
+            data-testid={`staff-save-${item.id}`}
+          >
+            {saving ? <Loader2 className="animate-spin mr-1" size={14} /> : <Save size={14} className="mr-1" />}
+            Enregistrer le feedback
+          </Button>
+          {savedAt && (
+            <span className="text-xs text-[#1A5C3A]" data-testid={`staff-saved-${item.id}`}>✓ Enregistré</span>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 

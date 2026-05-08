@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
+import MiniSurvey from '../components/MiniSurvey';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -39,6 +40,7 @@ const b2bSchema = z.object({
 const EnterprisePage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [demandId, setDemandId] = useState(null);
 
   const {
     register,
@@ -52,7 +54,8 @@ const EnterprisePage = () => {
   const onSubmit = async (data) => {
     setIsSubmitting(true);
     try {
-      await axios.post(`${API_URL}/api/b2b`, data);
+      const r = await axios.post(`${API_URL}/api/b2b`, data);
+      setDemandId(r.data?.id || null);
       setIsSuccess(true);
       toast.success('Demande envoyée avec succès !');
     } catch (error) {
@@ -99,20 +102,23 @@ const EnterprisePage = () => {
   if (isSuccess) {
     return (
       <div data-testid="b2b-success" className="min-h-[70vh] flex items-center justify-center py-16">
-        <div className="text-center max-w-md mx-auto px-4">
+        <div className="text-center max-w-lg mx-auto px-4">
           <div className="w-20 h-20 bg-[#E8F5EE] rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="text-[#1A5C3A]" size={48} />
           </div>
           <h1 className="text-3xl font-bold text-[#1A5C3A] mb-4">Demande reçue !</h1>
-          <p className="text-lg text-[#1A5C3A]/80 mb-8">
+          <p className="text-lg text-[#1A5C3A]/80 mb-6">
             Notre équipe commerciale vous contactera rapidement pour discuter de vos besoins.
           </p>
-          <Button 
-            onClick={() => window.location.href = '/'}
-            className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] hover:text-[#1A5C3A] rounded-full"
-          >
-            Retour à l'accueil
-          </Button>
+          <MiniSurvey demandId={demandId} category="entreprise" />
+          <div className="mt-8">
+            <Button
+              onClick={() => window.location.href = '/'}
+              className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] hover:text-[#1A5C3A] rounded-full"
+            >
+              Retour à l'accueil
+            </Button>
+          </div>
         </div>
       </div>
     );

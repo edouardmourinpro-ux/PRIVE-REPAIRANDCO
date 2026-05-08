@@ -240,6 +240,26 @@ class UpdateStatusRequest(BaseModel):
 class UpdateCARequest(BaseModel):
     ca: float
 
+class CustomerSurveyRequest(BaseModel):
+    customer_source: Optional[str] = None
+    customer_feedback: Optional[str] = None
+
+class StaffFeedbackRequest(BaseModel):
+    staff_source: Optional[str] = None
+    staff_site_opinion: Optional[str] = None
+    staff_dislikes: Optional[str] = None
+
+# Allowed status values (Phase 1 simplification)
+ALLOWED_STATUSES = {"en_attente", "pris_en_charge", "cloture"}
+# Map legacy → new
+LEGACY_STATUS_MAP = {
+    "nouveau": "en_attente",
+    "contacte": "pris_en_charge",
+    "rdv_fixe": "pris_en_charge",
+    "repare": "cloture",
+    "annule": "cloture",
+}
+
 
 # ==================== AUTH ROUTES ====================
 
@@ -268,7 +288,7 @@ async def create_quote(input: QuoteRequestCreate):
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store)
     doc = input.model_dump()
-    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "ca": 0, "type": "devis"})
+    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "devis"})
     await db.demandes_devis.insert_one(doc)
     asyncio.ensure_future(send_notification(
         f"Nouvelle demande de devis — {doc['device_type']}",
@@ -299,7 +319,7 @@ async def create_contact(input: ContactRequestCreate):
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store) if input.store else "Non précisé"
     doc = input.model_dump()
-    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "ca": 0, "type": "contact"})
+    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "contact"})
     await db.demandes_contact.insert_one(doc)
     asyncio.ensure_future(send_notification(
         f"Nouveau message — {doc['subject']}",
@@ -336,7 +356,7 @@ async def create_b2b(input: B2BRequestCreate):
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
     doc = input.model_dump()
-    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "ca": 0, "type": "entreprise"})
+    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "entreprise"})
     await db.demandes_entreprise.insert_one(doc)
     asyncio.ensure_future(send_notification(
         f"Demande B2B — {doc['company']}",
@@ -355,7 +375,7 @@ async def create_buyback(input: BuybackRequestCreate):
     store_name = STORE_NAMES.get(input.store, input.store)
     conditions_map = {"bon": "Bon état", "moyen": "État moyen", "abime": "Abîmé"}
     doc = input.model_dump()
-    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "ca": 0, "type": "rachat"})
+    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "rachat"})
     await db.demandes_rachat.insert_one(doc)
     asyncio.ensure_future(send_notification(
         f"Demande de rachat — {doc['brand']} {doc['model']}",
@@ -405,10 +425,44 @@ async def update_demand_status(category: str, demand_id: str, body: UpdateStatus
     col_name = COLLECTIONS.get(category)
     if not col_name:
         raise HTTPException(status_code=400, detail="Catégorie invalide")
-    result = await db[col_name].update_one({"id": demand_id}, {"$set": {"status": body.status}})
+    new_status = LEGACY_STATUS_MAP.get(body.status, body.status)
+    if new_status not in ALLOWED_STATUSES:
+        raise HTTPException(status_code=400, detail="Statut invalide")
+    result = await db[col_name].update_one({"id": demand_id}, {"$set": {"status": new_status}})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Demande non trouvée")
     return {"status": "updated"}
+
+@api_router.patch("/admin/demandes/{category}/{demand_id}/feedback")
+async def update_staff_feedback(category: str, demand_id: str, body: StaffFeedbackRequest, user=Depends(get_current_admin)):
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    update = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not update:
+        return {"status": "no_change"}
+    result = await db[col_name].update_one({"id": demand_id}, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+    return {"status": "updated"}
+
+@api_router.post("/demandes/{category}/{demand_id}/survey")
+async def submit_customer_survey(category: str, demand_id: str, body: CustomerSurveyRequest):
+    """Public endpoint — customer fills mini-survey right after submitting their demand."""
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    update = {}
+    if body.customer_source:
+        update["customer_source"] = body.customer_source
+    if body.customer_feedback:
+        update["customer_feedback"] = body.customer_feedback
+    if not update:
+        return {"status": "no_change"}
+    result = await db[col_name].update_one({"id": demand_id}, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+    return {"status": "saved"}
 
 @api_router.patch("/admin/demandes/{category}/{demand_id}/ca")
 async def update_demand_ca(category: str, demand_id: str, body: UpdateCARequest, user=Depends(get_current_admin)):
@@ -424,23 +478,20 @@ async def update_demand_ca(category: str, demand_id: str, body: UpdateCARequest,
 async def get_admin_stats(store: Optional[str] = Query(None), user=Depends(get_current_admin)):
     query = {"store": store} if store else {}
     stats = {}
-    total_ca = 0
-    total_repaired = 0
     total_all = 0
+    by_status = {"en_attente": 0, "pris_en_charge": 0, "cloture": 0}
     for key, col_name in COLLECTIONS.items():
         count = await db[col_name].count_documents(query)
         stats[key] = count
         total_all += count
-        # CA and repairs count
-        pipeline = [{"$match": {**query, "status": "repare"}}, {"$group": {"_id": None, "total_ca": {"$sum": {"$ifNull": ["$ca", 0]}}, "count": {"$sum": 1}}}]
-        agg = await db[col_name].aggregate(pipeline).to_list(1)
-        if agg:
-            total_ca += agg[0].get("total_ca", 0)
-            total_repaired += agg[0].get("count", 0)
+        # Per-status counts (post-migration only the 3 new statuses exist)
+        for st in by_status.keys():
+            c = await db[col_name].count_documents({**query, "status": st})
+            by_status[st] += c
     stats["total"] = total_all
-    stats["ca_total"] = total_ca
-    stats["reparations"] = total_repaired
-    stats["panier_moyen"] = round(total_ca / total_repaired, 2) if total_repaired > 0 else 0
+    stats["en_attente"] = by_status["en_attente"]
+    stats["pris_en_charge"] = by_status["pris_en_charge"]
+    stats["cloture"] = by_status["cloture"]
     return stats
 
 # Keep old routes as aliases for backward compat
@@ -455,10 +506,12 @@ async def export_demandes_csv(category: str, store: Optional[str] = Query(None),
     # Build column set across all docs (preserves first-seen order)
     columns = []
     seen = set()
-    priority = ["created_at", "id", "status", "ca", "name", "first_name", "last_name", "company",
+    priority = ["created_at", "id", "status", "name", "first_name", "last_name", "company",
                 "email", "phone", "store", "device_type", "brand", "model",
                 "issue_types", "other_issue", "subject", "message", "fleet_size",
-                "need_type", "condition", "preferred_time", "type"]
+                "need_type", "condition", "preferred_time",
+                "customer_source", "customer_feedback",
+                "staff_source", "staff_site_opinion", "staff_dislikes", "type"]
     for k in priority:
         for d in docs:
             if k in d and k not in seen:
@@ -512,10 +565,29 @@ async def get_demandes_rachat_legacy(user=Depends(get_current_admin)):
 app.include_router(api_router)
 app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','), allow_methods=["*"], allow_headers=["*"])
 
+async def migrate_legacy_statuses():
+    """One-shot migration: convert legacy status values to the simplified set."""
+    total = 0
+    for col in COLLECTIONS.values():
+        for old, new in LEGACY_STATUS_MAP.items():
+            r = await db[col].update_many({"status": old}, {"$set": {"status": new}})
+            total += r.modified_count
+        # Old "pending" or missing/unknown → en_attente
+        r = await db[col].update_many({"status": "pending"}, {"$set": {"status": "en_attente"}})
+        total += r.modified_count
+        r = await db[col].update_many(
+            {"$or": [{"status": {"$exists": False}}, {"status": None}, {"status": ""}]},
+            {"$set": {"status": "en_attente"}},
+        )
+        total += r.modified_count
+    if total:
+        logger.info(f"Migrated {total} legacy statuses to en_attente/pris_en_charge/cloture")
+
 @app.on_event("startup")
 async def startup():
     await seed_admin()
     await db.admin_users.create_index("email", unique=True)
+    await migrate_legacy_statuses()
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

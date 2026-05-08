@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { STORES } from '../data/stores';
+import MiniSurvey from '../components/MiniSurvey';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -35,6 +36,7 @@ const buybackSchema = z.object({
 const BuybackPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [demandId, setDemandId] = useState(null);
 
   const {
     register,
@@ -48,7 +50,8 @@ const BuybackPage = () => {
   const onSubmit = async (data) => {
     setIsSubmitting(true);
     try {
-      await axios.post(`${API_URL}/api/buyback`, data);
+      const r = await axios.post(`${API_URL}/api/buyback`, data);
+      setDemandId(r.data?.id || null);
       setIsSuccess(true);
       toast.success('Demande d\'estimation envoyée !');
     } catch (error) {
@@ -68,20 +71,23 @@ const BuybackPage = () => {
   if (isSuccess) {
     return (
       <div data-testid="buyback-success" className="min-h-[70vh] flex items-center justify-center py-16">
-        <div className="text-center max-w-md mx-auto px-4">
+        <div className="text-center max-w-lg mx-auto px-4">
           <div className="w-20 h-20 bg-[#E8F5EE] rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="text-[#1A5C3A]" size={48} />
           </div>
           <h1 className="text-3xl font-bold text-[#1A5C3A] mb-4">Demande reçue !</h1>
-          <p className="text-lg text-[#1A5C3A]/80 mb-8">
+          <p className="text-lg text-[#1A5C3A]/80 mb-6">
             Notre technicien vous contacte sous 24h avec une offre de rachat.
           </p>
-          <Button 
-            onClick={() => window.location.href = '/'}
-            className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] hover:text-[#1A5C3A] rounded-full"
-          >
-            Retour à l'accueil
-          </Button>
+          <MiniSurvey demandId={demandId} category="rachat" />
+          <div className="mt-8">
+            <Button
+              onClick={() => window.location.href = '/'}
+              className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] hover:text-[#1A5C3A] rounded-full"
+            >
+              Retour à l'accueil
+            </Button>
+          </div>
         </div>
       </div>
     );

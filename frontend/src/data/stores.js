@@ -49,7 +49,7 @@ export const STORES = [
     address: "400 Av. Dr Baillet",
     city: "Nîmes",
     postalCode: "30900",
-    phone: "04 66 05 24 32",
+    phone: "07 57 53 23 89",
     email: "nimes.costieres@repair-and-co.fr",
     hours: "Lundi–Samedi : 9h30–20h00",
     qualirepar: true,
