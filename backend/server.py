@@ -52,8 +52,8 @@ STORE_WHATSAPP = {
     "lattes": "33788809386",
     "montpellier-nord": "33987136893",
     "montpellier-sud": "33467588139",
-    "nimes-costieres": "33466052432",
-    "nimes-etoile": "33757532389",
+    "nimes-costieres": "33757532389",
+    "nimes-etoile": "33466848079",
     "beziers": "33467943034",
     "boulogne": "33767118896",
     "plaisir": "33130438907",
@@ -282,7 +282,8 @@ async def create_quote(input: QuoteRequestCreate):
         f"- *Problème* : {', '.join(doc['issue_types'])}\n"
         f"- *Magasin* : {doc['store']}\n"
         f"- *Créneau* : {doc.get('preferred_time') or 'Non précisé'}\n\n"
-        f"👉 *Action requise* : Appeler le client dans les *15 minutes* pour confirmer."
+        f"👉 *Lien Admin* : https://repairandco.fr/admin\n"
+        f"👉 *Action requise* : Appeler le client dans les *15 minutes*."
     ))
     return {"status": "success", "id": doc["id"]}
 
@@ -300,6 +301,17 @@ async def create_contact(input: ContactRequestCreate):
         })
     ))
     if doc.get('store'):
+        # Extract date/time from message if present (RDV form includes them)
+        msg_lines = doc['message'].split('\n') if doc.get('message') else []
+        rdv_date = ''
+        rdv_slot = ''
+        for line in msg_lines:
+            if line.startswith('Date:'):
+                rdv_date = line.replace('Date:', '').strip()
+            elif line.startswith('Créneau:'):
+                rdv_slot = line.replace('Créneau:', '').strip()
+        rdv_info = f"- *RDV* : {rdv_date} à {rdv_slot}\n" if rdv_date and rdv_date != '-' else ""
+
         asyncio.ensure_future(send_whatsapp(
             doc['store'],
             f"🚨 *Nouvelle demande - Repair&Co*\n"
@@ -309,8 +321,10 @@ async def create_contact(input: ContactRequestCreate):
             f"- *Email* : {doc['email']}\n"
             f"- *Objet* : {doc['subject']}\n"
             f"- *Magasin* : {doc.get('store')}\n"
+            f"{rdv_info}"
             f"- *Message* : {doc['message']}\n\n"
-            f"👉 *Action requise* : Appeler le client dans les *15 minutes* pour confirmer."
+            f"👉 *Lien Admin* : https://repairandco.fr/admin\n"
+            f"👉 *Action requise* : Appeler le client dans les *15 minutes*."
         ))
     return {"status": "success", "id": doc["id"]}
 
@@ -354,7 +368,8 @@ async def create_buyback(input: BuybackRequestCreate):
         f"- *Appareil* : {doc['brand']} {doc['model']}\n"
         f"- *État* : {conditions_map.get(doc['condition'], doc['condition'])}\n"
         f"- *Magasin* : {doc['store']}\n\n"
-        f"👉 *Action requise* : Appeler le client dans les *15 minutes* pour confirmer."
+        f"👉 *Lien Admin* : https://repairandco.fr/admin\n"
+        f"👉 *Action requise* : Appeler le client dans les *15 minutes*."
     ))
     return {"status": "success", "id": doc["id"]}
 

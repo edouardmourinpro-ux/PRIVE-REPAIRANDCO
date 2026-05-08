@@ -63,7 +63,7 @@ export const STORES = [
     address: "116 Rue André Dupont",
     city: "Nîmes",
     postalCode: "30900",
-    phone: "07 57 53 23 89",
+    phone: "04 66 84 80 79",
     email: "nimes.etoile@repair-and-co.fr",
     hours: "Lundi–Samedi : 9h30–19h30",
     qualirepar: true,
