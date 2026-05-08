@@ -3,7 +3,7 @@
 ## Architecture
 - **Frontend** : React + Tailwind CSS + Shadcn UI
 - **Backend** : FastAPI (Python) + MongoDB
-- **Preview** : https://repair-south-france.preview.emergentagent.com
+- **Preview** : https://repair-tech-demo.preview.emergentagent.com
 - **Production** : https://repairandco.fr (deployed by user)
 
 ## Charte graphique officielle (5 couleurs uniquement)

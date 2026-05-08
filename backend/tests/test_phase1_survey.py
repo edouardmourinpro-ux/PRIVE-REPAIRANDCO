@@ -5,7 +5,7 @@ import csv
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://repair-south-france.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://repair-tech-demo.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "david.m@repairandco.fr"
 ADMIN_PASSWORD = "Repair2025Admin!"
 
