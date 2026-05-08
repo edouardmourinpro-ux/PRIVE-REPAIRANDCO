@@ -53,7 +53,7 @@ ULTRAMSG_TOKEN = os.environ.get('ULTRAMSG_TOKEN')
 STORE_WHATSAPP = {
     "lattes": "33788809386",
     "montpellier-nord": "33987136893",
-    "montpellier-sud": "33467588139",
+    "montpellier-sud": "33982818934",
     "nimes-costieres": "33757532389",
     "nimes-etoile": "33466848079",
     "beziers": "33467943034",

@@ -320,11 +320,31 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback }) => {
   };
 
   const getTitle = () => {
-    if (type === 'devis') return `${item.brand || ''} ${item.model || ''} — ${item.name || ''}`.trim();
-    if (type === 'contact') return `${item.subject || ''} — ${item.name || ''}`.trim();
-    if (type === 'entreprise') return `${item.company || ''} — ${item.first_name || ''} ${item.last_name || ''}`.trim();
-    if (type === 'rachat') return `${item.brand || ''} ${item.model || ''} — ${item.name || ''}`.trim();
-    return item.name || item.id;
+    const firstName = (item.name || '').split(' ')[0] || item.first_name || '';
+    if (type === 'devis') {
+      const appareil = [item.brand, item.model].filter(Boolean).join(' ') || DEVICE_TYPE_LABELS[item.device_type] || item.device_type || '';
+      return [firstName, appareil].filter(Boolean).join(' / ');
+    }
+    if (type === 'contact') {
+      const isRdv = (item.subject || '').startsWith('RDV') || item.rdv_device_type || item.rdv_brand;
+      if (isRdv) {
+        const legacy = parseRdvMessage(item.message);
+        const appareil = [item.rdv_brand || legacy.brand, item.rdv_model || legacy.model].filter(Boolean).join(' ')
+          || DEVICE_TYPE_LABELS[item.rdv_device_type || legacy.device_type] || '';
+        const rdvDate = item.rdv_date || legacy.date || '';
+        return [firstName, appareil, rdvDate].filter(Boolean).join(' / ');
+      }
+      return [firstName, item.subject || ''].filter(Boolean).join(' / ');
+    }
+    if (type === 'entreprise') {
+      const fullName = [item.first_name, item.last_name].filter(Boolean).join(' ') || firstName;
+      return [fullName, item.company].filter(Boolean).join(' / ');
+    }
+    if (type === 'rachat') {
+      const appareil = [item.brand, item.model].filter(Boolean).join(' ') || '';
+      return [firstName, appareil].filter(Boolean).join(' / ');
+    }
+    return firstName || item.id;
   };
 
   const getDetails = () => {
