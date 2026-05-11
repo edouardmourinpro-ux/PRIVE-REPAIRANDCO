@@ -125,7 +125,12 @@ async def seed_admin():
 # ==================== EMAIL ====================
 
 def _send_smtp_email(subject: str, html_body: str):
-    recipients = [e.strip() for e in NOTIFY_EMAIL.split(',') if e.strip()]
+    raw = NOTIFY_EMAIL or ""
+    recipients = [e.strip() for e in raw.split(',') if e.strip()]
+    logger.info(f"[EMAIL] NOTIFY_EMAIL raw='{raw}' → recipients={recipients} | subject='{subject}'")
+    if not recipients:
+        logger.error("[EMAIL] Aucun destinataire configuré dans NOTIFY_EMAIL — email non envoyé.")
+        return
     msg = MIMEMultipart("alternative")
     msg["From"] = SMTP_USER
     msg["To"] = ", ".join(recipients)
@@ -135,13 +140,13 @@ def _send_smtp_email(subject: str, html_body: str):
     with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context) as server:
         server.login(SMTP_USER, SMTP_PASSWORD)
         server.sendmail(SMTP_USER, recipients, msg.as_string())
+    logger.info(f"[EMAIL] Envoi OK → {recipients}")
 
 async def send_notification(subject: str, html_body: str):
     try:
         await asyncio.to_thread(_send_smtp_email, subject, html_body)
-        logger.info(f"Email sent: {subject}")
     except Exception as e:
-        logger.error(f"Email send failed: {e}")
+        logger.error(f"[EMAIL] Échec SMTP — sujet='{subject}' erreur={e}")
 
 def build_email_html(*, title: str, demand_type: str, store_name: str, client: dict,
                      details: dict, submitted_at: str, demand_id: str,
