@@ -3,8 +3,9 @@ import axios from 'axios';
 import {
   LogOut, FileText, MessageSquare, Building2, Recycle,
   Loader2, ChevronDown, ChevronUp, Clock, Phone, Mail,
-  Download, Filter, Sparkles, MessageCircle, Save, Trash2, Calendar,
+  Download, Filter, Sparkles, MessageCircle, Save, Trash2,
 } from 'lucide-react';
+import { DateRangePicker } from '../components/DateRangePicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -261,34 +262,9 @@ const AdminPage = () => {
             ))}
           </select>
 
-          <div className="flex items-center gap-2 text-sm text-[#1A1A2E]/70 flex-shrink-0">
-            <Calendar size={16} className="text-[#1A5C3A]" />
-            <span className="font-medium">Du :</span>
-          </div>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={e => setDateFrom(e.target.value)}
-            className="px-2 py-1.5 border border-[#E8F5EE] rounded-lg text-sm text-[#1A1A2E] bg-white focus:outline-none focus:border-[#2ECC71]"
-            data-testid="admin-date-from"
+          <DateRangePicker
+            onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
           />
-          <span className="text-sm text-[#1A1A2E]/70 flex-shrink-0">au</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={e => setDateTo(e.target.value)}
-            className="px-2 py-1.5 border border-[#E8F5EE] rounded-lg text-sm text-[#1A1A2E] bg-white focus:outline-none focus:border-[#2ECC71]"
-            data-testid="admin-date-to"
-          />
-          {(dateFrom || dateTo) && (
-            <button
-              onClick={() => { setDateFrom(''); setDateTo(''); }}
-              className="text-xs text-[#1A5C3A] hover:text-[#2ECC71] underline flex-shrink-0"
-              data-testid="admin-date-clear"
-            >
-              Effacer dates
-            </button>
-          )}
 
           <Button
             onClick={handleExportCSV}
