@@ -50,17 +50,17 @@ DELETE_CODE = os.environ.get('DELETE_CODE', 'MOUR1')
 ULTRAMSG_INSTANCE = os.environ.get('ULTRAMSG_INSTANCE')
 ULTRAMSG_TOKEN = os.environ.get('ULTRAMSG_TOKEN')
 
-# Mapping magasin ID → numéro WhatsApp
+# Mapping magasin ID → [numéro magasin, numéro RPV]  (double notification)
 STORE_WHATSAPP = {
-    "lattes": "33788809386",
-    "montpellier-nord": "33987136893",
-    "montpellier-sud": "33982818934",
-    "nimes-costieres": "33757532389",
-    "nimes-etoile": "33466848079",
-    "beziers": "33467943034",
-    "boulogne": "33767118896",
-    "plaisir": "33130438907",
-    "les-ulis": "33749952472",
+    "lattes":           ["33788809386", "33695661867"],   # Magasin + RPV Mathilde
+    "montpellier-nord": ["33987136893", "33663955650"],   # Magasin + RPV Aurélie
+    "montpellier-sud":  ["33467588139", "33623371642"],   # Magasin + RPV Laurence
+    "nimes-costieres":  ["33757532389", "33671835831"],   # Magasin + RPV Charlotte
+    "nimes-etoile":     ["33466848079", "33671835831"],   # Magasin + RPV Charlotte
+    "beziers":          ["33467943034", "33685319758"],   # Magasin + RPV Mickael
+    "boulogne":         ["33767118896", "33660713422"],   # Magasin + RPV Eren
+    "plaisir":          ["33130438907", "33660713422"],   # Magasin + RPV Eren
+    "les-ulis":         ["33749952472", "33660713422"],   # Magasin + RPV Eren
 }
 
 STORE_NAMES = {
@@ -238,14 +238,17 @@ SOURCE_LABELS = {
 async def send_whatsapp(store_id: str, message: str):
     if not ULTRAMSG_INSTANCE or not ULTRAMSG_TOKEN:
         return
-    to_number = STORE_WHATSAPP.get(store_id)
-    if not to_number:
+    numbers = STORE_WHATSAPP.get(store_id)
+    if not numbers:
         return
-    try:
-        await asyncio.to_thread(_send_ultramsg, to_number, message)
-        logger.info(f"WhatsApp sent to {store_id} ({to_number})")
-    except Exception as e:
-        logger.error(f"WhatsApp send failed ({store_id}): {e}")
+    # Envoi simultané à tous les numéros (magasin + RPV)
+    tasks = [asyncio.to_thread(_send_ultramsg, num, message) for num in numbers]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for num, result in zip(numbers, results):
+        if isinstance(result, Exception):
+            logger.error(f"WhatsApp send failed ({store_id} → {num}): {result}")
+        else:
+            logger.info(f"WhatsApp sent to {store_id} → {num}")
 
 def _send_ultramsg(to_number: str, message: str):
     url = f"https://api.ultramsg.com/{ULTRAMSG_INSTANCE}/messages/chat"
