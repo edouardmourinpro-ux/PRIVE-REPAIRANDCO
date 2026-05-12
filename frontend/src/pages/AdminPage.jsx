@@ -3,8 +3,9 @@ import axios from 'axios';
 import {
   LogOut, FileText, MessageSquare, Building2, Recycle,
   Loader2, ChevronDown, ChevronUp, Clock, Phone, Mail,
-  Download, Filter, Sparkles, MessageCircle, Save,
+  Download, Filter, Sparkles, MessageCircle, Save, Trash2, Calendar,
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent } from '../components/ui/card';
@@ -15,7 +16,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 const STATUS_OPTIONS = [
   { value: 'en_attente', label: 'En attente', color: 'bg-blue-100 text-blue-800' },
   { value: 'pris_en_charge', label: 'Pris en charge', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'cloture', label: 'Closé', color: 'bg-[#E8F5EE] text-[#1A5C3A]' },
+  { value: 'cloture', label: 'Clôture', color: 'bg-[#E8F5EE] text-[#1A5C3A]' },
 ];
 
 const SOURCE_LABELS = {
@@ -82,6 +83,8 @@ const AdminPage = () => {
 
   const [activeTab, setActiveTab] = useState('devis');
   const [storeFilter, setStoreFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [stats, setStats] = useState(null);
   const [data, setData] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
@@ -109,19 +112,22 @@ const AdminPage = () => {
   const loadData = useCallback(async (tab = activeTab) => {
     setDataLoading(true);
     try {
-      const params = storeFilter ? { store: storeFilter } : {};
+      const params = {};
+      if (storeFilter) params.store = storeFilter;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
       const r = await axios.get(`${API_URL}/api/admin/demandes/${tab}`, { headers: authHeaders, params });
       setData(r.data);
     } catch { setData([]); }
     setDataLoading(false);
-  }, [activeTab, storeFilter, token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, storeFilter, dateFrom, dateTo, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (isLoggedIn) {
       loadStats();
       loadData(activeTab);
     }
-  }, [isLoggedIn, activeTab, storeFilter, loadStats, loadData]);
+  }, [isLoggedIn, activeTab, storeFilter, dateFrom, dateTo, loadStats, loadData]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -158,6 +164,12 @@ const AdminPage = () => {
   const saveStaffFeedback = async (id, payload) => {
     await axios.patch(`${API_URL}/api/admin/demandes/${activeTab}/${id}/feedback`, payload, { headers: authHeaders });
     setData(prev => prev.map(d => d.id === id ? { ...d, ...payload } : d));
+  };
+
+  const handleDeleteDemand = async (id, code) => {
+    await axios.delete(`${API_URL}/api/admin/demandes/${activeTab}/${id}`, { headers: authHeaders, data: { code } });
+    setData(prev => prev.filter(d => d.id !== id));
+    loadStats();
   };
 
   const handleExportCSV = async () => {
@@ -232,15 +244,15 @@ const AdminPage = () => {
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Filters bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4 bg-white p-3 rounded-xl border border-[#E8F5EE]">
-          <div className="flex items-center gap-2 text-sm text-[#1A1A2E]/70">
+        <div className="flex flex-wrap items-center gap-3 mb-4 bg-white p-3 rounded-xl border border-[#E8F5EE]">
+          <div className="flex items-center gap-2 text-sm text-[#1A1A2E]/70 flex-shrink-0">
             <Filter size={16} className="text-[#1A5C3A]" />
-            <span className="font-medium">Filtre magasin :</span>
+            <span className="font-medium">Magasin :</span>
           </div>
           <select
             value={storeFilter}
             onChange={e => setStoreFilter(e.target.value)}
-            className="flex-1 sm:flex-none sm:min-w-[220px] px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm text-[#1A1A2E] bg-white focus:outline-none focus:border-[#2ECC71]"
+            className="px-3 py-1.5 border border-[#E8F5EE] rounded-lg text-sm text-[#1A1A2E] bg-white focus:outline-none focus:border-[#2ECC71]"
             data-testid="admin-store-filter"
           >
             <option value="">Tous les magasins</option>
@@ -248,9 +260,39 @@ const AdminPage = () => {
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
+
+          <div className="flex items-center gap-2 text-sm text-[#1A1A2E]/70 flex-shrink-0">
+            <Calendar size={16} className="text-[#1A5C3A]" />
+            <span className="font-medium">Du :</span>
+          </div>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+            className="px-2 py-1.5 border border-[#E8F5EE] rounded-lg text-sm text-[#1A1A2E] bg-white focus:outline-none focus:border-[#2ECC71]"
+            data-testid="admin-date-from"
+          />
+          <span className="text-sm text-[#1A1A2E]/70 flex-shrink-0">au</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={e => setDateTo(e.target.value)}
+            className="px-2 py-1.5 border border-[#E8F5EE] rounded-lg text-sm text-[#1A1A2E] bg-white focus:outline-none focus:border-[#2ECC71]"
+            data-testid="admin-date-to"
+          />
+          {(dateFrom || dateTo) && (
+            <button
+              onClick={() => { setDateFrom(''); setDateTo(''); }}
+              className="text-xs text-[#1A5C3A] hover:text-[#2ECC71] underline flex-shrink-0"
+              data-testid="admin-date-clear"
+            >
+              Effacer dates
+            </button>
+          )}
+
           <Button
             onClick={handleExportCSV}
-            className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full text-xs sm:ml-auto"
+            className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full text-xs ml-auto"
             data-testid="admin-export-csv"
           >
             <Download size={14} className="mr-1" /> Exporter CSV
@@ -289,6 +331,7 @@ const AdminPage = () => {
                 type={activeTab}
                 onStatusChange={updateStatus}
                 onSaveStaffFeedback={saveStaffFeedback}
+                onDelete={handleDeleteDemand}
               />
             ))}
           </div>
@@ -298,9 +341,25 @@ const AdminPage = () => {
   );
 };
 
-const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback }) => {
+const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete }) => {
   const [open, setOpen] = useState(false);
   const feedbackRef = useRef(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteCode, setDeleteCode] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const handleDeleteSubmit = async () => {
+    setDeleteLoading(true);
+    setDeleteError('');
+    try {
+      await onDelete(item.id, deleteCode);
+      setShowDeleteModal(false);
+    } catch (err) {
+      setDeleteError(err.response?.data?.detail || 'Code incorrect');
+    }
+    setDeleteLoading(false);
+  };
+
   const date = item.created_at ? new Date(item.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   const currentStatus = STATUS_OPTIONS.find(s => s.value === (item.status || 'en_attente')) || STATUS_OPTIONS[0];
   const isClosed = (item.status || 'en_attente') === 'cloture';
@@ -438,6 +497,14 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback }) => {
             >
               {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
+            <button
+              onClick={e => { e.stopPropagation(); setDeleteCode(''); setDeleteError(''); setShowDeleteModal(true); }}
+              className="p-1.5 rounded text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+              title="Supprimer"
+              data-testid={`demand-delete-${item.id}`}
+            >
+              <Trash2 size={13} />
+            </button>
           </div>
         </div>
 
@@ -486,6 +553,47 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback }) => {
           </div>
         )}
       </CardContent>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={showDeleteModal} onOpenChange={o => { setShowDeleteModal(o); if (!o) setDeleteCode(''); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-[#1A1A2E]">Supprimer cette demande</DialogTitle>
+            <DialogDescription>
+              Entrez le code de sécurité pour confirmer la suppression définitive.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <Input
+              type="password"
+              placeholder="Code de sécurité"
+              value={deleteCode}
+              onChange={e => setDeleteCode(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && deleteCode && handleDeleteSubmit()}
+              className="form-input"
+              autoFocus
+              data-testid={`delete-code-input-${item.id}`}
+            />
+            {deleteError && (
+              <p className="text-red-600 text-sm" data-testid={`delete-error-${item.id}`}>{deleteError}</p>
+            )}
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowDeleteModal(false)} className="text-xs rounded-full">
+                Annuler
+              </Button>
+              <Button
+                onClick={handleDeleteSubmit}
+                disabled={deleteLoading || !deleteCode}
+                className="bg-red-600 hover:bg-red-700 text-white text-xs rounded-full"
+                data-testid={`delete-confirm-${item.id}`}
+              >
+                {deleteLoading ? <Loader2 className="animate-spin mr-1" size={14} /> : <Trash2 size={14} className="mr-1" />}
+                Supprimer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

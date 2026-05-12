@@ -44,6 +44,7 @@ JWT_ALGORITHM = "HS256"
 # Admin config
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@repair-and-co.fr')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
+DELETE_CODE = os.environ.get('DELETE_CODE', 'MOUR1')
 
 # UltraMsg WhatsApp config
 ULTRAMSG_INSTANCE = os.environ.get('ULTRAMSG_INSTANCE')
@@ -320,6 +321,9 @@ class CustomerSurveyRequest(BaseModel):
     customer_source: Optional[str] = None
     customer_feedback: Optional[str] = None
 
+class DeleteRequest(BaseModel):
+    code: str
+
 class StaffFeedbackRequest(BaseModel):
     staff_source: Optional[str] = None
     staff_site_opinion: Optional[str] = None
@@ -527,13 +531,20 @@ COLLECTIONS = {
 }
 
 @api_router.get("/admin/demandes/{category}")
-async def get_demandes(category: str, store: Optional[str] = Query(None), user=Depends(get_current_admin)):
+async def get_demandes(category: str, store: Optional[str] = Query(None), date_from: Optional[str] = Query(None), date_to: Optional[str] = Query(None), user=Depends(get_current_admin)):
     col_name = COLLECTIONS.get(category)
     if not col_name:
         raise HTTPException(status_code=400, detail="Catégorie invalide")
     query = {}
     if store:
         query["store"] = store
+    if date_from or date_to:
+        date_filter = {}
+        if date_from:
+            date_filter["$gte"] = date_from
+        if date_to:
+            date_filter["$lte"] = date_to + "T23:59:59.999999"
+        query["created_at"] = date_filter
     docs = await db[col_name].find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     return docs
 
@@ -549,6 +560,18 @@ async def update_demand_status(category: str, demand_id: str, body: UpdateStatus
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Demande non trouvée")
     return {"status": "updated"}
+
+@api_router.delete("/admin/demandes/{category}/{demand_id}")
+async def delete_demand(category: str, demand_id: str, body: DeleteRequest, user=Depends(get_current_admin)):
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    if body.code != DELETE_CODE:
+        raise HTTPException(status_code=403, detail="Code de sécurité incorrect")
+    result = await db[col_name].delete_one({"id": demand_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+    return {"status": "deleted"}
 
 @api_router.patch("/admin/demandes/{category}/{demand_id}/feedback")
 async def update_staff_feedback(category: str, demand_id: str, body: StaffFeedbackRequest, user=Depends(get_current_admin)):
