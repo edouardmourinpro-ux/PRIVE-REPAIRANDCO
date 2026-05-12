@@ -35,7 +35,7 @@ export const STORES = [
     address: "Av. Mas d'Argelliers",
     city: "Montpellier",
     postalCode: "34070",
-    phone: "09 82 81 89 34",
+    phone: "04 67 58 81 39",
     email: "montpellier.sud@repair-and-co.fr",
     hours: "Lundi–Samedi : 9h30–20h00",
     qualirepar: true,
