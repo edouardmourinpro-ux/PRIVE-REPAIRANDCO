@@ -688,37 +688,57 @@ async def export_demandes_csv(category: str, store: Optional[str] = Query(None),
     query = {"store": store} if store else {}
     docs = await db[col_name].find(query, {"_id": 0}).sort("created_at", -1).to_list(5000)
 
-    # Build column set across all docs (preserves first-seen order)
-    columns = []
-    seen = set()
-    priority = ["created_at", "id", "status", "name", "first_name", "last_name", "company",
+    # French-friendly column labels
+    COLUMN_LABELS = {
+        "created_at": "Date de soumission", "id": "ID", "status": "Statut",
+        "first_name": "Prénom", "name": "Nom", "last_name": "Nom de famille",
+        "company": "Société", "email": "Email", "phone": "Téléphone", "store": "Magasin",
+        "device_type": "Type d'appareil", "brand": "Marque", "model": "Modèle",
+        "issue_types": "Pannes", "other_issue": "Autre panne",
+        "subject": "Sujet", "message": "Message",
+        "fleet_size": "Flotte", "need_type": "Besoin", "condition": "État",
+        "preferred_time": "Horaire préféré",
+        "customer_source": "Source client", "customer_feedback": "Avis client",
+        "staff_source": "Source technicien", "staff_site_opinion": "Avis site",
+        "staff_dislikes": "Points négatifs", "lost_reason": "Raison perte client",
+        "type": "Type de demande",
+    }
+
+    # Build column set — Prénom and Nom in priority order
+    priority = ["created_at", "id", "status", "first_name", "name", "last_name", "company",
                 "email", "phone", "store", "device_type", "brand", "model",
                 "issue_types", "other_issue", "subject", "message", "fleet_size",
                 "need_type", "condition", "preferred_time",
                 "customer_source", "customer_feedback",
-                "staff_source", "staff_site_opinion", "staff_dislikes", "type"]
+                "staff_source", "staff_site_opinion", "staff_dislikes",
+                "lost_reason", "type"]
+    columns_raw = []
+    seen = set()
     for k in priority:
         for d in docs:
             if k in d and k not in seen:
-                columns.append(k); seen.add(k); break
+                columns_raw.append(k); seen.add(k); break
     for d in docs:
         for k in d.keys():
             if k not in seen:
-                columns.append(k); seen.add(k)
+                columns_raw.append(k); seen.add(k)
+
+    # Map to French labels
+    columns_fr = [COLUMN_LABELS.get(k, k) for k in columns_raw]
 
     output = io.StringIO()
     output.write('\ufeff')  # BOM for Excel UTF-8
-    writer = csv.DictWriter(output, fieldnames=columns, delimiter=';', extrasaction='ignore')
-    writer.writeheader()
+    writer = csv.writer(output, delimiter=';', quoting=csv.QUOTE_MINIMAL)
+    writer.writerow(columns_fr)
     for d in docs:
-        row = {}
-        for k in columns:
+        row = []
+        for k in columns_raw:
             v = d.get(k)
             if isinstance(v, list):
                 v = ', '.join(str(x) for x in v)
             elif v is None:
                 v = ''
-            row[k] = v
+            row.append(v)
         writer.writerow(row)
     output.seek(0)
     filename = f"repairandco_{category}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.csv"

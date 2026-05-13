@@ -407,10 +407,12 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
   };
 
   const getTitle = () => {
-    const firstName = item.first_name || (item.name || '').split(' ')[0] || '';
+    // Affichage admin : priorité au NOM (name / last_name). Prénom réservé aux relances.
+    const nom = item.name || item.last_name || item.first_name || '';
+
     if (type === 'devis') {
       const appareil = [item.brand, item.model].filter(Boolean).join(' ') || DEVICE_TYPE_LABELS[item.device_type] || item.device_type || '';
-      return [firstName, appareil].filter(Boolean).join(' / ');
+      return [nom, appareil].filter(Boolean).join(' / ');
     }
     if (type === 'contact') {
       const isRdv = (item.subject || '').startsWith('RDV') || item.rdv_device_type || item.rdv_brand;
@@ -419,19 +421,19 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
         const appareil = [item.rdv_brand || legacy.brand, item.rdv_model || legacy.model].filter(Boolean).join(' ')
           || DEVICE_TYPE_LABELS[item.rdv_device_type || legacy.device_type] || '';
         const rdvDate = item.rdv_date || legacy.date || '';
-        return [firstName, appareil, rdvDate].filter(Boolean).join(' / ');
+        return [nom, appareil, rdvDate].filter(Boolean).join(' / ');
       }
-      return [firstName, item.subject || ''].filter(Boolean).join(' / ');
+      return [nom, item.subject || ''].filter(Boolean).join(' / ');
     }
     if (type === 'entreprise') {
-      const fullName = [item.first_name, item.last_name].filter(Boolean).join(' ') || firstName;
-      return [fullName, item.company].filter(Boolean).join(' / ');
+      const nomEntreprise = item.last_name || item.first_name || '';
+      return [nomEntreprise, item.company].filter(Boolean).join(' / ');
     }
     if (type === 'rachat') {
       const appareil = [item.brand, item.model].filter(Boolean).join(' ') || '';
-      return [firstName, appareil].filter(Boolean).join(' / ');
+      return [nom, appareil].filter(Boolean).join(' / ');
     }
-    return firstName || item.id;
+    return nom || item.id;
   };
 
   const getDetails = () => {
