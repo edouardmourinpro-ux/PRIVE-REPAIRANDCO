@@ -21,6 +21,7 @@ import MiniSurvey from '../components/MiniSurvey';
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const rdvSchema = z.object({
+  first_name: z.string().min(2, 'Entrez votre prénom'),
   name: z.string().min(2, 'Entrez votre nom'),
   phone: z.string().min(10, 'Entrez un numéro valide'),
   email: z.string().email('Entrez un email valide'),
@@ -261,10 +262,17 @@ const AppointmentPage = () => {
                     {/* 5. Contact */}
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div>
-                        <Label className="text-[#1A1A2E] mb-2 block">Nom</Label>
+                        <Label className="text-[#1A1A2E] mb-2 block">Prénom <span className="text-red-500">*</span></Label>
+                        <Input {...register('first_name')} className="form-input" placeholder="Votre prénom" data-testid="appointment-first-name" />
+                        {errors.first_name && <p className="text-red-500 text-sm mt-1">{errors.first_name.message}</p>}
+                      </div>
+                      <div>
+                        <Label className="text-[#1A1A2E] mb-2 block">Nom <span className="text-red-500">*</span></Label>
                         <Input {...register('name')} className="form-input" placeholder="Votre nom" data-testid="appointment-name" />
                         {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>}
                       </div>
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
                       <div>
                         <Label className="text-[#1A1A2E] mb-2 block">Téléphone</Label>
                         <Input {...register('phone')} className="form-input" placeholder="06 12 34 56 78" data-testid="appointment-phone" />

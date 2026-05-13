@@ -26,6 +26,7 @@ import MiniSurvey from '../components/MiniSurvey';
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const contactSchema = z.object({
+  first_name: z.string().min(2, 'Entrez votre prénom'),
   name: z.string().min(2, 'Entrez votre nom'),
   email: z.string().email('Entrez un email valide'),
   phone: z.string().optional(),
@@ -127,17 +128,31 @@ const ContactPage = () => {
                 </h2>
 
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                  <div>
-                    <Label htmlFor="name" className="text-[#1A5C3A] mb-2 block">Nom complet</Label>
-                    <Input
-                      {...register('name')}
-                      data-testid="contact-name"
-                      placeholder="Votre nom"
-                      className="form-input"
-                    />
-                    {errors.name && (
-                      <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>
-                    )}
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="first_name" className="text-[#1A5C3A] mb-2 block">Prénom <span className="text-red-500">*</span></Label>
+                      <Input
+                        {...register('first_name')}
+                        data-testid="contact-first-name"
+                        placeholder="Votre prénom"
+                        className="form-input"
+                      />
+                      {errors.first_name && (
+                        <p className="text-red-500 text-sm mt-1">{errors.first_name.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="name" className="text-[#1A5C3A] mb-2 block">Nom <span className="text-red-500">*</span></Label>
+                      <Input
+                        {...register('name')}
+                        data-testid="contact-name"
+                        placeholder="Votre nom"
+                        className="form-input"
+                      />
+                      {errors.name && (
+                        <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-4">

@@ -28,6 +28,7 @@ const buybackSchema = z.object({
   brand: z.string().min(1, 'Sélectionnez une marque'),
   model: z.string().min(1, 'Entrez le modèle'),
   condition: z.string().min(1, 'Sélectionnez l\'état'),
+  first_name: z.string().min(2, 'Entrez votre prénom'),
   name: z.string().min(2, 'Entrez votre nom'),
   phone: z.string().min(10, 'Entrez un numéro valide'),
   store: z.string().min(1, 'Sélectionnez un magasin'),
@@ -177,6 +178,19 @@ const BuybackPage = () => {
                     </Select>
                     {errors.condition && (
                       <p className="text-red-500 text-sm mt-1">{errors.condition.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="first_name" className="text-[#1A5C3A] mb-2 block">Prénom <span className="text-red-500">*</span></Label>
+                    <Input
+                      {...register('first_name')}
+                      data-testid="buyback-first-name"
+                      placeholder="Votre prénom"
+                      className="form-input"
+                    />
+                    {errors.first_name && (
+                      <p className="text-red-500 text-sm mt-1">{errors.first_name.message}</p>
                     )}
                   </div>
 

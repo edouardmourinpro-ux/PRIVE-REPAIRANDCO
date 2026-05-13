@@ -31,6 +31,7 @@ const quoteSchema = z.object({
   model: z.string().min(1, 'Entrez le modèle'),
   issue_types: z.array(z.string()).min(1, 'Sélectionnez au moins un problème'),
   other_issue: z.string().optional(),
+  first_name: z.string().min(2, 'Entrez votre prénom'),
   name: z.string().min(2, 'Entrez votre nom'),
   phone: z.string().min(10, 'Entrez un numéro valide'),
   email: z.string().email('Entrez un email valide'),
@@ -64,6 +65,7 @@ const QuotePage = () => {
       model: '',
       issue_types: [],
       other_issue: '',
+      first_name: '',
       name: '',
       phone: '',
       email: '',
@@ -313,7 +315,19 @@ const QuotePage = () => {
                 </h2>
                 <div className="space-y-6">
                   <div>
-                    <Label htmlFor="name" className="text-[#1A5C3A] mb-2 block">Nom complet</Label>
+                    <Label htmlFor="first_name" className="text-[#1A5C3A] mb-2 block">Prénom <span className="text-red-500">*</span></Label>
+                    <Input
+                      {...register('first_name')}
+                      data-testid="first-name-input"
+                      placeholder="Votre prénom"
+                      className="form-input"
+                    />
+                    {errors.first_name && (
+                      <p className="text-red-500 text-sm mt-1">{errors.first_name.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="name" className="text-[#1A5C3A] mb-2 block">Nom <span className="text-red-500">*</span></Label>
                     <Input
                       {...register('name')}
                       data-testid="name-input"

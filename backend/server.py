@@ -274,6 +274,7 @@ class QuoteRequestCreate(BaseModel):
     model: str
     issue_types: List[str]
     other_issue: Optional[str] = None
+    first_name: Optional[str] = None
     name: str
     phone: str
     email: EmailStr
@@ -281,6 +282,7 @@ class QuoteRequestCreate(BaseModel):
     preferred_time: Optional[str] = None
 
 class ContactRequestCreate(BaseModel):
+    first_name: Optional[str] = None
     name: str
     email: EmailStr
     phone: Optional[str] = None
@@ -309,6 +311,7 @@ class BuybackRequestCreate(BaseModel):
     brand: str
     model: str
     condition: str
+    first_name: Optional[str] = None
     name: str
     phone: str
     store: str
@@ -319,6 +322,7 @@ class LoginRequest(BaseModel):
 
 class UpdateStatusRequest(BaseModel):
     status: str
+    lost_reason: Optional[str] = None
 
 class CustomerSurveyRequest(BaseModel):
     customer_source: Optional[str] = None
@@ -333,7 +337,7 @@ class StaffFeedbackRequest(BaseModel):
     staff_dislikes: Optional[str] = None
 
 # Allowed status values (Phase 1 simplification)
-ALLOWED_STATUSES = {"en_attente", "pris_en_charge", "cloture"}
+ALLOWED_STATUSES = {"en_attente", "pris_en_charge", "cloture", "client_perdu"}
 # Map legacy → new
 LEGACY_STATUS_MAP = {
     "nouveau": "en_attente",
@@ -559,7 +563,10 @@ async def update_demand_status(category: str, demand_id: str, body: UpdateStatus
     new_status = LEGACY_STATUS_MAP.get(body.status, body.status)
     if new_status not in ALLOWED_STATUSES:
         raise HTTPException(status_code=400, detail="Statut invalide")
-    result = await db[col_name].update_one({"id": demand_id}, {"$set": {"status": new_status}})
+    update_fields = {"status": new_status}
+    if body.lost_reason and new_status == "client_perdu":
+        update_fields["lost_reason"] = body.lost_reason
+    result = await db[col_name].update_one({"id": demand_id}, {"$set": update_fields})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Demande non trouvée")
     return {"status": "updated"}

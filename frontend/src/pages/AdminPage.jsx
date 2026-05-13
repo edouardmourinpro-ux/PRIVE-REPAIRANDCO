@@ -3,7 +3,7 @@ import axios from 'axios';
 import {
   LogOut, FileText, MessageSquare, Building2, Recycle,
   Loader2, ChevronDown, ChevronUp, Clock, Phone, Mail,
-  Download, Filter, Sparkles, MessageCircle, Save, Trash2,
+  Download, Filter, Sparkles, MessageCircle, Save, Trash2, SendHorizontal, UserX,
 } from 'lucide-react';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
@@ -17,7 +17,8 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 const STATUS_OPTIONS = [
   { value: 'en_attente', label: 'En attente', color: 'bg-blue-100 text-blue-800' },
   { value: 'pris_en_charge', label: 'Pris en charge', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'cloture', label: 'Clôture', color: 'bg-[#E8F5EE] text-[#1A5C3A]' },
+  { value: 'cloture',       label: 'Clôture',       color: 'bg-[#E8F5EE] text-[#1A5C3A]' },
+  { value: 'client_perdu', label: 'Client perdu',  color: 'bg-red-50 text-red-600' },
 ];
 
 const SOURCE_LABELS = {
@@ -152,10 +153,12 @@ const AdminPage = () => {
     setIsLoggedIn(false);
   };
 
-  const updateStatus = async (id, newStatus) => {
+  const updateStatus = async (id, newStatus, lostReason) => {
     try {
-      await axios.patch(`${API_URL}/api/admin/demandes/${activeTab}/${id}/status`, { status: newStatus }, { headers: authHeaders });
-      setData(prev => prev.map(d => d.id === id ? { ...d, status: newStatus } : d));
+      const payload = { status: newStatus };
+      if (lostReason) payload.lost_reason = lostReason;
+      await axios.patch(`${API_URL}/api/admin/demandes/${activeTab}/${id}/status`, payload, { headers: authHeaders });
+      setData(prev => prev.map(d => d.id === id ? { ...d, status: newStatus, ...(lostReason ? { lost_reason: lostReason } : {}) } : d));
       loadStats();
     } catch (e) {
       alert('Erreur lors de la mise à jour du statut');
@@ -324,6 +327,17 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
   const [deleteCode, setDeleteCode] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showLostModal, setShowLostModal] = useState(false);
+  const [lostReason, setLostReason] = useState('');
+  const [showRelanceMenu, setShowRelanceMenu] = useState(false);
+  const relanceRef = useRef(null);
+
+  // Close relance menu on outside click
+  useEffect(() => {
+    const handler = (e) => { if (relanceRef.current && !relanceRef.current.contains(e.target)) setShowRelanceMenu(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
   const handleDeleteSubmit = async () => {
     setDeleteLoading(true);
     setDeleteError('');
@@ -336,18 +350,56 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
     setDeleteLoading(false);
   };
 
+  const handleLostSubmit = () => {
+    if (!lostReason.trim()) return;
+    onStatusChange(item.id, 'client_perdu', lostReason);
+    setShowLostModal(false);
+  };
+
+  const getPrenom = () => item.first_name || (item.name || '').split(' ')[0] || '';
+  const getAppareil = () => {
+    const legacy = parseRdvMessage(item.message);
+    return [item.rdv_brand || item.brand || legacy.brand, item.rdv_model || item.model || legacy.model].filter(Boolean).join(' ') || 'votre appareil';
+  };
+  const getStoreName = () => STORES.find(s => s.id === item.store)?.name || item.store || '';
+
+  const handleRelanceEmail = () => {
+    const prenom = getPrenom();
+    const appareil = getAppareil();
+    const storeName = getStoreName();
+    const subject = encodeURIComponent('📱 Votre demande de réparation chez Repair & Co');
+    const body = encodeURIComponent(
+      `Bonjour ${prenom},\n\nJ'ai tenté de vous joindre par téléphone à l'instant suite à votre demande sur notre site Repair & Co, mais je n'ai pas réussi à vous avoir.\n\nJe voulais simplement vous confirmer que nous avons bien reçu votre demande pour votre ${appareil}.\n\nQuand seriez-vous disponible pour que nous en discutions rapidement ? Vous pouvez également me répondre directement par cet email ou passer nous voir au magasin de ${storeName}.\n\nÀ très vite,\nL'équipe Repair & Co`
+    );
+    window.open(`mailto:${item.email}?subject=${subject}&body=${body}`);
+    setShowRelanceMenu(false);
+  };
+
+  const handleRelanceWA = () => {
+    const prenom = getPrenom();
+    const appareil = getAppareil();
+    const phone = (item.phone || '').replace(/[\s\-().]/g, '').replace(/^0/, '33');
+    const text = encodeURIComponent(`Bonjour ${prenom}, c'est l'équipe Repair & Co ! J'ai tenté de vous appeler pour votre ${appareil}. À quel moment puis-je vous rappeler ?`);
+    window.open(`https://wa.me/${phone}?text=${text}`);
+    setShowRelanceMenu(false);
+  };
+
   const date = item.created_at ? new Date(item.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   const currentStatus = STATUS_OPTIONS.find(s => s.value === (item.status || 'en_attente')) || STATUS_OPTIONS[0];
   const isClosed = (item.status || 'en_attente') === 'cloture';
   const hasCustomerSurvey = item.customer_source || item.customer_feedback;
 
   const handleStatusChange = async (newStatus) => {
+    if (newStatus === 'client_perdu') {
+      setLostReason('');
+      setShowLostModal(true);
+      return;
+    }
     if (newStatus === 'cloture') {
-      setOpen(true); // Reveal the staff feedback form immediately
+      setOpen(true);
     }
     await onStatusChange(item.id, newStatus);
     if (newStatus === 'cloture') {
-      // Wait for StaffFeedbackForm to mount, then scroll into view.
       setTimeout(() => {
         feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 350);
@@ -355,7 +407,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
   };
 
   const getTitle = () => {
-    const firstName = (item.name || '').split(' ')[0] || item.first_name || '';
+    const firstName = item.first_name || (item.name || '').split(' ')[0] || '';
     if (type === 'devis') {
       const appareil = [item.brand, item.model].filter(Boolean).join(' ') || DEVICE_TYPE_LABELS[item.device_type] || item.device_type || '';
       return [firstName, appareil].filter(Boolean).join(' / ');
@@ -517,8 +569,42 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
 
             <div className="flex flex-wrap gap-2">
               {item.phone && <a href={`tel:${item.phone}`} className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#E8F5EE] rounded-full text-xs text-[#1A5C3A] font-medium hover:bg-[#2ECC71]/20" data-testid={`demand-call-${item.id}`}><Phone size={12} />Appeler</a>}
+              {/* Relancer button */}
+              {(item.phone || item.email) && (
+                <div className="relative" ref={relanceRef}>
+                  <button
+                    onClick={e => { e.stopPropagation(); setShowRelanceMenu(!showRelanceMenu); }}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#1A5C3A] rounded-full text-xs text-white font-medium hover:bg-[#2ECC71] transition-colors"
+                    data-testid={`demand-relance-${item.id}`}
+                  >
+                    <SendHorizontal size={12} /> Relancer
+                  </button>
+                  {showRelanceMenu && (
+                    <div className="absolute left-0 bottom-full mb-1 bg-white shadow-xl rounded-xl border border-[#E8F5EE] z-40 min-w-[150px] py-1">
+                      {item.email && (
+                        <button onClick={handleRelanceEmail} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm hover:bg-[#E8F5EE] text-[#1A1A2E]">
+                          <Mail size={13} className="text-[#1A5C3A]" /> Email
+                        </button>
+                      )}
+                      {item.phone && (
+                        <button onClick={handleRelanceWA} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm hover:bg-[#E8F5EE] text-[#1A1A2E]">
+                          <MessageCircle size={13} className="text-[#2ECC71]" /> WhatsApp
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               {item.email && <a href={`mailto:${item.email}`} className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#E8F5EE] rounded-full text-xs text-[#1A5C3A] font-medium hover:bg-[#2ECC71]/20" data-testid={`demand-email-${item.id}`}><Mail size={12} />Email</a>}
             </div>
+
+            {/* Raison perte client */}
+            {item.lost_reason && (
+              <div className="p-3 bg-red-50 rounded-xl border border-red-100">
+                <p className="text-xs font-semibold text-red-600 mb-1 flex items-center gap-1"><UserX size={12} /> Raison perte client</p>
+                <p className="text-sm text-red-700">{item.lost_reason}</p>
+              </div>
+            )}
 
             {/* Staff feedback (visible inline once status = cloture) */}
             {isClosed && (
@@ -529,6 +615,44 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
           </div>
         )}
       </CardContent>
+
+      {/* Client perdu — modale de raison obligatoire */}
+      <Dialog open={showLostModal} onOpenChange={o => { setShowLostModal(o); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-[#1A1A2E] flex items-center gap-2">
+              <UserX size={18} className="text-red-500" /> Client perdu
+            </DialogTitle>
+            <DialogDescription>
+              Indiquez la raison pour laquelle ce client est perdu.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <textarea
+              value={lostReason}
+              onChange={e => setLostReason(e.target.value)}
+              placeholder="Ex : Prix trop élevé, a trouvé moins cher, ne répond plus..."
+              rows={3}
+              className="form-textarea w-full text-sm"
+              autoFocus
+              data-testid="lost-reason-input"
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowLostModal(false)} className="text-xs rounded-full">
+                Annuler
+              </Button>
+              <Button
+                onClick={handleLostSubmit}
+                disabled={!lostReason.trim()}
+                className="bg-red-600 hover:bg-red-700 text-white text-xs rounded-full"
+                data-testid="lost-reason-confirm"
+              >
+                Confirmer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation dialog */}
       <Dialog open={showDeleteModal} onOpenChange={o => { setShowDeleteModal(o); if (!o) setDeleteCode(''); }}>
