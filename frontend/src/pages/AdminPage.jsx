@@ -437,7 +437,13 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
   };
 
   const getDetails = () => {
+    // Prénom/Nom adapté selon le type de formulaire
+    const nameRows = type === 'entreprise'
+      ? [{ label: 'Prénom', value: item.first_name }, { label: 'Nom', value: item.last_name }]
+      : [{ label: 'Prénom', value: item.first_name }, { label: 'Nom', value: item.name }];
+
     if (type === 'devis') return [
+      ...nameRows,
       { label: 'Appareil', value: DEVICE_TYPE_LABELS[item.device_type] || item.device_type },
       { label: 'Marque', value: item.brand },
       { label: 'Modèle', value: item.model },
@@ -449,7 +455,6 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
     if (type === 'contact') {
       const isRdv = (item.subject || '').startsWith('RDV') || item.rdv_device_type || item.rdv_brand || item.rdv_model;
       if (isRdv) {
-        // Use structured fields when present, otherwise parse legacy message blob.
         const legacy = parseRdvMessage(item.message);
         const deviceType = item.rdv_device_type || legacy.device_type;
         const brand = item.rdv_brand || legacy.brand;
@@ -459,6 +464,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
         const slot = item.rdv_slot || legacy.slot;
         const freeMsg = item.rdv_device_type ? item.message : legacy.free;
         return [
+          ...nameRows,
           { label: 'Objet', value: item.subject },
           { label: 'Magasin', value: STORE_NAME_MAP[item.store] || item.store },
           { label: 'Type d\'appareil', value: DEVICE_TYPE_LABELS[deviceType] || deviceType },
@@ -471,18 +477,21 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
         ];
       }
       return [
+        ...nameRows,
         { label: 'Objet', value: item.subject },
         { label: 'Magasin', value: STORE_NAME_MAP[item.store] || item.store },
         { label: 'Message', value: item.message },
       ];
     }
     if (type === 'entreprise') return [
+      ...nameRows,
       { label: 'Société', value: item.company },
       { label: 'Taille flotte', value: item.fleet_size },
       { label: 'Besoin', value: item.need_type },
       { label: 'Message', value: item.message },
     ];
     if (type === 'rachat') return [
+      ...nameRows,
       { label: 'Marque', value: item.brand },
       { label: 'Modèle', value: item.model },
       { label: 'État', value: CONDITION_LABELS[item.condition] || item.condition },
