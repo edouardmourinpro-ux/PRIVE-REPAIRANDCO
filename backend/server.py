@@ -337,10 +337,9 @@ class StaffFeedbackRequest(BaseModel):
     staff_dislikes: Optional[str] = None
 
 # Allowed status values (Phase 1 simplification)
-ALLOWED_STATUSES = {"en_attente", "pris_en_charge", "cloture", "client_perdu"}
+ALLOWED_STATUSES = {"nouveau", "en_attente", "pris_en_charge", "cloture", "client_perdu"}
 # Map legacy → new
 LEGACY_STATUS_MAP = {
-    "nouveau": "en_attente",
     "contacte": "pris_en_charge",
     "rdv_fixe": "pris_en_charge",
     "repare": "cloture",
@@ -375,7 +374,7 @@ async def create_quote(input: QuoteRequestCreate):
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store)
     doc = input.model_dump()
-    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "devis"})
+    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "devis"})
     await db.demandes_devis.insert_one(doc)
     asyncio.ensure_future(send_notification(
         f"[Repair&Co] Nouveau devis — {doc['name']} — {store_name}",
@@ -414,7 +413,7 @@ async def create_contact(input: ContactRequestCreate):
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store) if input.store else "Non précisé"
     doc = input.model_dump()
-    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "contact"})
+    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "contact"})
     await db.demandes_contact.insert_one(doc)
     is_rdv = bool(doc.get('rdv_device_type') or doc.get('rdv_brand') or (doc.get('subject') or '').startswith('RDV'))
     demand_label = "RDV" if is_rdv else "message"
@@ -466,7 +465,7 @@ async def create_b2b(input: B2BRequestCreate):
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
     doc = input.model_dump()
-    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "entreprise"})
+    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "entreprise"})
     await db.demandes_entreprise.insert_one(doc)
     full_name = f"{doc['first_name']} {doc['last_name']}".strip()
     asyncio.ensure_future(send_notification(
@@ -496,7 +495,7 @@ async def create_buyback(input: BuybackRequestCreate):
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store)
     doc = input.model_dump()
-    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "en_attente", "type": "rachat"})
+    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "rachat"})
     await db.demandes_rachat.insert_one(doc)
     asyncio.ensure_future(send_notification(
         f"[Repair&Co] Nouveau rachat — {doc['name']} — {store_name}",
@@ -659,12 +658,92 @@ async def submit_customer_survey(category: str, demand_id: str, body: CustomerSu
         ))
     return {"status": "saved"}
 
+def build_whatsapp_message_from_doc(doc: dict, category: str) -> str:
+    """Build WhatsApp recall message from a stored lead document."""
+    first_name = doc.get('first_name', '') or ''
+    name = doc.get('name', '') or ''
+    full_name = f"{first_name} {name}".strip() if first_name else name
+    phone = doc.get('phone', 'N/A')
+    email = doc.get('email', 'N/A')
+    store_id = doc.get('store', '')
+    store_name = STORE_NAMES.get(store_id, store_id)
+    admin_link = "https://repairandco.fr/admin"
+    if category == 'devis':
+        brand = doc.get('brand', '')
+        model = doc.get('model', '')
+        device = doc.get('device_type', '')
+        issues = ', '.join(doc.get('issue_types') or [])
+        return (f"🔔 *RAPPEL — Demande de Devis*\n"
+                f"- *Client* : {full_name}\n- *Tél* : {phone}\n- *Email* : {email}\n"
+                f"- *Appareil* : {device} {brand} {model}\n- *Problème* : {issues}\n"
+                f"- *Magasin* : {store_name}\n\n👉 *Admin* : {admin_link}")
+    if category == 'contact':
+        brand = doc.get('rdv_brand', '') or ''
+        model = doc.get('rdv_model', '') or ''
+        date = doc.get('rdv_date', '') or ''
+        slot = doc.get('rdv_slot', '') or ''
+        subject = doc.get('subject', 'Contact')
+        appareil = f"- *Appareil* : {brand} {model}\n" if brand or model else ""
+        rdv = f"- *RDV* : {date} {slot}\n" if date else ""
+        return (f"🔔 *RAPPEL — {subject}*\n"
+                f"- *Client* : {full_name}\n- *Tél* : {phone}\n- *Email* : {email}\n"
+                f"{appareil}{rdv}- *Magasin* : {store_name}\n\n👉 *Admin* : {admin_link}")
+    if category == 'entreprise':
+        company = doc.get('company', '')
+        return (f"🔔 *RAPPEL — Demande Entreprise*\n"
+                f"- *Société* : {company}\n- *Contact* : {full_name}\n"
+                f"- *Tél* : {phone}\n- *Email* : {email}\n\n👉 *Admin* : {admin_link}")
+    if category == 'rachat':
+        brand = doc.get('brand', '')
+        model = doc.get('model', '')
+        condition = doc.get('condition', '')
+        return (f"🔔 *RAPPEL — Demande de Rachat*\n"
+                f"- *Client* : {full_name}\n- *Appareil* : {brand} {model} ({condition})\n"
+                f"- *Tél* : {phone}\n- *Magasin* : {store_name}\n\n👉 *Admin* : {admin_link}")
+    return f"🔔 *RAPPEL — Repair&Co*\n- *Client* : {full_name}\n- *Tél* : {phone}"
+
+
+@api_router.post("/admin/demandes/{category}/{demand_id}/push-whatsapp")
+async def push_whatsapp_single(category: str, demand_id: str, body: DeleteRequest, user=Depends(get_current_admin)):
+    if body.code != DELETE_CODE:
+        raise HTTPException(status_code=403, detail="Code de sécurité incorrect")
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+    store_id = doc.get("store", "")
+    message = build_whatsapp_message_from_doc(doc, category)
+    await send_whatsapp(store_id, message)
+    logger.info(f"[PUSH WA] Single push: {category}/{demand_id} → {store_id}")
+    return {"status": "sent", "store": store_id}
+
+
+@api_router.post("/admin/push-whatsapp/rattrapage")
+async def push_whatsapp_rattrapage(body: DeleteRequest, user=Depends(get_current_admin)):
+    if body.code != DELETE_CODE:
+        raise HTTPException(status_code=403, detail="Code de sécurité incorrect")
+    sent = []
+    for category, col_name in COLLECTIONS.items():
+        docs = await db[col_name].find({"status": "nouveau"}, {"_id": 0}).to_list(500)
+        for doc in docs:
+            store_id = doc.get("store", "")
+            if not store_id:
+                continue
+            message = build_whatsapp_message_from_doc(doc, category)
+            asyncio.ensure_future(send_whatsapp(store_id, message))
+            sent.append({"category": category, "id": doc.get("id"), "client": f"{doc.get('first_name','')} {doc.get('name','')}".strip()})
+    logger.info(f"[PUSH WA] Rattrapage: {len(sent)} messages envoyés")
+    return {"status": "sent", "count": len(sent), "details": sent}
+
+
 @api_router.get("/admin/stats")
 async def get_admin_stats(store: Optional[str] = Query(None), user=Depends(get_current_admin)):
     query = {"store": store} if store else {}
     stats = {}
     total_all = 0
-    by_status = {"en_attente": 0, "pris_en_charge": 0, "cloture": 0}
+    by_status = {"nouveau": 0, "en_attente": 0, "pris_en_charge": 0, "cloture": 0, "client_perdu": 0}
     for key, col_name in COLLECTIONS.items():
         count = await db[col_name].count_documents(query)
         stats[key] = count
@@ -674,9 +753,11 @@ async def get_admin_stats(store: Optional[str] = Query(None), user=Depends(get_c
             c = await db[col_name].count_documents({**query, "status": st})
             by_status[st] += c
     stats["total"] = total_all
+    stats["nouveau"] = by_status["nouveau"]
     stats["en_attente"] = by_status["en_attente"]
     stats["pris_en_charge"] = by_status["pris_en_charge"]
     stats["cloture"] = by_status["cloture"]
+    stats["client_perdu"] = by_status["client_perdu"]
     return stats
 
 # Keep old routes as aliases for backward compat

@@ -3,7 +3,7 @@ import axios from 'axios';
 import {
   LogOut, FileText, MessageSquare, Building2, Recycle,
   Loader2, ChevronDown, ChevronUp, Clock, Phone, Mail,
-  Download, Filter, Sparkles, MessageCircle, Save, Trash2, SendHorizontal, UserX,
+  Download, Filter, Sparkles, MessageCircle, Save, Trash2, SendHorizontal, UserX, RefreshCw,
 } from 'lucide-react';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
@@ -15,10 +15,11 @@ import { STORES } from '../data/stores';
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const STATUS_OPTIONS = [
-  { value: 'en_attente', label: 'En attente', color: 'bg-blue-100 text-blue-800' },
-  { value: 'pris_en_charge', label: 'Pris en charge', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'cloture',       label: 'Clôture',       color: 'bg-[#E8F5EE] text-[#1A5C3A]' },
-  { value: 'client_perdu', label: 'Client perdu',  color: 'bg-red-50 text-red-600' },
+  { value: 'nouveau',        label: 'Nouveau',         color: 'bg-rose-100 text-rose-700' },
+  { value: 'en_attente',     label: 'En attente',      color: 'bg-orange-100 text-orange-700' },
+  { value: 'pris_en_charge', label: 'Prise en charge', color: 'bg-blue-100 text-blue-700' },
+  { value: 'cloture',        label: 'Clôture',         color: 'bg-[#E8F5EE] text-[#1A5C3A]' },
+  { value: 'client_perdu',   label: 'Client perdu',    color: 'bg-red-100 text-red-600' },
 ];
 
 const SOURCE_LABELS = {
@@ -88,6 +89,11 @@ const AdminPage = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [stats, setStats] = useState(null);
+  const [showRattrapageModal, setShowRattrapageModal] = useState(false);
+  const [rattrapageCode, setRattrapageCode] = useState('');
+  const [rattrapageError, setRattrapageError] = useState('');
+  const [rattrapageResult, setRattrapageResult] = useState(null);
+  const [rattrapageLoading, setRattrapageLoading] = useState(false);
   const [data, setData] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
 
@@ -176,6 +182,22 @@ const AdminPage = () => {
     loadStats();
   };
 
+  const handlePushWADemand = async (id, code) => {
+    await axios.post(`${API_URL}/api/admin/demandes/${activeTab}/${id}/push-whatsapp`, { code }, { headers: authHeaders });
+  };
+
+  const handleRattrapage = async () => {
+    setRattrapageLoading(true);
+    setRattrapageError('');
+    try {
+      const r = await axios.post(`${API_URL}/api/admin/push-whatsapp/rattrapage`, { code: rattrapageCode }, { headers: authHeaders });
+      setRattrapageResult(r.data);
+    } catch (err) {
+      setRattrapageError(err.response?.data?.detail || 'Erreur');
+    }
+    setRattrapageLoading(false);
+  };
+
   const handleExportCSV = async () => {
     try {
       const params = storeFilter ? { store: storeFilter } : {};
@@ -237,8 +259,15 @@ const AdminPage = () => {
           <h1 className="text-lg font-bold">Admin — Repair&Co</h1>
           <div className="flex items-center gap-3">
             <span className="text-white/80 text-sm hidden sm:inline" data-testid="admin-total-count">
-              {stats?.total || 0} demandes · {stats?.en_attente || 0} en attente
+              {stats?.total || 0} demandes · <span className="text-rose-300 font-semibold">{stats?.nouveau || 0} nouveau{(stats?.nouveau || 0) > 1 ? 'x' : ''}</span>
             </span>
+            <button
+              onClick={() => { setRattrapageCode(''); setRattrapageError(''); setRattrapageResult(null); setShowRattrapageModal(true); }}
+              className="hidden sm:flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/30 rounded-full text-xs text-white font-medium transition-colors"
+              data-testid="admin-rattrapage-btn"
+            >
+              <RefreshCw size={13} /> Rattrapage
+            </button>
             <Button onClick={handleLogout} variant="outline" size="sm" className="border-white text-white hover:bg-white/10 rounded-full text-xs" data-testid="admin-logout">
               <LogOut size={14} className="mr-1" /> Déconnexion
             </Button>
@@ -311,16 +340,58 @@ const AdminPage = () => {
                 onStatusChange={updateStatus}
                 onSaveStaffFeedback={saveStaffFeedback}
                 onDelete={handleDeleteDemand}
+                onPushWA={handlePushWADemand}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Rattrapage modal */}
+      <Dialog open={showRattrapageModal} onOpenChange={o => { setShowRattrapageModal(o); if (!o) { setRattrapageCode(''); setRattrapageResult(null); setRattrapageError(''); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-[#1A1A2E] flex items-center gap-2">
+              <RefreshCw size={18} className="text-[#1A5C3A]" /> Rattrapage leads Nouveau
+            </DialogTitle>
+            <DialogDescription>
+              Renvoie un WhatsApp au magasin pour <strong>tous les leads au statut "Nouveau"</strong>. Entrez le code de sécurité.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            {!rattrapageResult ? (
+              <>
+                <Input type="password" placeholder="Code de sécurité" value={rattrapageCode}
+                  onChange={e => setRattrapageCode(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && rattrapageCode && handleRattrapage()}
+                  autoFocus data-testid="rattrapage-code-input" />
+                {rattrapageError && <p className="text-red-600 text-sm">{rattrapageError}</p>}
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setShowRattrapageModal(false)} className="text-xs rounded-full">Annuler</Button>
+                  <Button onClick={handleRattrapage} disabled={rattrapageLoading || !rattrapageCode}
+                    className="bg-[#1A5C3A] hover:bg-[#2ECC71] text-white text-xs rounded-full" data-testid="rattrapage-confirm">
+                    {rattrapageLoading ? <Loader2 className="animate-spin mr-1" size={14} /> : <RefreshCw size={14} className="mr-1" />}
+                    Envoyer alertes
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-2 space-y-2">
+                <p className="text-[#1A5C3A] font-semibold text-lg">{rattrapageResult.count} WhatsApp envoyé{rattrapageResult.count > 1 ? 's' : ''}</p>
+                {rattrapageResult.details?.map((d, i) => (
+                  <p key={i} className="text-xs text-[#1A1A2E]/70">{d.client} ({d.category})</p>
+                ))}
+                <Button onClick={() => setShowRattrapageModal(false)} className="mt-2 bg-[#1A5C3A] text-white rounded-full text-xs">Fermer</Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
 
-const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete }) => {
+const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete, onPushWA }) => {
   const [open, setOpen] = useState(false);
   const feedbackRef = useRef(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -331,6 +402,11 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
   const [lostReason, setLostReason] = useState('');
   const [showRelanceMenu, setShowRelanceMenu] = useState(false);
   const relanceRef = useRef(null);
+  const [showPushModal, setShowPushModal] = useState(false);
+  const [pushCode, setPushCode] = useState('');
+  const [pushError, setPushError] = useState('');
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushSuccess, setPushSuccess] = useState(false);
 
   // Close relance menu on outside click
   useEffect(() => {
@@ -354,6 +430,18 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
     if (!lostReason.trim()) return;
     onStatusChange(item.id, 'client_perdu', lostReason);
     setShowLostModal(false);
+  };
+
+  const handlePushSubmit = async () => {
+    setPushLoading(true);
+    setPushError('');
+    try {
+      await onPushWA(item.id, pushCode);
+      setPushSuccess(true);
+    } catch (err) {
+      setPushError(err.response?.data?.detail || 'Code incorrect');
+    }
+    setPushLoading(false);
   };
 
   const getPrenom = () => item.first_name || (item.name || '').split(' ')[0] || '';
@@ -385,7 +473,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
   };
 
   const date = item.created_at ? new Date(item.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-  const currentStatus = STATUS_OPTIONS.find(s => s.value === (item.status || 'en_attente')) || STATUS_OPTIONS[0];
+  const currentStatus = STATUS_OPTIONS.find(s => s.value === (item.status || 'nouveau')) || STATUS_OPTIONS[0];
   const isClosed = (item.status || 'en_attente') === 'cloture';
   const hasCustomerSurvey = item.customer_source || item.customer_feedback;
 
@@ -537,6 +625,14 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
               {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
             <button
+              onClick={e => { e.stopPropagation(); setPushCode(''); setPushError(''); setPushSuccess(false); setShowPushModal(true); }}
+              className="p-1.5 rounded text-gray-300 hover:text-[#2ECC71] hover:bg-[#E8F5EE] transition-colors"
+              title="Push WhatsApp magasin"
+              data-testid={`demand-push-${item.id}`}
+            >
+              <RefreshCw size={13} />
+            </button>
+            <button
               onClick={e => { e.stopPropagation(); setDeleteCode(''); setDeleteError(''); setShowDeleteModal(true); }}
               className="p-1.5 rounded text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
               title="Supprimer"
@@ -626,6 +722,44 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete 
           </div>
         )}
       </CardContent>
+
+      {/* Push WhatsApp dialog */}
+      <Dialog open={showPushModal} onOpenChange={o => { setShowPushModal(o); if (!o) { setPushCode(''); setPushSuccess(false); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-[#1A1A2E] flex items-center gap-2">
+              <RefreshCw size={16} className="text-[#1A5C3A]" /> Push WhatsApp magasin
+            </DialogTitle>
+            <DialogDescription>
+              Renvoie l'alerte WhatsApp au magasin pour cette demande. Entrez le code de sécurité.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            {!pushSuccess ? (
+              <>
+                <Input type="password" placeholder="Code de sécurité" value={pushCode}
+                  onChange={e => setPushCode(e.target.value)}
+                  onKeyDown={async e => { if (e.key === 'Enter' && pushCode) await handlePushSubmit(); }}
+                  autoFocus data-testid={`push-code-input-${item.id}`} />
+                {pushError && <p className="text-red-600 text-sm">{pushError}</p>}
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setShowPushModal(false)} className="text-xs rounded-full">Annuler</Button>
+                  <Button onClick={handlePushSubmit} disabled={pushLoading || !pushCode}
+                    className="bg-[#1A5C3A] hover:bg-[#2ECC71] text-white text-xs rounded-full" data-testid={`push-confirm-${item.id}`}>
+                    {pushLoading ? <Loader2 className="animate-spin mr-1" size={14} /> : <RefreshCw size={14} className="mr-1" />}
+                    Envoyer
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-[#1A5C3A] font-semibold">WhatsApp envoyé !</p>
+                <Button onClick={() => setShowPushModal(false)} className="mt-3 bg-[#1A5C3A] text-white rounded-full text-xs">Fermer</Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Client perdu — modale de raison obligatoire */}
       <Dialog open={showLostModal} onOpenChange={o => { setShowLostModal(o); }}>
