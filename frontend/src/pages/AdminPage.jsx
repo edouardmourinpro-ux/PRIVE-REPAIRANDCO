@@ -200,8 +200,11 @@ const AdminPage = () => {
 
   const handleExportCSV = async () => {
     try {
-      const params = storeFilter ? { store: storeFilter } : {};
-      const r = await axios.get(`${API_URL}/api/admin/demandes/${activeTab}/export`, {
+      const params = {};
+      if (storeFilter) params.store = storeFilter;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      const r = await axios.get(`${API_URL}/api/admin/export-all`, {
         headers: authHeaders,
         params,
         responseType: 'blob',
@@ -210,7 +213,7 @@ const AdminPage = () => {
       const link = document.createElement('a');
       link.href = url;
       const ts = new Date().toISOString().slice(0, 10);
-      link.setAttribute('download', `repairandco_${activeTab}_${ts}.csv`);
+      link.setAttribute('download', `repairandco_tous_leads_${ts}.csv`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -453,11 +456,22 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete,
 
   const handleRelanceEmail = () => {
     const prenom = getPrenom();
-    const appareil = getAppareil();
+    const brand = item.rdv_brand || item.brand || '';
+    const model = item.rdv_model || item.model || '';
+    const panne = item.rdv_issue || (item.issue_types || []).join(', ') || '';
     const storeName = getStoreName();
-    const subject = encodeURIComponent('📱 Votre demande de réparation chez Repair & Co');
+    const subject = encodeURIComponent('Votre demande de réparation chez Repair & Co');
     const body = encodeURIComponent(
-      `Bonjour ${prenom},\n\nJ'ai tenté de vous joindre par téléphone à l'instant suite à votre demande sur notre site Repair & Co, mais je n'ai pas réussi à vous avoir.\n\nJe voulais simplement vous confirmer que nous avons bien reçu votre demande pour votre ${appareil}.\n\nQuand seriez-vous disponible pour que nous en discutions rapidement ? Vous pouvez également me répondre directement par cet email ou passer nous voir au magasin de ${storeName}.\n\nÀ très vite,\nL'équipe Repair & Co`
+      `Bonjour ${prenom},\n\n` +
+      `Merci pour votre demande concernant votre appareil "${brand}" "${model}" avec "${panne}".\n\n` +
+      `Pour le traitement de cette réparation, faisant appel de la pièce XXXXXXXXX, le tarif est de [Tarif], auquel il faut déduire le bonus réparation de l'État de 25€, soit un reste à charge de [Reste à charge].\n\n` +
+      `Et, bonne nouvelle, cette offre est également cumulable avec notre carte fidélité 😁 qui permet de vraiment alléger ce montant 💪🏻. En plus, elle donne droit à de nombreuses réductions et services.\n\n` +
+      `Pour réaliser votre réparation, nos techniciens utiliseront tout leur savoir-faire et leur expérience. Votre appareil sera testé après réparation.\n\n` +
+      `N'hésitez pas à revenir vers nous (Tel/WhatsApp : +33 4 66 84 80 79) ou passer directement en boutique pour la prise en charge, ou bien à prendre RDV directement ici 😊\n\n` +
+      `Bon à savoir aussi 😉 : votre assurance de carte bancaire peut potentiellement vous aider sur le financement de la réparation et un paiement en 3 ou 4 fois vous sera proposé.\n\n` +
+      `À très bientôt chez ${storeName},\n\n` +
+      `[Prénom Technicien]\n` +
+      `Responsable Atelier – Repair&Co`
     );
     window.open(`mailto:${item.email}?subject=${subject}&body=${body}`);
     setShowRelanceMenu(false);
