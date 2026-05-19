@@ -22,6 +22,7 @@ import {
 } from '../components/ui/select';
 import { STORES, DEVICE_BRANDS, ISSUE_TYPES } from '../data/stores';
 import MiniSurvey from '../components/MiniSurvey';
+import { trackFormSubmission } from '../lib/analytics';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -118,6 +119,7 @@ const QuotePage = () => {
       const r = await axios.post(`${API_URL}/api/quote`, data);
       setDemandId(r.data?.id || null);
       setIsSuccess(true);
+      trackFormSubmission('devis', { store: data.store, device_type: data.device_type });
       toast.success('Demande envoyée avec succès !');
     } catch (error) {
       toast.error('Une erreur est survenue. Veuillez réessayer.');

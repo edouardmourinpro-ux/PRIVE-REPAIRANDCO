@@ -92,6 +92,16 @@ Convertit anciens statuts → simplifiés :
   - `/api/admin/demandes/{category}` accepte un paramètre `status` (nouveau | en_attente | pris_en_charge | cloture | client_perdu | all).
   - `/api/admin/export-all` accepte `status` en plus de `date_from`/`date_to` → CSV unifié filtré sur les 2 dimensions actives.
   - UI : nouvelle **barre de filtre par statut** sous les tabs catégorie, avec compteur exact à droite de chaque pastille (Tous | Nouveau | En attente | Prise en charge | Clôture | Perdu). Couleurs alignées sur les status badges. Les compteurs et la liste se mettent à jour en temps réel quand la plage de dates change.
+- **S13 (19/05/2026)** : Google Analytics GA4.
+  - Script `gtag.js` ajouté à `/app/frontend/public/index.html` avec measurement ID `G-MBR90KFN90` → toutes les pages sont trackées (page_view automatique).
+  - Helper centralisé `/app/frontend/src/lib/analytics.js` exposant `trackFormSubmission(form_type, extra)`.
+  - Évènement personnalisé `form_submission` déclenché à chaque soumission réussie des 5 formulaires avec un paramètre `form_type` permettant de les distinguer dans GA4 :
+    - `devis` (QuotePage) + `store`, `device_type`
+    - `rdv` (AppointmentPage) + `store`, `device_type`
+    - `contact` (ContactPage) + `subject`, `store`
+    - `rachat` (BuybackPage) + `brand`, `store`, `condition`
+    - `b2b` (EnterprisePage) + `fleet_size`, `need_type`
+  - Bandeau "Aperçu du Trafic" /admin : **non-implémenté** dans ce sprint (le Service Account Google Cloud n'est pas prêt côté utilisateur). À reprendre quand le JSON sera fourni.
 
 ## API Endpoints (mise à jour S12)
 - `GET /api/admin/stats?store=&date_from=&date_to=` → ajoute `by_category_status: {devis: {nouveau, en_attente, pris_en_charge, cloture, client_perdu}, contact: ..., ...}`

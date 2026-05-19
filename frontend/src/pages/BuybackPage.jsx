@@ -21,6 +21,7 @@ import {
 } from '../components/ui/select';
 import { STORES } from '../data/stores';
 import MiniSurvey from '../components/MiniSurvey';
+import { trackFormSubmission } from '../lib/analytics';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -58,6 +59,7 @@ const BuybackPage = () => {
       const r = await axios.post(`${API_URL}/api/buyback`, data);
       setDemandId(r.data?.id || null);
       setIsSuccess(true);
+      trackFormSubmission('rachat', { brand: data.brand, store: data.store, condition: data.condition });
       toast.success('Demande d\'estimation envoyée !');
     } catch (error) {
       toast.error('Une erreur est survenue. Veuillez réessayer.');

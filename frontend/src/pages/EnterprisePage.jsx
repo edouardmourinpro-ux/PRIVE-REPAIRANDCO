@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import MiniSurvey from '../components/MiniSurvey';
+import { trackFormSubmission } from '../lib/analytics';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -61,6 +62,7 @@ const EnterprisePage = () => {
       const r = await axios.post(`${API_URL}/api/b2b`, data);
       setDemandId(r.data?.id || null);
       setIsSuccess(true);
+      trackFormSubmission('b2b', { fleet_size: data.fleet_size, need_type: data.need_type });
       toast.success('Demande envoyée avec succès !');
     } catch (error) {
       toast.error('Une erreur est survenue. Veuillez réessayer.');

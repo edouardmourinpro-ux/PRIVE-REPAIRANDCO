@@ -22,6 +22,7 @@ import {
 } from '../components/ui/select';
 import { STORES } from '../data/stores';
 import MiniSurvey from '../components/MiniSurvey';
+import { trackFormSubmission } from '../lib/analytics';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -59,6 +60,7 @@ const ContactPage = () => {
       const r = await axios.post(`${API_URL}/api/contact`, data);
       setDemandId(r.data?.id || null);
       setIsSuccess(true);
+      trackFormSubmission('contact', { subject: data.subject, store: data.store || null });
       toast.success('Message envoyé avec succès !');
     } catch (error) {
       toast.error('Une erreur est survenue. Veuillez réessayer.');

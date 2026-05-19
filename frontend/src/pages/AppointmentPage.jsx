@@ -17,6 +17,7 @@ import {
 } from '../components/ui/select';
 import { STORES, DEVICE_BRANDS, ISSUE_TYPES } from '../data/stores';
 import MiniSurvey from '../components/MiniSurvey';
+import { trackFormSubmission } from '../lib/analytics';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -103,6 +104,7 @@ const AppointmentPage = () => {
       });
       setDemandId(r.data?.id || null);
       setIsSuccess(true);
+      trackFormSubmission('rdv', { store: selectedStoreId, device_type: deviceType || null });
       toast.success('Demande de rendez-vous envoyée !');
     } catch {
       toast.error('Une erreur est survenue. Veuillez réessayer.');
