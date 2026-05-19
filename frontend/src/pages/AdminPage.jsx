@@ -88,6 +88,7 @@ const AdminPage = () => {
   const [storeFilter, setStoreFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [stats, setStats] = useState(null);
   const [showRattrapageModal, setShowRattrapageModal] = useState(false);
   const [rattrapageCode, setRattrapageCode] = useState('');
@@ -111,11 +112,14 @@ const AdminPage = () => {
 
   const loadStats = useCallback(async () => {
     try {
-      const params = storeFilter ? { store: storeFilter } : {};
+      const params = {};
+      if (storeFilter) params.store = storeFilter;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
       const r = await axios.get(`${API_URL}/api/admin/stats`, { headers: authHeaders, params });
       setStats(r.data);
     } catch { setStats(null); }
-  }, [storeFilter, token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [storeFilter, dateFrom, dateTo, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadData = useCallback(async (tab = activeTab) => {
     setDataLoading(true);
@@ -124,18 +128,19 @@ const AdminPage = () => {
       if (storeFilter) params.store = storeFilter;
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
+      if (statusFilter && statusFilter !== 'all') params.status = statusFilter;
       const r = await axios.get(`${API_URL}/api/admin/demandes/${tab}`, { headers: authHeaders, params });
       setData(r.data);
     } catch { setData([]); }
     setDataLoading(false);
-  }, [activeTab, storeFilter, dateFrom, dateTo, token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, storeFilter, dateFrom, dateTo, statusFilter, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (isLoggedIn) {
       loadStats();
       loadData(activeTab);
     }
-  }, [isLoggedIn, activeTab, storeFilter, dateFrom, dateTo, loadStats, loadData]);
+  }, [isLoggedIn, activeTab, storeFilter, dateFrom, dateTo, statusFilter, loadStats, loadData]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -204,6 +209,7 @@ const AdminPage = () => {
       if (storeFilter) params.store = storeFilter;
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
+      if (statusFilter && statusFilter !== 'all') params.status = statusFilter;
       const r = await axios.get(`${API_URL}/api/admin/export-all`, {
         headers: authHeaders,
         params,
@@ -311,7 +317,7 @@ const AdminPage = () => {
         </div>
 
         {/* Tabs */}
-        <div className="flex flex-wrap gap-2 mb-6">
+        <div className="flex flex-wrap gap-2 mb-4">
           {tabs.map(t => (
             <button
               key={t.id}
@@ -326,6 +332,38 @@ const AdminPage = () => {
               {t.count !== undefined && <span className={`ml-1 px-2 py-0.5 rounded-full text-xs ${activeTab === t.id ? 'bg-white/20' : 'bg-[#E8F5EE]'}`}>{t.count}</span>}
             </button>
           ))}
+        </div>
+
+        {/* Status filter bar */}
+        <div className="flex flex-wrap gap-2 mb-6" data-testid="admin-status-filter-bar">
+          {(() => {
+            const catStats = stats?.by_category_status?.[activeTab] || {};
+            const totalCat = stats?.[activeTab] || 0;
+            const statusTabs = [
+              { value: 'all',            label: 'Tous',           count: totalCat,                       activeBg: 'bg-[#1A1A2E]',     activeText: 'text-white',           idleBg: 'bg-white',         idleText: 'text-[#1A1A2E]',  border: 'border-[#E8F5EE]' },
+              { value: 'nouveau',        label: 'Nouveau',        count: catStats.nouveau || 0,          activeBg: 'bg-rose-500',      activeText: 'text-white',           idleBg: 'bg-rose-50',       idleText: 'text-rose-700',   border: 'border-rose-100' },
+              { value: 'en_attente',     label: 'En attente',     count: catStats.en_attente || 0,       activeBg: 'bg-orange-500',    activeText: 'text-white',           idleBg: 'bg-orange-50',     idleText: 'text-orange-700', border: 'border-orange-100' },
+              { value: 'pris_en_charge', label: 'Prise en charge',count: catStats.pris_en_charge || 0,   activeBg: 'bg-blue-500',      activeText: 'text-white',           idleBg: 'bg-blue-50',       idleText: 'text-blue-700',   border: 'border-blue-100' },
+              { value: 'cloture',        label: 'Clôture',        count: catStats.cloture || 0,          activeBg: 'bg-[#1A5C3A]',     activeText: 'text-white',           idleBg: 'bg-[#E8F5EE]',     idleText: 'text-[#1A5C3A]',  border: 'border-[#E8F5EE]' },
+              { value: 'client_perdu',   label: 'Perdu',          count: catStats.client_perdu || 0,     activeBg: 'bg-red-600',       activeText: 'text-white',           idleBg: 'bg-red-50',        idleText: 'text-red-600',    border: 'border-red-100' },
+            ];
+            return statusTabs.map(st => {
+              const active = statusFilter === st.value;
+              return (
+                <button
+                  key={st.value}
+                  onClick={() => setStatusFilter(st.value)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                    active ? `${st.activeBg} ${st.activeText} border-transparent` : `${st.idleBg} ${st.idleText} ${st.border} hover:opacity-80`
+                  }`}
+                  data-testid={`admin-status-filter-${st.value}`}
+                >
+                  {st.label}
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${active ? 'bg-white/25' : 'bg-white/70'}`}>{st.count}</span>
+                </button>
+              );
+            });
+          })()}
         </div>
 
         {/* Content */}

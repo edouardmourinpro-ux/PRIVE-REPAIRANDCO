@@ -87,6 +87,16 @@ Convertit anciens statuts → simplifiés :
 - **S10.2 (08/05/2026)** : Email transactionnel refondu (header vert #1A5C3A, sections Informations/Client/Détails, bouton CTA "Ouvrir dans /admin", action 15 min). Email envoyé simultanément avec WhatsApp aux 2 destinataires (`david.m@repairandco.fr` + `edouardmourinpro@gmail.com`). Le endpoint `/api/demandes/{cat}/{id}/survey` envoie un email de suivi quand le client remplit la mini-enquête, incluant les réponses + tous les détails de la demande.
 - **S10.3 (08/05/2026)** : Harmonisation visuelle /admin — fiches RDV (et Rachat) affichent maintenant les mêmes colonnes structurées que les Devis. AppointmentPage envoie des champs `rdv_*` structurés (device_type, brand, model, issue, date, slot). Parser legacy intégré pour les anciennes fiches RDV stockées avec uniquement le bloc message. Libellés propres ("Bon état" au lieu de "bon", "Smartphone" au lieu de "smartphone").
 - **S11 (11/05/2026)** : Admin Phase 2 — Filtre par plage de dates (date_from/date_to) côté backend + UI ; Suppression sécurisée par code (`DELETE_CODE=MOUR1` dans .env) avec modale de confirmation + endpoint `DELETE /admin/demandes/{category}/{id}` ; Renommage "Closé" → "Clôture" ; Titres fiches format `{Prénom} / {Appareil} / {Date RDV}` ; Numéro Montpellier Sud mis à jour (09 82 81 89 34) ; Logs EMAIL améliorés (destinataires visibles dans les logs).
+- **S12 (19/05/2026)** : Admin Dashboard — Compteurs dynamiques & Barre de filtre par statut.
+  - `/api/admin/stats` accepte désormais `date_from` / `date_to` : tous les compteurs (total, par catégorie, par statut, et nouveau `by_category_status`) reflètent la plage de dates active.
+  - `/api/admin/demandes/{category}` accepte un paramètre `status` (nouveau | en_attente | pris_en_charge | cloture | client_perdu | all).
+  - `/api/admin/export-all` accepte `status` en plus de `date_from`/`date_to` → CSV unifié filtré sur les 2 dimensions actives.
+  - UI : nouvelle **barre de filtre par statut** sous les tabs catégorie, avec compteur exact à droite de chaque pastille (Tous | Nouveau | En attente | Prise en charge | Clôture | Perdu). Couleurs alignées sur les status badges. Les compteurs et la liste se mettent à jour en temps réel quand la plage de dates change.
+
+## API Endpoints (mise à jour S12)
+- `GET /api/admin/stats?store=&date_from=&date_to=` → ajoute `by_category_status: {devis: {nouveau, en_attente, pris_en_charge, cloture, client_perdu}, contact: ..., ...}`
+- `GET /api/admin/demandes/{category}?store=&date_from=&date_to=&status=`
+- `GET /api/admin/export-all?store=&date_from=&date_to=&status=` (CSV unifié)
 
 ## Backlog
 - **P1** : Google Analytics GA4 (en attente ID utilisateur)

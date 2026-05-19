@@ -547,13 +547,15 @@ COLLECTIONS = {
 }
 
 @api_router.get("/admin/demandes/{category}")
-async def get_demandes(category: str, store: Optional[str] = Query(None), date_from: Optional[str] = Query(None), date_to: Optional[str] = Query(None), user=Depends(get_current_admin)):
+async def get_demandes(category: str, store: Optional[str] = Query(None), date_from: Optional[str] = Query(None), date_to: Optional[str] = Query(None), status: Optional[str] = Query(None), user=Depends(get_current_admin)):
     col_name = COLLECTIONS.get(category)
     if not col_name:
         raise HTTPException(status_code=400, detail="Catégorie invalide")
     query = {}
     if store:
         query["store"] = store
+    if status and status != "all":
+        query["status"] = status
     if date_from or date_to:
         date_filter = {}
         if date_from:
@@ -749,25 +751,44 @@ async def push_whatsapp_rattrapage(body: DeleteRequest, user=Depends(get_current
 
 
 @api_router.get("/admin/stats")
-async def get_admin_stats(store: Optional[str] = Query(None), user=Depends(get_current_admin)):
-    query = {"store": store} if store else {}
+async def get_admin_stats(
+    store: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    user=Depends(get_current_admin),
+):
+    base_query = {}
+    if store:
+        base_query["store"] = store
+    if date_from or date_to:
+        date_filter = {}
+        if date_from:
+            date_filter["$gte"] = date_from
+        if date_to:
+            date_filter["$lte"] = date_to + "T23:59:59.999999"
+        base_query["created_at"] = date_filter
+
     stats = {}
     total_all = 0
     by_status = {"nouveau": 0, "en_attente": 0, "pris_en_charge": 0, "cloture": 0, "client_perdu": 0}
+    by_category_status = {}
     for key, col_name in COLLECTIONS.items():
-        count = await db[col_name].count_documents(query)
+        count = await db[col_name].count_documents(base_query)
         stats[key] = count
         total_all += count
-        # Per-status counts (post-migration only the 3 new statuses exist)
+        cat_statuses = {}
         for st in by_status.keys():
-            c = await db[col_name].count_documents({**query, "status": st})
+            c = await db[col_name].count_documents({**base_query, "status": st})
             by_status[st] += c
+            cat_statuses[st] = c
+        by_category_status[key] = cat_statuses
     stats["total"] = total_all
     stats["nouveau"] = by_status["nouveau"]
     stats["en_attente"] = by_status["en_attente"]
     stats["pris_en_charge"] = by_status["pris_en_charge"]
     stats["cloture"] = by_status["cloture"]
     stats["client_perdu"] = by_status["client_perdu"]
+    stats["by_category_status"] = by_category_status
     return stats
 
 # Keep old routes as aliases for backward compat
@@ -783,7 +804,7 @@ def format_date_fr(iso_str: str) -> str:
 
 
 @api_router.get("/admin/export-all")
-async def export_all_demandes_csv(store: Optional[str] = Query(None), date_from: Optional[str] = Query(None), date_to: Optional[str] = Query(None), user=Depends(get_current_admin)):
+async def export_all_demandes_csv(store: Optional[str] = Query(None), date_from: Optional[str] = Query(None), date_to: Optional[str] = Query(None), status: Optional[str] = Query(None), user=Depends(get_current_admin)):
     """Export all leads from all categories in one unified CSV file."""
     TYPE_LABELS = {"devis": "Devis", "contact": "RDV/Contact", "entreprise": "Entreprise", "rachat": "Rachat"}
     COLUMN_LABELS = {
@@ -802,6 +823,8 @@ async def export_all_demandes_csv(store: Optional[str] = Query(None), date_from:
     query = {}
     if store:
         query["store"] = store
+    if status and status != "all":
+        query["status"] = status
     if date_from or date_to:
         df = {}
         if date_from:
