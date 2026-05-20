@@ -346,14 +346,17 @@ class StaffFeedbackRequest(BaseModel):
     staff_site_opinion: Optional[str] = None
     staff_dislikes: Optional[str] = None
 
-# Allowed status values (Phase 1 simplification)
-ALLOWED_STATUSES = {"nouveau", "en_attente", "pris_en_charge", "cloture", "client_perdu"}
+# Allowed status values (Phase 2 — pipeline 6 statuts)
+ALLOWED_STATUSES = {"nouveau", "contacte", "pris_en_charge", "facture", "refus_devis", "client_perdu"}
 # Map legacy → new
 LEGACY_STATUS_MAP = {
-    "contacte": "pris_en_charge",
+    "en_attente": "contacte",
+    "cloture": "facture",
+    # Older legacy values
+    "contacte_old": "contacte",
     "rdv_fixe": "pris_en_charge",
-    "repare": "cloture",
-    "annule": "cloture",
+    "repare": "facture",
+    "annule": "facture",
 }
 
 
@@ -770,7 +773,7 @@ async def get_admin_stats(
 
     stats = {}
     total_all = 0
-    by_status = {"nouveau": 0, "en_attente": 0, "pris_en_charge": 0, "cloture": 0, "client_perdu": 0}
+    by_status = {"nouveau": 0, "contacte": 0, "pris_en_charge": 0, "facture": 0, "refus_devis": 0, "client_perdu": 0}
     by_category_status = {}
     for key, col_name in COLLECTIONS.items():
         count = await db[col_name].count_documents(base_query)
@@ -784,9 +787,10 @@ async def get_admin_stats(
         by_category_status[key] = cat_statuses
     stats["total"] = total_all
     stats["nouveau"] = by_status["nouveau"]
-    stats["en_attente"] = by_status["en_attente"]
+    stats["contacte"] = by_status["contacte"]
     stats["pris_en_charge"] = by_status["pris_en_charge"]
-    stats["cloture"] = by_status["cloture"]
+    stats["facture"] = by_status["facture"]
+    stats["refus_devis"] = by_status["refus_devis"]
     stats["client_perdu"] = by_status["client_perdu"]
     stats["by_category_status"] = by_category_status
     return stats
@@ -979,22 +983,22 @@ app.include_router(api_router)
 app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','), allow_methods=["*"], allow_headers=["*"])
 
 async def migrate_legacy_statuses():
-    """One-shot migration: convert legacy status values to the simplified set."""
+    """One-shot migration: convert legacy status values to the current 6-status pipeline."""
     total = 0
     for col in COLLECTIONS.values():
         for old, new in LEGACY_STATUS_MAP.items():
             r = await db[col].update_many({"status": old}, {"$set": {"status": new}})
             total += r.modified_count
-        # Old "pending" or missing/unknown → en_attente
-        r = await db[col].update_many({"status": "pending"}, {"$set": {"status": "en_attente"}})
+        # Old "pending" or missing/unknown → contacte
+        r = await db[col].update_many({"status": "pending"}, {"$set": {"status": "contacte"}})
         total += r.modified_count
         r = await db[col].update_many(
             {"$or": [{"status": {"$exists": False}}, {"status": None}, {"status": ""}]},
-            {"$set": {"status": "en_attente"}},
+            {"$set": {"status": "nouveau"}},
         )
         total += r.modified_count
     if total:
-        logger.info(f"Migrated {total} legacy statuses to en_attente/pris_en_charge/cloture")
+        logger.info(f"Migrated {total} statuses to 6-status pipeline (contacte/facture/refus_devis...)")
 
 @app.on_event("startup")
 async def startup():

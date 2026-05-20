@@ -15,11 +15,12 @@ import { STORES } from '../data/stores';
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const STATUS_OPTIONS = [
-  { value: 'nouveau',        label: 'Nouveau',         color: 'bg-rose-100 text-rose-700' },
-  { value: 'en_attente',     label: 'En attente',      color: 'bg-orange-100 text-orange-700' },
-  { value: 'pris_en_charge', label: 'Prise en charge', color: 'bg-blue-100 text-blue-700' },
-  { value: 'cloture',        label: 'Clôture',         color: 'bg-[#E8F5EE] text-[#1A5C3A]' },
-  { value: 'client_perdu',   label: 'Client perdu',    color: 'bg-red-100 text-red-600' },
+  { value: 'nouveau',        label: 'Nouveau client',     color: 'bg-red-100 text-red-700' },
+  { value: 'contacte',       label: 'Client contacté',    color: 'bg-orange-100 text-orange-700' },
+  { value: 'pris_en_charge', label: 'Pris en charge',     color: 'bg-blue-100 text-blue-700' },
+  { value: 'facture',        label: 'Client Facturé',     color: 'bg-[#E8F5EE] text-[#1A5C3A]' },
+  { value: 'refus_devis',    label: 'Refus devis client', color: 'bg-gray-100 text-gray-700' },
+  { value: 'client_perdu',   label: 'Client Perdu',       color: 'bg-gray-200 text-gray-900' },
 ];
 
 const SOURCE_LABELS = {
@@ -268,7 +269,7 @@ const AdminPage = () => {
           <h1 className="text-lg font-bold">Admin — Repair&Co</h1>
           <div className="flex items-center gap-3">
             <span className="text-white/80 text-sm hidden sm:inline" data-testid="admin-total-count">
-              {stats?.total || 0} demandes · <span className="text-rose-300 font-semibold">{stats?.nouveau || 0} nouveau{(stats?.nouveau || 0) > 1 ? 'x' : ''}</span>
+              {stats?.total || 0} demandes · <span className="text-red-300 font-semibold">{stats?.nouveau || 0} à traiter</span>
             </span>
             <button
               onClick={() => { setRattrapageCode(''); setRattrapageError(''); setRattrapageResult(null); setShowRattrapageModal(true); }}
@@ -340,12 +341,13 @@ const AdminPage = () => {
             const catStats = stats?.by_category_status?.[activeTab] || {};
             const totalCat = stats?.[activeTab] || 0;
             const statusTabs = [
-              { value: 'all',            label: 'Tous',           count: totalCat,                       activeBg: 'bg-[#1A1A2E]',     activeText: 'text-white',           idleBg: 'bg-white',         idleText: 'text-[#1A1A2E]',  border: 'border-[#E8F5EE]' },
-              { value: 'nouveau',        label: 'Nouveau',        count: catStats.nouveau || 0,          activeBg: 'bg-rose-500',      activeText: 'text-white',           idleBg: 'bg-rose-50',       idleText: 'text-rose-700',   border: 'border-rose-100' },
-              { value: 'en_attente',     label: 'En attente',     count: catStats.en_attente || 0,       activeBg: 'bg-orange-500',    activeText: 'text-white',           idleBg: 'bg-orange-50',     idleText: 'text-orange-700', border: 'border-orange-100' },
-              { value: 'pris_en_charge', label: 'Prise en charge',count: catStats.pris_en_charge || 0,   activeBg: 'bg-blue-500',      activeText: 'text-white',           idleBg: 'bg-blue-50',       idleText: 'text-blue-700',   border: 'border-blue-100' },
-              { value: 'cloture',        label: 'Clôture',        count: catStats.cloture || 0,          activeBg: 'bg-[#1A5C3A]',     activeText: 'text-white',           idleBg: 'bg-[#E8F5EE]',     idleText: 'text-[#1A5C3A]',  border: 'border-[#E8F5EE]' },
-              { value: 'client_perdu',   label: 'Perdu',          count: catStats.client_perdu || 0,     activeBg: 'bg-red-600',       activeText: 'text-white',           idleBg: 'bg-red-50',        idleText: 'text-red-600',    border: 'border-red-100' },
+              { value: 'all',            label: 'Tous',                count: totalCat,                       activeBg: 'bg-[#1A1A2E]',   activeText: 'text-white', idleBg: 'bg-white',     idleText: 'text-[#1A1A2E]',  border: 'border-[#E8F5EE]' },
+              { value: 'nouveau',        label: 'Nouveau client',      count: catStats.nouveau || 0,          activeBg: 'bg-red-500',     activeText: 'text-white', idleBg: 'bg-red-50',    idleText: 'text-red-700',    border: 'border-red-100' },
+              { value: 'contacte',       label: 'Client contacté',     count: catStats.contacte || 0,         activeBg: 'bg-orange-500',  activeText: 'text-white', idleBg: 'bg-orange-50', idleText: 'text-orange-700', border: 'border-orange-100' },
+              { value: 'pris_en_charge', label: 'Pris en charge',      count: catStats.pris_en_charge || 0,   activeBg: 'bg-blue-500',    activeText: 'text-white', idleBg: 'bg-blue-50',   idleText: 'text-blue-700',   border: 'border-blue-100' },
+              { value: 'facture',        label: 'Client Facturé',      count: catStats.facture || 0,          activeBg: 'bg-[#1A5C3A]',   activeText: 'text-white', idleBg: 'bg-[#E8F5EE]', idleText: 'text-[#1A5C3A]',  border: 'border-[#E8F5EE]' },
+              { value: 'refus_devis',    label: 'Refus devis',         count: catStats.refus_devis || 0,      activeBg: 'bg-gray-500',    activeText: 'text-white', idleBg: 'bg-gray-50',   idleText: 'text-gray-700',   border: 'border-gray-200' },
+              { value: 'client_perdu',   label: 'Client Perdu',        count: catStats.client_perdu || 0,     activeBg: 'bg-gray-800',    activeText: 'text-white', idleBg: 'bg-gray-100',  idleText: 'text-gray-900',   border: 'border-gray-300' },
             ];
             return statusTabs.map(st => {
               const active = statusFilter === st.value;
@@ -526,7 +528,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete,
 
   const date = item.created_at ? new Date(item.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   const currentStatus = STATUS_OPTIONS.find(s => s.value === (item.status || 'nouveau')) || STATUS_OPTIONS[0];
-  const isClosed = (item.status || 'en_attente') === 'cloture';
+  const isClosed = (item.status || 'nouveau') === 'facture';
   const hasCustomerSurvey = item.customer_source || item.customer_feedback;
 
   const handleStatusChange = async (newStatus) => {
@@ -535,11 +537,11 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete,
       setShowLostModal(true);
       return;
     }
-    if (newStatus === 'cloture') {
+    if (newStatus === 'facture') {
       setOpen(true);
     }
     await onStatusChange(item.id, newStatus);
-    if (newStatus === 'cloture') {
+    if (newStatus === 'facture') {
       setTimeout(() => {
         feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 350);
@@ -668,7 +670,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete,
               {currentStatus.label}
             </span>
             <select
-              value={item.status || 'en_attente'}
+              value={item.status || 'nouveau'}
               onChange={e => handleStatusChange(e.target.value)}
               onClick={e => e.stopPropagation()}
               className="px-2 py-1.5 border border-[#E8F5EE] rounded-lg text-xs text-[#1A1A2E] bg-white focus:outline-none focus:border-[#2ECC71]"
@@ -765,7 +767,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete,
               </div>
             )}
 
-            {/* Staff feedback (visible inline once status = cloture) */}
+            {/* Staff feedback (visible inline once status = facture / Client Facturé) */}
             {isClosed && (
               <div ref={feedbackRef}>
                 <StaffFeedbackForm item={item} onSave={onSaveStaffFeedback} />

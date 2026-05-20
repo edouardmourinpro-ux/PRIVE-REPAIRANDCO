@@ -102,10 +102,22 @@ Convertit anciens statuts → simplifiés :
     - `rachat` (BuybackPage) + `brand`, `store`, `condition`
     - `b2b` (EnterprisePage) + `fleet_size`, `need_type`
   - Bandeau "Aperçu du Trafic" /admin : **non-implémenté** dans ce sprint (le Service Account Google Cloud n'est pas prêt côté utilisateur). À reprendre quand le JSON sera fourni.
+- **S14 (20/05/2026)** : Pipeline CRM refondu — passage de 5 → **6 statuts** avec libellés précis et couleurs sémantiques.
+  - Nouveaux statuts (clés DB → labels UI) :
+    - `nouveau` → **Nouveau client** (rouge vif, "À traiter")
+    - `contacte` → **Client contacté** (orange, "En attente de réponse") ← migration depuis `en_attente`
+    - `pris_en_charge` → **Pris en charge** (bleu, "PEC ou Devis effectué")
+    - `facture` → **Client Facturé** (vert foncé `#1A5C3A`, "Vente clôturée") ← migration depuis `cloture`
+    - `refus_devis` → **Refus devis client** (gris, "Décliné l'offre") — **nouveau**
+    - `client_perdu` → **Client Perdu** (gris foncé, "Jamais répondu/venu")
+  - `migrate_legacy_statuses()` au démarrage convertit automatiquement `en_attente` → `contacte`, `cloture` → `facture` (aucune donnée perdue).
+  - `ALLOWED_STATUSES`, `STATUS_OPTIONS`, `stats.by_category_status` et la barre de filtre par statut alignés sur les 6 nouvelles valeurs.
+  - Header `/admin` : "X demandes · Y à traiter" (au lieu de "Y nouveau(x)").
+  - L'enclenchement du formulaire feedback équipe a été déplacé de `cloture` vers `facture` (= clôture de vente).
 
-## API Endpoints (mise à jour S12)
-- `GET /api/admin/stats?store=&date_from=&date_to=` → ajoute `by_category_status: {devis: {nouveau, en_attente, pris_en_charge, cloture, client_perdu}, contact: ..., ...}`
-- `GET /api/admin/demandes/{category}?store=&date_from=&date_to=&status=`
+## API Endpoints (mise à jour S14)
+- `GET /api/admin/stats?store=&date_from=&date_to=` → `by_category_status: {devis: {nouveau, contacte, pris_en_charge, facture, refus_devis, client_perdu}, ...}`
+- `GET /api/admin/demandes/{category}?store=&date_from=&date_to=&status=` (status = all | nouveau | contacte | pris_en_charge | facture | refus_devis | client_perdu)
 - `GET /api/admin/export-all?store=&date_from=&date_to=&status=` (CSV unifié)
 
 ## Backlog
