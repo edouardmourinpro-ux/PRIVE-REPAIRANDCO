@@ -24,6 +24,7 @@ import uuid
 import bcrypt
 import jwt
 from datetime import datetime, timezone, timedelta
+from hiboutik_sync import sync_lead_to_hiboutik
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -389,6 +390,9 @@ async def create_quote(input: QuoteRequestCreate):
     doc = input.model_dump()
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "devis"})
     await db.demandes_devis.insert_one(doc)
+    asyncio.ensure_future(sync_lead_to_hiboutik(
+        name=doc['name'], phone=doc['phone'], email=doc['email'],
+    ))
     asyncio.ensure_future(send_notification(
         f"[Repair&Co] Nouveau devis — {doc['name']} — {store_name}",
         build_email_html(
@@ -428,6 +432,9 @@ async def create_contact(input: ContactRequestCreate):
     doc = input.model_dump()
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "contact"})
     await db.demandes_contact.insert_one(doc)
+    asyncio.ensure_future(sync_lead_to_hiboutik(
+        name=doc['name'], phone=doc.get('phone'), email=doc['email'],
+    ))
     is_rdv = bool(doc.get('rdv_device_type') or doc.get('rdv_brand') or (doc.get('subject') or '').startswith('RDV'))
     demand_label = "RDV" if is_rdv else "message"
     asyncio.ensure_future(send_notification(
@@ -480,6 +487,10 @@ async def create_b2b(input: B2BRequestCreate):
     doc = input.model_dump()
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "entreprise"})
     await db.demandes_entreprise.insert_one(doc)
+    asyncio.ensure_future(sync_lead_to_hiboutik(
+        first_name=doc['first_name'], last_name=doc['last_name'],
+        phone=doc['phone'], email=doc['email'],
+    ))
     full_name = f"{doc['first_name']} {doc['last_name']}".strip()
     asyncio.ensure_future(send_notification(
         f"[Repair&Co] Nouveau B2B — {full_name} — {doc['company']}",
@@ -510,6 +521,9 @@ async def create_buyback(input: BuybackRequestCreate):
     doc = input.model_dump()
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "rachat"})
     await db.demandes_rachat.insert_one(doc)
+    asyncio.ensure_future(sync_lead_to_hiboutik(
+        name=doc['name'], phone=doc['phone'],
+    ))
     asyncio.ensure_future(send_notification(
         f"[Repair&Co] Nouveau rachat — {doc['name']} — {store_name}",
         build_email_html(
