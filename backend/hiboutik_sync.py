@@ -38,31 +38,54 @@ def _create_customer_blocking(
         logger.warning("Hiboutik sync skipped: credentials missing in env")
         return None
 
-    url = f"https://{HIBOUTIK_ACCOUNT}.hiboutik.com/api/customers"
-    payload = {
+    base = f"https://{HIBOUTIK_ACCOUNT}.hiboutik.com/api"
+    auth = (HIBOUTIK_EMAIL, HIBOUTIK_API_KEY)
+
+    # 1. POST création — Hiboutik n'accepte ici que first_name, last_name, email, country
+    create_payload = {
         "customers_first_name": (first_name or "").strip(),
         "customers_last_name": (last_name or "").strip(),
         "customers_country": "FRA",
-        "customers_code": code,
     }
     if email:
-        payload["customers_email"] = email.strip()
-    if phone:
-        payload["phone"] = phone.strip()  # Hiboutik POST takes 'phone' (no prefix)
+        create_payload["customers_email"] = email.strip()
 
-    resp = requests.post(
-        url, data=payload,
-        auth=(HIBOUTIK_EMAIL, HIBOUTIK_API_KEY),
-        timeout=15,
-    )
+    resp = requests.post(f"{base}/customers", data=create_payload, auth=auth, timeout=15)
     if resp.status_code >= 300:
         logger.error(f"Hiboutik POST /customers failed: {resp.status_code} {resp.text[:200]}")
         return None
     try:
-        return resp.json()
+        new_id = resp.json().get("customers_id")
     except Exception:
         logger.error(f"Hiboutik POST /customers: non-JSON response: {resp.text[:200]}")
         return None
+    if not new_id:
+        logger.error("Hiboutik POST /customers: no customers_id in response")
+        return None
+
+    # 2. PUT phone — Hiboutik ignore le phone au POST, il faut un PUT séparé
+    if phone:
+        try:
+            requests.put(
+                f"{base}/customer/{new_id}",
+                data={"customers_attribute": "phone", "new_value": phone.strip()},
+                auth=auth, timeout=10,
+            )
+        except Exception as e:
+            logger.warning(f"Hiboutik PUT phone failed for {new_id}: {e}")
+
+    # 3. PUT customers_code (notre pseudo-tag "online")
+    if code:
+        try:
+            requests.put(
+                f"{base}/customer/{new_id}",
+                data={"customers_attribute": "customers_code", "new_value": code},
+                auth=auth, timeout=10,
+            )
+        except Exception as e:
+            logger.warning(f"Hiboutik PUT customers_code failed for {new_id}: {e}")
+
+    return {"customers_id": new_id}
 
 async def sync_lead_to_hiboutik(
     name: Optional[str] = None,
