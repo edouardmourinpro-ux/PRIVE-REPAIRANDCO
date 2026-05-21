@@ -74,16 +74,16 @@ def _create_customer_blocking(
         except Exception as e:
             logger.warning(f"Hiboutik PUT phone failed for {new_id}: {e}")
 
-    # 3. PUT customers_code (notre pseudo-tag "online")
+    # 3. PUT customers_misc — on stocke "online" dans Misc (visible dans l'admin Hiboutik)
     if code:
         try:
             requests.put(
                 f"{base}/customer/{new_id}",
-                data={"customers_attribute": "customers_code", "new_value": code},
+                data={"customers_attribute": "customers_misc", "new_value": code},
                 auth=auth, timeout=10,
             )
         except Exception as e:
-            logger.warning(f"Hiboutik PUT customers_code failed for {new_id}: {e}")
+            logger.warning(f"Hiboutik PUT customers_misc failed for {new_id}: {e}")
 
     return {"customers_id": new_id}
 
