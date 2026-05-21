@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
+import { toast } from 'sonner';
 import {
   LogOut, FileText, MessageSquare, Building2, Recycle,
   Loader2, ChevronDown, ChevronUp, Clock, Phone, Mail,
-  Download, Filter, Sparkles, MessageCircle, Save, Trash2, SendHorizontal, UserX, RefreshCw,
+  Download, Filter, Sparkles, MessageCircle, Save, Trash2, SendHorizontal, UserX, RefreshCw, ExternalLink,
 } from 'lucide-react';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
@@ -757,6 +758,21 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete,
                 </div>
               )}
               {item.email && <a href={`mailto:${item.email}`} className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#E8F5EE] rounded-full text-xs text-[#1A5C3A] font-medium hover:bg-[#2ECC71]/20" data-testid={`demand-email-${item.id}`}><Mail size={12} />Email</a>}
+              {item.hiboutik_customer_id && (
+                <button
+                  onClick={() => {
+                    const id = String(item.hiboutik_customer_id);
+                    try { navigator.clipboard.writeText(id); } catch { /* clipboard blocked */ }
+                    window.open('https://repairandco3475.hiboutik.com/', '_blank');
+                    toast.success(`ID #${id} copié — colle-le dans la barre de recherche Hiboutik (Cmd+V)`);
+                  }}
+                  title={`Client Hiboutik #${item.hiboutik_customer_id}`}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#1A5C3A] rounded-full text-xs text-white font-medium hover:bg-[#154a30] transition-colors"
+                  data-testid={`demand-hiboutik-${item.id}`}
+                >
+                  <ExternalLink size={12} /> Voir dans Hiboutik
+                </button>
+              )}
             </div>
 
             {/* Raison perte client */}

@@ -94,26 +94,28 @@ async def sync_lead_to_hiboutik(
     email: Optional[str] = None,
     phone: Optional[str] = None,
     code: str = "online",
-) -> None:
-    """Create a Hiboutik customer from a new lead. Non-blocking, never raises.
-
-    Pass `name` (full name string) OR `first_name` + `last_name` separately.
+) -> Optional[int]:
+    """Crée un client Hiboutik depuis un lead. Non-bloquant, ne raise jamais.
+    Retourne le customers_id Hiboutik, ou None en cas d'échec.
     """
     try:
         if not first_name and not last_name and name:
             first_name, last_name = _split_name(name)
         if not first_name and not last_name:
             logger.warning("Hiboutik sync skipped: no name provided")
-            return
+            return None
 
         result = await asyncio.to_thread(
             _create_customer_blocking, first_name, last_name, email, phone, code,
         )
         if result and result.get("customers_id"):
+            customer_id = result["customers_id"]
             logger.info(
-                f"Hiboutik customer created: id={result['customers_id']} "
+                f"Hiboutik customer created: id={customer_id} "
                 f"({first_name} {last_name} · {code})"
             )
+            return customer_id
+        return None
     except Exception as e:
-        # Never propagate — Hiboutik issues must NOT break a lead being saved
         logger.error(f"Hiboutik sync error (non-fatal): {e}")
+        return None
