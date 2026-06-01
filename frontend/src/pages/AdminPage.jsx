@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import {
   LogOut, FileText, MessageSquare, Building2, Recycle,
   Loader2, ChevronDown, ChevronUp, Clock, Phone, Mail,
-  Download, Filter, Sparkles, MessageCircle, Save, Trash2, SendHorizontal, UserX, RefreshCw, ExternalLink,
+  Download, Filter, Sparkles, MessageCircle, Save, Trash2, UserX, RefreshCw, ExternalLink,
 } from 'lucide-react';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
@@ -444,20 +444,12 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete,
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showLostModal, setShowLostModal] = useState(false);
   const [lostReason, setLostReason] = useState('');
-  const [showRelanceMenu, setShowRelanceMenu] = useState(false);
-  const relanceRef = useRef(null);
   const [showPushModal, setShowPushModal] = useState(false);
   const [pushCode, setPushCode] = useState('');
   const [pushError, setPushError] = useState('');
   const [pushLoading, setPushLoading] = useState(false);
   const [pushSuccess, setPushSuccess] = useState(false);
 
-  // Close relance menu on outside click
-  useEffect(() => {
-    const handler = (e) => { if (relanceRef.current && !relanceRef.current.contains(e.target)) setShowRelanceMenu(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
   const handleDeleteSubmit = async () => {
     setDeleteLoading(true);
     setDeleteError('');
@@ -489,42 +481,40 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete,
   };
 
   const getPrenom = () => item.first_name || (item.name || '').split(' ')[0] || '';
-  const getAppareil = () => {
-    const legacy = parseRdvMessage(item.message);
-    return [item.rdv_brand || item.brand || legacy.brand, item.rdv_model || item.model || legacy.model].filter(Boolean).join(' ') || 'votre appareil';
+  const getNom = () => item.name || item.last_name || '';
+  const getStore = () => STORES.find(s => s.id === item.store) || null;
+  const getStoreName = () => getStore()?.name || item.store || '';
+  const getStorePhone = () => getStore()?.phone || '04 67 71 67 69';
+
+  const buildRelanceText = () => {
+    const prenom = getPrenom();
+    const nom = getNom();
+    const storeName = getStoreName();
+    const storePhone = getStorePhone();
+    return (
+      `Bonjour ${prenom} ${nom},\n\n` +
+      `Nous avons bien pris en compte votre demande de réparation.\n\n` +
+      `Afin de vous répondre le plus finement possible, nous aurions besoin de vous poser quelques questions techniques.\n\n` +
+      `Pourriez-vous nous rappeler s'il vous plaît ? Toute l'équipe sera à votre disposition au ${storePhone}.\n\n` +
+      `À l'aide de ces précisions, nous vous indiquerons le prix le plus juste, en tenant compte notamment :\n` +
+      `- Des pièces les plus adaptées,\n` +
+      `- De la réduction Qualirepar pour laquelle nous sommes labellisés 💪.\n\n` +
+      `Bon à savoir aussi : un paiement en 3 ou 4 fois vous sera proposé.\n\n` +
+      `À très bientôt,\n` +
+      `L'équipe Repair & Co ${storeName}`
+    );
   };
-  const getStoreName = () => STORES.find(s => s.id === item.store)?.name || item.store || '';
 
   const handleRelanceEmail = () => {
-    const prenom = getPrenom();
-    const brand = item.rdv_brand || item.brand || '';
-    const model = item.rdv_model || item.model || '';
-    const panne = item.rdv_issue || (item.issue_types || []).join(', ') || '';
-    const storeName = getStoreName();
     const subject = encodeURIComponent('Votre demande de réparation chez Repair & Co');
-    const body = encodeURIComponent(
-      `Bonjour ${prenom},\n\n` +
-      `Merci pour votre demande concernant votre appareil "${brand}" "${model}" avec "${panne}".\n\n` +
-      `Pour le traitement de cette réparation, faisant appel de la pièce XXXXXXXXX, le tarif est de [Tarif], auquel il faut déduire le bonus réparation de l'État de 25€, soit un reste à charge de [Reste à charge].\n\n` +
-      `Et, bonne nouvelle, cette offre est également cumulable avec notre carte fidélité 😁 qui permet de vraiment alléger ce montant 💪🏻. En plus, elle donne droit à de nombreuses réductions et services.\n\n` +
-      `Pour réaliser votre réparation, nos techniciens utiliseront tout leur savoir-faire et leur expérience. Votre appareil sera testé après réparation.\n\n` +
-      `N'hésitez pas à revenir vers nous (Tel/WhatsApp : +33 4 66 84 80 79) ou passer directement en boutique pour la prise en charge, ou bien à prendre RDV directement ici 😊\n\n` +
-      `Bon à savoir aussi 😉 : votre assurance de carte bancaire peut potentiellement vous aider sur le financement de la réparation et un paiement en 3 ou 4 fois vous sera proposé.\n\n` +
-      `À très bientôt chez ${storeName},\n\n` +
-      `[Prénom Technicien]\n` +
-      `Responsable Atelier – Repair&Co`
-    );
+    const body = encodeURIComponent(buildRelanceText());
     window.open(`mailto:${item.email}?subject=${subject}&body=${body}`);
-    setShowRelanceMenu(false);
   };
 
   const handleRelanceWA = () => {
-    const prenom = getPrenom();
-    const appareil = getAppareil();
     const phone = (item.phone || '').replace(/[\s\-().]/g, '').replace(/^0/, '33');
-    const text = encodeURIComponent(`Bonjour ${prenom}, c'est l'équipe Repair & Co ! J'ai tenté de vous appeler pour votre ${appareil}. À quel moment puis-je vous rappeler ?`);
+    const text = encodeURIComponent(buildRelanceText());
     window.open(`https://wa.me/${phone}?text=${text}`);
-    setShowRelanceMenu(false);
   };
 
   const date = item.created_at ? new Date(item.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
@@ -731,33 +721,24 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete,
 
             <div className="flex flex-wrap gap-2">
               {item.phone && <a href={`tel:${item.phone}`} className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#E8F5EE] rounded-full text-xs text-[#1A5C3A] font-medium hover:bg-[#2ECC71]/20" data-testid={`demand-call-${item.id}`}><Phone size={12} />Appeler</a>}
-              {/* Relancer button */}
-              {(item.phone || item.email) && (
-                <div className="relative" ref={relanceRef}>
-                  <button
-                    onClick={e => { e.stopPropagation(); setShowRelanceMenu(!showRelanceMenu); }}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#1A5C3A] rounded-full text-xs text-white font-medium hover:bg-[#2ECC71] transition-colors"
-                    data-testid={`demand-relance-${item.id}`}
-                  >
-                    <SendHorizontal size={12} /> Relancer
-                  </button>
-                  {showRelanceMenu && (
-                    <div className="absolute left-0 bottom-full mb-1 bg-white shadow-xl rounded-xl border border-[#E8F5EE] z-40 min-w-[150px] py-1">
-                      {item.email && (
-                        <button onClick={handleRelanceEmail} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm hover:bg-[#E8F5EE] text-[#1A1A2E]">
-                          <Mail size={13} className="text-[#1A5C3A]" /> Email
-                        </button>
-                      )}
-                      {item.phone && (
-                        <button onClick={handleRelanceWA} className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm hover:bg-[#E8F5EE] text-[#1A1A2E]">
-                          <MessageCircle size={13} className="text-[#2ECC71]" /> WhatsApp
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
+              {item.email && (
+                <button
+                  onClick={handleRelanceEmail}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#1A5C3A] rounded-full text-xs text-white font-medium hover:bg-[#2ECC71] transition-colors"
+                  data-testid={`demand-relance-email-${item.id}`}
+                >
+                  <Mail size={12} /> Relance Email
+                </button>
               )}
-              {item.email && <a href={`mailto:${item.email}`} className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#E8F5EE] rounded-full text-xs text-[#1A5C3A] font-medium hover:bg-[#2ECC71]/20" data-testid={`demand-email-${item.id}`}><Mail size={12} />Email</a>}
+              {item.phone && (
+                <button
+                  onClick={handleRelanceWA}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#2ECC71] rounded-full text-xs text-white font-medium hover:bg-[#1A5C3A] transition-colors"
+                  data-testid={`demand-relance-wa-${item.id}`}
+                >
+                  <MessageCircle size={12} /> Relance WhatsApp
+                </button>
+              )}
               {item.hiboutik_customer_id && (
                 <button
                   onClick={() => {

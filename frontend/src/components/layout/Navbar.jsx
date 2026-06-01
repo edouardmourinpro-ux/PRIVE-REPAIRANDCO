@@ -37,7 +37,7 @@ export const Navbar = () => {
               ))}
             </div>
             <div className="hidden lg:flex items-center gap-3">
-              <Link to="/qui-sommes-nous" data-testid="nav-about"><Button variant="outline" className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full">Qui sommes-nous</Button></Link>
+              <Link to="/qui-sommes-nous" data-testid="nav-about"><Button variant="outline" className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full">Qui sommes-nous ?</Button></Link>
               <Link to="/entreprises" data-testid="nav-b2b"><Button className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full">Services Entreprise</Button></Link>
             </div>
             <button data-testid="mobile-menu-toggle" className="lg:hidden p-2 text-[#1A5C3A]" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} aria-label="Toggle menu">
@@ -53,7 +53,7 @@ export const Navbar = () => {
               <Link key={link.to} to={link.to} data-testid={`mobile-nav-${link.to.replace('/', '') || 'home'}`} className={`text-lg font-medium py-3 border-b border-[#E8F5EE] ${isActive(link.to) ? 'text-[#1A5C3A]' : 'text-[#1A1A2E]'}`}>{link.label}</Link>
             ))}
             <div className="pt-4 flex flex-col gap-3">
-              <Link to="/qui-sommes-nous" data-testid="mobile-nav-about"><Button variant="outline" className="w-full border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full">Qui sommes-nous</Button></Link>
+              <Link to="/qui-sommes-nous" data-testid="mobile-nav-about"><Button variant="outline" className="w-full border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full">Qui sommes-nous ?</Button></Link>
               <Link to="/entreprises" data-testid="mobile-nav-b2b"><Button className="w-full bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full">Services Entreprise</Button></Link>
             </div>
             <div className="pt-6 border-t border-[#E8F5EE]">
