@@ -404,7 +404,8 @@ async def create_quote(input: QuoteRequestCreate):
     await db.demandes_devis.insert_one(doc)
     asyncio.ensure_future(_sync_and_persist(
         "demandes_devis", doc["id"],
-        name=doc['name'], phone=doc['phone'], email=doc['email'],
+        first_name=doc.get('first_name'), last_name=doc['name'],
+        phone=doc['phone'], email=doc['email'],
     ))
     asyncio.ensure_future(send_notification(
         f"[Repair&Co] Nouveau devis — {doc['name']} — {store_name}",
@@ -447,7 +448,8 @@ async def create_contact(input: ContactRequestCreate):
     await db.demandes_contact.insert_one(doc)
     asyncio.ensure_future(_sync_and_persist(
         "demandes_contact", doc["id"],
-        name=doc['name'], phone=doc.get('phone'), email=doc['email'],
+        first_name=doc.get('first_name'), last_name=doc['name'],
+        phone=doc.get('phone'), email=doc['email'],
     ))
     is_rdv = bool(doc.get('rdv_device_type') or doc.get('rdv_brand') or (doc.get('subject') or '').startswith('RDV'))
     demand_label = "RDV" if is_rdv else "message"
@@ -538,7 +540,8 @@ async def create_buyback(input: BuybackRequestCreate):
     await db.demandes_rachat.insert_one(doc)
     asyncio.ensure_future(_sync_and_persist(
         "demandes_rachat", doc["id"],
-        name=doc['name'], phone=doc['phone'],
+        first_name=doc.get('first_name'), last_name=doc['name'],
+        phone=doc['phone'],
     ))
     asyncio.ensure_future(send_notification(
         f"[Repair&Co] Nouveau rachat — {doc['name']} — {store_name}",
