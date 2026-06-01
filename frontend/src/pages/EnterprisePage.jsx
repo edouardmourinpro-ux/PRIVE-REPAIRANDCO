@@ -173,9 +173,9 @@ const EnterprisePage = () => {
             </div>
             <div className="hidden lg:block">
               <img
-                src="https://images.pexels.com/photos/7988665/pexels-photo-7988665.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
-                alt="Équipe entreprise - gestion de flotte mobile"
-                className="rounded-2xl shadow-xl"
+                src="https://customer-assets.emergentagent.com/job_d40535b8-55de-420c-a14a-200a4a7a79cd/artifacts/dlse2t5x_WhatsApp%20Image%202026-05-20%20at%2000.23.24.jpeg"
+                alt="Équipe entreprise — réunion collaborateurs Repair&Co"
+                className="rounded-2xl shadow-xl aspect-square object-cover w-full"
               />
             </div>
           </div>
