@@ -146,7 +146,7 @@ const AppointmentPage = () => {
       />
       {/* Hero */}
       <section className="py-12 lg:py-16 hero-gradient">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-3xl mx-auto px-3 sm:px-6 lg:px-8">
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
             Prendre <span className="text-[#2ECC71]">rendez-vous</span>
           </h1>
@@ -157,10 +157,10 @@ const AppointmentPage = () => {
       </section>
 
       <section className="py-12 lg:py-16 bg-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-3xl mx-auto px-3 sm:px-6 lg:px-8">
           {/* Store Selection */}
           <Card className="card-repair border-2 border-[#E8F5EE] mb-8">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center gap-3 mb-5">
                 <Calendar className="text-[#1A5C3A]" size={24} />
                 <h2 className="text-xl font-bold">Pour quel magasin souhaitez-vous prendre rendez-vous ?</h2>
@@ -205,7 +205,7 @@ const AppointmentPage = () => {
 
               {/* Form */}
               <Card className="card-repair">
-                <CardContent className="p-6">
+                <CardContent className="p-4 sm:p-6">
                   <h3 className="text-xl font-bold mb-6">Demande de rendez-vous</h3>
                   <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
@@ -326,8 +326,15 @@ const AppointmentPage = () => {
                     </div>
 
                     {/* 8. Submit */}
-                    <Button type="submit" disabled={isSubmitting} data-testid="appointment-submit" className="w-full bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full py-5">
-                      {isSubmitting ? (<><Loader2 className="animate-spin mr-2" size={18} /> Envoi...</>) : 'Envoyer ma demande de rendez-vous'}
+                    <Button type="submit" disabled={isSubmitting} data-testid="appointment-submit" className="w-full bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full py-5 px-3 text-sm sm:text-base whitespace-normal h-auto">
+                      {isSubmitting ? (
+                        <><Loader2 className="animate-spin mr-2" size={18} /> Envoi...</>
+                      ) : (
+                        <>
+                          <span className="sm:hidden">Envoyer ma demande</span>
+                          <span className="hidden sm:inline">Envoyer ma demande de rendez-vous</span>
+                        </>
+                      )}
                     </Button>
                   </form>
                 </CardContent>
