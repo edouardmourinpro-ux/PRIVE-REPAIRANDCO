@@ -7,6 +7,8 @@ import {
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { STORES, FEATURED_STORE_IDS, REVIEWS } from '../data/stores';
+import SEO from '../components/SEO';
+import { organizationSchema, repairServiceSchema } from '../lib/structuredData';
 
 const featuredStores = STORES.filter(s => FEATURED_STORE_IDS.includes(s.id));
 
@@ -25,6 +27,12 @@ const HomePage = () => {
 
   return (
     <div data-testid="home-page">
+      <SEO
+        title="Réparation smartphone, tablette et PC | Nîmes, Montpellier, Béziers"
+        description="Repair & Co : réparation express de smartphones, tablettes et ordinateurs. Devis gratuit en 2 min, label QualiRépar (15 à 80€ d'aide de l'État), 9 magasins en Occitanie."
+        path="/"
+        jsonLd={[organizationSchema(), repairServiceSchema()]}
+      />
       {/* Hero */}
       <section className="hero-gradient py-16 lg:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

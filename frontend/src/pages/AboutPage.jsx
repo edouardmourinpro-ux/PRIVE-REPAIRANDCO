@@ -6,6 +6,8 @@ import {
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { STORES, FEATURED_STORE_IDS } from '../data/stores';
+import SEO from '../components/SEO';
+import { breadcrumbSchema } from '../lib/structuredData';
 
 const featuredStores = STORES.filter(s => FEATURED_STORE_IDS.includes(s.id));
 
@@ -48,6 +50,15 @@ const AboutPage = () => {
 
   return (
     <div data-testid="about-page">
+      <SEO
+        title="Qui sommes-nous ? — Repair & Co, expert en réparation depuis 2015"
+        description="Découvrez Repair & Co : 9 magasins en Occitanie, plus de 50 techniciens passionnés, label QualiRépar, engagement écologique. Notre mission : prolonger la vie de vos appareils."
+        path="/qui-sommes-nous"
+        jsonLd={breadcrumbSchema([
+          { name: 'Accueil', path: '/' },
+          { name: 'Qui sommes-nous ?', path: '/qui-sommes-nous' },
+        ])}
+      />
       {/* Hero */}
       <section className="py-12 lg:py-16 hero-gradient">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

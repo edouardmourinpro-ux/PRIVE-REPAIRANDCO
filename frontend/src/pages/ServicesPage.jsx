@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
+import SEO from '../components/SEO';
+import { breadcrumbSchema } from '../lib/structuredData';
 
 const PICTOS = {
   smartphone: 'https://customer-assets.emergentagent.com/job_repair-south-france/artifacts/i65cqvig_Smartphone%20casse%CC%81.png',
@@ -61,6 +63,15 @@ const ServicesPage = () => {
 
   return (
     <div data-testid="services-page">
+      <SEO
+        title="Nos services de réparation — Smartphone, PC, Console, Électroménager, Mobilité"
+        description="Tous nos services Repair & Co : réparation d'écran et batterie smartphone, PC/Mac, consoles PlayStation/Xbox/Switch, petit électroménager, vélos et trottinettes électriques. Devis gratuit, label QualiRépar."
+        path="/services"
+        jsonLd={breadcrumbSchema([
+          { name: 'Accueil', path: '/' },
+          { name: 'Services', path: '/services' },
+        ])}
+      />
       {/* Hero */}
       <section className="py-10 lg:py-14 hero-gradient">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

@@ -23,14 +23,12 @@ function App() {
       <BrowserRouter>
         <ScrollToTop />
         <Helmet>
-          <title>Repair & Co — Réparation smartphone, tablette et PC | Nîmes, Montpellier, Béziers</title>
-          <meta 
-            name="description" 
-            content="Repair & Co : réparation rapide de smartphones, tablettes et PC à Nîmes, Montpellier, Pérols et Béziers. Devis gratuit, label QualiRépar, entre 15 et 80€ d'aide de l'État." 
-          />
-          <meta name="keywords" content="réparation smartphone, réparation tablette, réparation PC, Nîmes, Montpellier, Béziers, QualiRépar, écran cassé, batterie" />
+          {/* Default SEO — overridden by per-page <SEO /> components */}
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          <meta name="theme-color" content="#1A5C3A" />
+          <meta name="format-detection" content="telephone=no" />
+          <meta name="author" content="Repair & Co" />
         </Helmet>
         
         <Layout>

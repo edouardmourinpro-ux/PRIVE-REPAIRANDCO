@@ -23,6 +23,8 @@ import {
 import { STORES } from '../data/stores';
 import MiniSurvey from '../components/MiniSurvey';
 import { trackFormSubmission } from '../lib/analytics';
+import SEO from '../components/SEO';
+import { breadcrumbSchema } from '../lib/structuredData';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -105,6 +107,15 @@ const ContactPage = () => {
 
   return (
     <div data-testid="contact-page">
+      <SEO
+        title="Contact — Repair & Co : nos 9 ateliers, téléphone, email"
+        description="Contactez Repair & Co : retrouvez les coordonnées de nos 9 magasins (Lattes, Montpellier, Nîmes, Béziers, Pérols…), nos horaires et notre formulaire de contact."
+        path="/contact"
+        jsonLd={breadcrumbSchema([
+          { name: 'Accueil', path: '/' },
+          { name: 'Contact', path: '/contact' },
+        ])}
+      />
       {/* Hero */}
       <section className="py-16 lg:py-20 hero-gradient">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

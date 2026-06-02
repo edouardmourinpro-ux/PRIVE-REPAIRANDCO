@@ -23,6 +23,8 @@ import {
 import { STORES, DEVICE_BRANDS, ISSUE_TYPES } from '../data/stores';
 import MiniSurvey from '../components/MiniSurvey';
 import { trackFormSubmission } from '../lib/analytics';
+import SEO from '../components/SEO';
+import { breadcrumbSchema } from '../lib/structuredData';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -155,6 +157,15 @@ const QuotePage = () => {
 
   return (
     <div data-testid="quote-page">
+      <SEO
+        title="Demande de devis gratuit — Réparation smartphone, tablette, PC"
+        description="Obtenez un devis gratuit en 2 minutes pour la réparation de votre smartphone, tablette ou ordinateur. Réponse rapide par mail, label QualiRépar, 9 magasins en Occitanie."
+        path="/devis"
+        jsonLd={breadcrumbSchema([
+          { name: 'Accueil', path: '/' },
+          { name: 'Devis gratuit', path: '/devis' },
+        ])}
+      />
       {/* Hero */}
       <section className="py-12 lg:py-16 hero-gradient">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">

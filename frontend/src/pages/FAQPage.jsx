@@ -8,10 +8,29 @@ import { Link } from 'react-router-dom';
 import { BadgeCheck, ArrowRight } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { FAQ_DATA } from '../data/stores';
+import SEO from '../components/SEO';
+import { faqSchema, breadcrumbSchema } from '../lib/structuredData';
 
 const FAQPage = () => {
+  // Flatten all questions/answers for the FAQPage Schema
+  const allFaqs = (FAQ_DATA || []).flatMap((section) =>
+    (section.questions || []).map((q) => ({ question: q.q || q.question, answer: q.a || q.answer }))
+  );
+
   return (
     <div data-testid="faq-page">
+      <SEO
+        title="FAQ — Questions fréquentes sur la réparation de smartphone et PC"
+        description="Toutes les réponses à vos questions sur la réparation Repair & Co : tarifs, délais, garantie, label QualiRépar, paiement en plusieurs fois, rachat d'appareils."
+        path="/faq"
+        jsonLd={[
+          faqSchema(allFaqs),
+          breadcrumbSchema([
+            { name: 'Accueil', path: '/' },
+            { name: 'FAQ', path: '/faq' },
+          ]),
+        ]}
+      />
       {/* Hero */}
       <section className="py-16 lg:py-20 hero-gradient">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

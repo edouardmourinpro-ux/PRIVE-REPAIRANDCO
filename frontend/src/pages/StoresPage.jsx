@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async';
 import { 
   MapPin, Phone, Clock, ExternalLink, Navigation, BadgeCheck,
   Search, Truck, ArrowRight, Mail
@@ -9,6 +8,8 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent } from '../components/ui/card';
 import { STORES } from '../data/stores';
+import SEO from '../components/SEO';
+import { allStoresSchema, breadcrumbSchema } from '../lib/structuredData';
 
 const StoresPage = () => {
   const [postalCode, setPostalCode] = useState('');
@@ -16,7 +17,18 @@ const StoresPage = () => {
 
   return (
     <div data-testid="stores-page">
-      <Helmet><title>Nos magasins — Repair & Co | 9 magasins partout en France</title></Helmet>
+      <SEO
+        title="Nos magasins de réparation — 9 ateliers en Occitanie (Nîmes, Montpellier, Béziers, Lattes…)"
+        description="Trouvez votre atelier Repair & Co le plus proche : 9 magasins labellisés QualiRépar à Lattes, Montpellier, Nîmes, Béziers, Pérols… Diagnostic gratuit et réparation sur place."
+        path="/magasins"
+        jsonLd={[
+          ...allStoresSchema(),
+          breadcrumbSchema([
+            { name: 'Accueil', path: '/' },
+            { name: 'Nos magasins', path: '/magasins' },
+          ]),
+        ]}
+      />
 
       {/* Hero */}
       <section className="py-10 lg:py-14 hero-gradient">

@@ -18,6 +18,8 @@ import {
 import { STORES, DEVICE_BRANDS, ISSUE_TYPES } from '../data/stores';
 import MiniSurvey from '../components/MiniSurvey';
 import { trackFormSubmission } from '../lib/analytics';
+import SEO from '../components/SEO';
+import { breadcrumbSchema } from '../lib/structuredData';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -133,6 +135,15 @@ const AppointmentPage = () => {
 
   return (
     <div data-testid="appointment-page">
+      <SEO
+        title="Prendre rendez-vous — Réparation smartphone, tablette, PC"
+        description="Prenez rendez-vous en ligne dans l'un de nos 9 ateliers Repair & Co. Réparation rapide, label QualiRépar, techniciens certifiés. Réservez votre créneau en 1 minute."
+        path="/rendez-vous"
+        jsonLd={breadcrumbSchema([
+          { name: 'Accueil', path: '/' },
+          { name: 'Rendez-vous', path: '/rendez-vous' },
+        ])}
+      />
       {/* Hero */}
       <section className="py-12 lg:py-16 hero-gradient">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">

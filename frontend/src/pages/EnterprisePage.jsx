@@ -24,6 +24,8 @@ import {
 } from '../components/ui/select';
 import MiniSurvey from '../components/MiniSurvey';
 import { trackFormSubmission } from '../lib/analytics';
+import SEO from '../components/SEO';
+import { breadcrumbSchema } from '../lib/structuredData';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -132,6 +134,15 @@ const EnterprisePage = () => {
 
   return (
     <div data-testid="enterprise-page">
+      <SEO
+        title="Solutions B2B — Maintenance flotte smartphones et PC pour entreprises"
+        description="Service entreprise Repair & Co : gestion de flotte smartphones et PC, contrats de maintenance, intervention rapide. Devis personnalisé sous 24h pour votre société."
+        path="/entreprises"
+        jsonLd={breadcrumbSchema([
+          { name: 'Accueil', path: '/' },
+          { name: 'Entreprises', path: '/entreprises' },
+        ])}
+      />
       {/* Hero */}
       <section className="py-12 lg:py-16 bg-[#1A5C3A]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
