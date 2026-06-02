@@ -8,6 +8,7 @@ import { Helmet, HelmetProvider } from "react-helmet-async";
 import HomePage from "./pages/HomePage";
 import ServicesPage from "./pages/ServicesPage";
 import StoresPage from "./pages/StoresPage";
+import StoreDetailPage from "./pages/StoreDetailPage";
 import QuotePage from "./pages/QuotePage";
 import AppointmentPage from "./pages/AppointmentPage";
 import BuybackPage from "./pages/BuybackPage";
@@ -36,6 +37,7 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/services" element={<ServicesPage />} />
             <Route path="/magasins" element={<StoresPage />} />
+            <Route path="/magasins/:slug" element={<StoreDetailPage />} />
             <Route path="/devis" element={<QuotePage />} />
             <Route path="/rendez-vous" element={<AppointmentPage />} />
             <Route path="/rachat" element={<BuybackPage />} />

@@ -102,11 +102,11 @@ const StoresPage = () => {
                     <div className="flex items-center gap-2"><Mail size={14} className="text-[#1A5C3A] flex-shrink-0" /><a href={`mailto:${store.email}`} className="text-xs hover:underline">{store.email}</a></div>
                   </div>
                   <div className="flex gap-2">
-                    <a href={store.mapsUrl} target="_blank" rel="noopener noreferrer" className="flex-1">
-                      <Button size="sm" variant="outline" className="w-full border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full text-xs" data-testid={`store-gmb-${store.id}`}>
-                        <Navigation size={14} className="mr-1" /> Voir le magasin
+                    <Link to={`/magasins/${store.id}`} className="flex-1" data-testid={`store-detail-link-${store.id}`}>
+                      <Button size="sm" variant="outline" className="w-full border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full text-xs">
+                        <Navigation size={14} className="mr-1" /> En savoir plus
                       </Button>
-                    </a>
+                    </Link>
                     <Link to="/rendez-vous" className="flex-1">
                       <Button size="sm" className="w-full bg-[#1A5C3A] text-white hover:bg-[#1A5C3A]/90 rounded-full text-xs" data-testid={`store-appointment-${store.id}`}>Prendre RDV</Button>
                     </Link>

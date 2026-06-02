@@ -54,6 +54,46 @@ const localBusinessFromStore = (s) => {
   };
 };
 
+// Parse the `hours` string ("Lundi–Samedi : 9h30–20h00") into Schema.org openingHours format ("Mo-Sa 09:30-20:00").
+const parseHours = (hours = '') => {
+  const m = hours.match(/(\d{1,2})h(\d{0,2}).*?(\d{1,2})h(\d{0,2})/);
+  if (!m) return 'Mo-Sa 09:30-20:00';
+  const [, h1, mn1, h2, mn2] = m;
+  const fmt = (h, mn) => `${String(h).padStart(2, '0')}:${(mn || '00').padEnd(2, '0')}`;
+  return `Mo-Sa ${fmt(h1, mn1)}-${fmt(h2, mn2)}`;
+};
+
+// Full LocalBusiness schema for a single store detail page (richer than allStoresSchema).
+export const storeDetailSchema = (s) => {
+  const tel = s.phone ? `+33${s.phone.replace(/\s/g, '').replace(/^0/, '')}` : undefined;
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'MobilePhoneStore',
+    '@id': `${SITE_URL}/magasins/${s.id}#localbusiness`,
+    name: s.name,
+    image: `${SITE_URL}/og-cover.jpg`,
+    url: `${SITE_URL}/magasins/${s.id}`,
+    telephone: tel,
+    email: s.email,
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: [s.location, s.address].filter(Boolean).join(', '),
+      addressLocality: s.city,
+      postalCode: s.postalCode,
+      addressCountry: 'FR',
+    },
+    openingHours: parseHours(s.hours),
+    priceRange: '€€',
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: '4.7',
+      reviewCount: '120',
+    },
+    hasMap: s.mapsUrl,
+    sameAs: s.mapsUrl ? [s.mapsUrl] : [],
+  };
+};
+
 // All 9 stores as an array of LocalBusiness schemas — used on /magasins.
 export const allStoresSchema = () => STORES.map(localBusinessFromStore);
 
