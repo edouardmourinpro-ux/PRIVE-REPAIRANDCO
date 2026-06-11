@@ -24,6 +24,7 @@ import { STORES, DEVICE_BRANDS, ISSUE_TYPES } from '../data/stores';
 import MiniSurvey from '../components/MiniSurvey';
 import { trackFormSubmission } from '../lib/analytics';
 import SEO from '../components/SEO';
+import SuccessCallout from '../components/SuccessCallout';
 import { breadcrumbSchema } from '../lib/structuredData';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -47,6 +48,7 @@ const QuotePage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [demandId, setDemandId] = useState(null);
+  const [submittedStoreId, setSubmittedStoreId] = useState(null);
   const [selectedIssues, setSelectedIssues] = useState([]);
 
   useEffect(() => {
@@ -120,6 +122,7 @@ const QuotePage = () => {
     try {
       const r = await axios.post(`${API_URL}/api/quote`, data);
       setDemandId(r.data?.id || null);
+      setSubmittedStoreId(data.store);
       setIsSuccess(true);
       trackFormSubmission('devis', { store: data.store, device_type: data.device_type });
       toast.success('Demande envoyée avec succès !');
@@ -138,9 +141,9 @@ const QuotePage = () => {
             <CheckCircle className="text-[#1A5C3A]" size={48} />
           </div>
           <h1 className="text-3xl font-bold text-[#1A5C3A] mb-4">Demande reçue !</h1>
-          <p className="text-lg text-[#1A5C3A]/80 mb-6">
-            Un technicien vous rappelle sous 15 minutes pour confirmer votre devis.
-          </p>
+          <div className="mb-6">
+            <SuccessCallout storeId={submittedStoreId} />
+          </div>
           <MiniSurvey demandId={demandId} category="devis" />
           <div className="mt-8">
             <Button

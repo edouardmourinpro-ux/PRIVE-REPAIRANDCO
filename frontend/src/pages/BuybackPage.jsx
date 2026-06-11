@@ -23,6 +23,7 @@ import { STORES } from '../data/stores';
 import MiniSurvey from '../components/MiniSurvey';
 import { trackFormSubmission } from '../lib/analytics';
 import SEO from '../components/SEO';
+import SuccessCallout from '../components/SuccessCallout';
 import { breadcrumbSchema } from '../lib/structuredData';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -41,6 +42,7 @@ const BuybackPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [demandId, setDemandId] = useState(null);
+  const [submittedStoreId, setSubmittedStoreId] = useState(null);
 
   useEffect(() => {
     if (isSuccess) window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -60,6 +62,7 @@ const BuybackPage = () => {
     try {
       const r = await axios.post(`${API_URL}/api/buyback`, data);
       setDemandId(r.data?.id || null);
+      setSubmittedStoreId(data.store);
       setIsSuccess(true);
       trackFormSubmission('rachat', { brand: data.brand, store: data.store, condition: data.condition });
       toast.success('Demande d\'estimation envoyée !');
@@ -85,9 +88,9 @@ const BuybackPage = () => {
             <CheckCircle className="text-[#1A5C3A]" size={48} />
           </div>
           <h1 className="text-3xl font-bold text-[#1A5C3A] mb-4">Demande reçue !</h1>
-          <p className="text-lg text-[#1A5C3A]/80 mb-6">
-            Notre technicien vous contacte sous 24h avec une offre de rachat.
-          </p>
+          <div className="mb-6">
+            <SuccessCallout storeId={submittedStoreId} variant="24h" />
+          </div>
           <MiniSurvey demandId={demandId} category="rachat" />
           <div className="mt-8">
             <Button

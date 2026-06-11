@@ -1,5 +1,7 @@
 # Repair & Co — PRD
 
+> **MAJ 11/06/2026** : Pages de succès optimisées (Devis/RDV/Rachat) — message "proximité" dynamique avec nom du magasin + bloc d'appel direct (téléphone cliquable du magasin sélectionné). Composant : `frontend/src/components/SuccessCallout.jsx`. Devis/RDV : rappel < 15 min. Rachat : recontact sous 24h (choix utilisateur). Testé e2e.
+
 ## Architecture
 - **Frontend** : React + Tailwind CSS + Shadcn UI
 - **Backend** : FastAPI (Python) + MongoDB

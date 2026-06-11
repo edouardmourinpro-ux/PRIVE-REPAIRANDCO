@@ -19,6 +19,7 @@ import { STORES, DEVICE_BRANDS, ISSUE_TYPES } from '../data/stores';
 import MiniSurvey from '../components/MiniSurvey';
 import { trackFormSubmission } from '../lib/analytics';
 import SEO from '../components/SEO';
+import SuccessCallout from '../components/SuccessCallout';
 import { breadcrumbSchema } from '../lib/structuredData';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -123,7 +124,9 @@ const AppointmentPage = () => {
             <CheckCircle className="text-[#2ECC71]" size={48} />
           </div>
           <h1 className="text-3xl font-bold mb-4">Demande reçue !</h1>
-          <p className="text-lg text-[#1A1A2E]/80 mb-6">Un technicien vous rappelle sous 15 minutes pour confirmer votre rendez-vous.</p>
+          <div className="mb-6">
+            <SuccessCallout storeId={selectedStoreId} />
+          </div>
           <MiniSurvey demandId={demandId} category="contact" />
           <div className="mt-8">
             <Button onClick={() => window.location.href = '/'} className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full">Retour à l'accueil</Button>
