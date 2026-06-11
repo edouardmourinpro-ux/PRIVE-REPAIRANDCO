@@ -87,9 +87,9 @@ const BuybackPage = () => {
           <div className="w-20 h-20 bg-[#E8F5EE] rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="text-[#1A5C3A]" size={48} />
           </div>
-          <h1 className="text-3xl font-bold text-[#1A5C3A] mb-4">Demande reçue !</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#1A5C3A] mb-4">📍 Prise en charge en cours... Restez près de votre téléphone !</h1>
           <div className="mb-6">
-            <SuccessCallout storeId={submittedStoreId} variant="24h" />
+            <SuccessCallout storeId={submittedStoreId} />
           </div>
           <MiniSurvey demandId={demandId} category="rachat" />
           <div className="mt-8">
@@ -276,7 +276,7 @@ const BuybackPage = () => {
                 </form>
 
                 <p className="mt-4 text-sm text-[#1A5C3A]/60 text-center">
-                  Notre technicien vous contacte sous 24h avec une offre.
+                  Nous vous rappelons sous 15 minutes (pendant les heures d'ouverture du magasin).
                 </p>
               </CardContent>
             </Card>

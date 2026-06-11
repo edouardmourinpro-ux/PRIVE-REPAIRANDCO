@@ -1,11 +1,25 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Phone } from 'lucide-react';
 import { STORES } from '../data/stores';
 
-export const SuccessCallout = ({ storeId, variant = '15min' }) => {
+const TOTAL_SECONDS = 15 * 60;
+
+export const SuccessCallout = ({ storeId }) => {
   const store = STORES.find(s => s.id === storeId);
   const shortName = store ? store.name.replace(/^Repair&Co\s*/i, '') : null;
   const telHref = store ? `tel:+33${store.phone.replace(/\s/g, '').slice(1)}` : null;
+  const [secondsLeft, setSecondsLeft] = useState(TOTAL_SECONDS - 1);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSecondsLeft((s) => (s > 0 ? s - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const mm = String(Math.floor(secondsLeft / 60)).padStart(2, '0');
+  const ss = String(secondsLeft % 60).padStart(2, '0');
+  const progress = (secondsLeft / TOTAL_SECONDS) * 100;
 
   return (
     <div className="space-y-4 text-left">
@@ -15,10 +29,22 @@ export const SuccessCallout = ({ storeId, variant = '15min' }) => {
           {store
             ? <>Un technicien de notre magasin de {shortName} vient d'en prendre connaissance.</>
             : <>Un technicien vient d'en prendre connaissance.</>}{' '}
-          {variant === '24h'
-            ? <>Il vous recontactera sous 24h avec une offre de rachat.</>
-            : <>Restez bien attentif à votre téléphone, nous allons vous rappeler dans moins de 15 minutes.</>}
+          Restez bien attentif à votre téléphone, nous vous rappelons dans moins de 15 minutes{' '}
+          <span className="font-medium text-[#1A5C3A]/70">(pendant les heures d'ouverture du magasin)</span>.
         </p>
+        <div data-testid="success-timer" className="mt-4">
+          <p className="text-sm font-semibold text-[#1A5C3A] mb-2">
+            Mise en relation avec votre magasin sous :{' '}
+            <span data-testid="success-timer-value" className="font-mono font-bold text-base tabular-nums">{mm}:{ss} min</span>
+          </p>
+          <div className="h-2.5 w-full bg-white rounded-full overflow-hidden border border-[#1A5C3A]/10">
+            <div
+              data-testid="success-timer-bar"
+              className="h-full bg-[#2ECC71] rounded-full transition-[width] duration-1000 ease-linear"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
       </div>
       {store && (
         <div data-testid="success-call-block" className="bg-white border-2 border-[#2ECC71] rounded-2xl p-5">

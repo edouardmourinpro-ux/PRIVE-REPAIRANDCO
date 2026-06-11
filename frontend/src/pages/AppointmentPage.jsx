@@ -123,7 +123,7 @@ const AppointmentPage = () => {
           <div className="w-20 h-20 bg-[#E8F5EE] rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="text-[#2ECC71]" size={48} />
           </div>
-          <h1 className="text-3xl font-bold mb-4">Demande reçue !</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold mb-4">📍 Prise en charge en cours... Restez près de votre téléphone !</h1>
           <div className="mb-6">
             <SuccessCallout storeId={selectedStoreId} />
           </div>
