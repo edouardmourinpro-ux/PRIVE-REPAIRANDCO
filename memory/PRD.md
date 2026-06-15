@@ -1,6 +1,14 @@
 # Repair & Co — PRD
 
-> **MAJ 15/06/2026 (v3)** : Pages légales (Mentions / CGV / Politique de confidentialité / Politique cookies) + Pied de page « Informations légales » + Bandeau cookies CNIL 3 boutons avec 2 catégories. GA4 (G-MBR90KFN90) maintenant chargé **uniquement après consentement** explicite (suppression du gtag inconditionnel dans `public/index.html`). Choix mémorisé 6 mois (`localStorage` rc-cookie-consent). Lien « Gérer mes cookies » du footer rouvre la modale. Routes : `/mentions-legales`, `/cgv`, `/politique-confidentialite`, `/politique-cookies` + redirection `/rgpd` → `/politique-confidentialite`. Composants : `frontend/src/lib/consent.js`, `frontend/src/components/LegalPage.jsx`, `frontend/src/components/layout/CookieBanner.jsx` (refait), `frontend/src/content/legal/*.js`.
+> **MAJ 15/06/2026 (v4) — Fondations SEO** :
+> - `public/index.html` nettoyé : `lang="fr"`, `theme-color="#1A5C3A"`, favicon/manifest/apple-touch-icon, `<title>` + OG truly-global (og:type, og:locale, og:site_name) + `twitter:card`. Tags **dynamiques** (description, canonical, og:url, og:title, og:description, og:image, twitter:image, twitter:title, twitter:description, robots) retirés du HTML statique pour éviter les doublons avec `react-helmet-async` qui n'écrase pas les meta statiques.
+> - `SEO.jsx` : émet désormais 1 seul tag par catégorie (description, canonical, og:*, twitter:*, robots). Default `robots="index, follow"`, `noindex, nofollow` si prop `noindex` true. Évite l'auto-suffixe `| Repair & Co` si le titre le contient déjà.
+> - Toutes les pages : `title` + `description` + `path` alignés sur les valeurs exactes du chantier SEO. `AdminPage` ajoute `<SEO noindex />`.
+> - `structuredData.js` : Organization enrichie (`legalName`, `email`, `telephone`, `logo: icon-512.png`). `allStoresSchema` : `LocalBusiness` × 9 avec `openingHoursSpecification` **par magasin** (Mo-Sa, horaires réels) et `url: /magasins/{id}`. `FAQPage` toujours généré depuis `FAQ_DATA`.
+> - `public/manifest.json` créé (theme `#1A5C3A`, icons `icon-192.png` + `icon-512.png`). `og-image.jpg` créé (copie de `og-cover.jpg`).
+> - `robots.txt` + `sitemap.xml` conservés tels quels.
+
+> **MAJ 15/06/2026 (v3)** : Pages légales (Mentions / CGV / Politique de confidentialité / Politique cookies) + Pied de page « Informations légales » + Bandeau cookies CNIL 3 boutons avec 2 catégories. GA4 chargé **uniquement après consentement**. Choix mémorisé 6 mois.
 
 > **MAJ 11/06/2026 (v2)** : Pages de succès optimisées (Devis/RDV/Rachat) — titre "📍 Prise en charge en cours... Restez près de votre téléphone !", message "proximité" dynamique (nom du magasin), **compte à rebours visuel 14:59 + barre de progression animée**, délai harmonisé à 15 min pour TOUS les formulaires (mention "pendant les heures d'ouverture"), bloc d'appel direct avec lien `tel:` cliquable. Composant : `frontend/src/components/SuccessCallout.jsx`. Testé e2e.
 

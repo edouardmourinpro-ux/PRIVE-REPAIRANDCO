@@ -135,8 +135,8 @@ const EnterprisePage = () => {
   return (
     <div data-testid="enterprise-page">
       <SEO
-        title="Solutions B2B — Maintenance flotte smartphones et PC pour entreprises"
-        description="Service entreprise Repair & Co : gestion de flotte smartphones et PC, contrats de maintenance, intervention rapide. Devis personnalisé sous 24h pour votre société."
+        title="Réparation pour les entreprises (B2B) | Repair & Co"
+        description="Gestion de flotte, logistique et facturation dédiée. Repair & Co accompagne entreprises, administrations et associations."
         path="/entreprises"
         jsonLd={breadcrumbSchema([
           { name: 'Accueil', path: '/' },

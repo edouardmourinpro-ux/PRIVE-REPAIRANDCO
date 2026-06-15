@@ -108,8 +108,8 @@ const ContactPage = () => {
   return (
     <div data-testid="contact-page">
       <SEO
-        title="Contact — Repair & Co : nos 9 ateliers, téléphone, email"
-        description="Contactez Repair & Co : retrouvez les coordonnées de nos 9 magasins (Lattes, Montpellier, Nîmes, Béziers, Pérols…), nos horaires et notre formulaire de contact."
+        title="Contact | Repair & Co"
+        description="Une question ? Contactez Repair & Co par formulaire ou téléphone. Réponse rapide de notre équipe."
         path="/contact"
         jsonLd={breadcrumbSchema([
           { name: 'Accueil', path: '/' },

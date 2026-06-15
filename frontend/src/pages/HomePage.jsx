@@ -28,8 +28,8 @@ const HomePage = () => {
   return (
     <div data-testid="home-page">
       <SEO
-        title="Réparation smartphone, tablette et PC | Nîmes, Montpellier, Béziers"
-        description="Repair & Co : réparation express de smartphones, tablettes et ordinateurs. Devis gratuit en 2 min, label QualiRépar (15 à 80€ d'aide de l'État), 9 magasins en Occitanie."
+        title="Repair & Co — Réparation smartphone, tablette & PC | 9 magasins"
+        description="Réparation rapide de smartphones, tablettes, PC et électroménager. Devis gratuit, label QualiRépar (jusqu'à 60€), réparé en 1h. 9 magasins en France."
         path="/"
         jsonLd={[organizationSchema(), repairServiceSchema()]}
       />

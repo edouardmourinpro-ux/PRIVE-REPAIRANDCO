@@ -64,8 +64,8 @@ const ServicesPage = () => {
   return (
     <div data-testid="services-page">
       <SEO
-        title="Nos services de réparation — Smartphone, PC, Console, Électroménager, Mobilité"
-        description="Tous nos services Repair & Co : réparation d'écran et batterie smartphone, PC/Mac, consoles PlayStation/Xbox/Switch, petit électroménager, vélos et trottinettes électriques. Devis gratuit, label QualiRépar."
+        title="Services de réparation — Smartphone, tablette, PC, électroménager | Repair & Co"
+        description="Écran, batterie, connecteur… Réparation toutes marques (Apple, Samsung, Xiaomi, HP, Dell). Diagnostic gratuit, devis sans surprise, label QualiRépar."
         path="/services"
         jsonLd={breadcrumbSchema([
           { name: 'Accueil', path: '/' },

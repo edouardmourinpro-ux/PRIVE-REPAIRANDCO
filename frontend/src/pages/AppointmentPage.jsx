@@ -139,8 +139,8 @@ const AppointmentPage = () => {
   return (
     <div data-testid="appointment-page">
       <SEO
-        title="Prendre rendez-vous — Réparation smartphone, tablette, PC"
-        description="Prenez rendez-vous en ligne dans l'un de nos 9 ateliers Repair & Co. Réparation rapide, label QualiRépar, techniciens certifiés. Réservez votre créneau en 1 minute."
+        title="Prendre rendez-vous en magasin | Repair & Co"
+        description="Réservez votre créneau de réparation dans l'un de nos 9 magasins. Rapide, gratuit et sans engagement."
         path="/rendez-vous"
         jsonLd={breadcrumbSchema([
           { name: 'Accueil', path: '/' },

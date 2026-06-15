@@ -3,13 +3,31 @@ import { STORES } from '../data/stores';
 
 const SITE_URL = 'https://repairandco.fr';
 
+// Per-store opening hours (Mo-Sa) — used by allStoresSchema.
+const STORE_HOURS = {
+  'lattes': { opens: '09:30', closes: '20:00' },
+  'montpellier-nord': { opens: '09:30', closes: '20:00' },
+  'montpellier-sud': { opens: '09:30', closes: '20:00' },
+  'nimes-costieres': { opens: '09:30', closes: '20:00' },
+  'nimes-etoile': { opens: '09:30', closes: '19:30' },
+  'beziers': { opens: '09:30', closes: '19:30' },
+  'boulogne': { opens: '10:00', closes: '20:00' },
+  'plaisir': { opens: '10:00', closes: '20:00' },
+  'les-ulis': { opens: '10:00', closes: '20:00' },
+};
+
+const DAYS_MO_SA = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
 // Global Organization schema — placed on the home page.
 export const organizationSchema = () => ({
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: 'Repair & Co',
+  legalName: 'VDMI REPAIR&CO GROUPE',
   url: SITE_URL,
-  logo: `${SITE_URL}/og-cover.jpg`,
+  logo: `${SITE_URL}/icon-512.png`,
+  email: 'contact@repair-and-co.fr',
+  telephone: '+33467716769',
   sameAs: [
     'https://www.facebook.com/repairandco',
     'https://www.instagram.com/repairandco',
@@ -28,13 +46,14 @@ export const organizationSchema = () => ({
 // Build a single LocalBusiness JSON-LD block from a STORE object.
 const localBusinessFromStore = (s) => {
   const tel = s.phone ? `+33${s.phone.replace(/\s/g, '').replace(/^0/, '')}` : undefined;
+  const h = STORE_HOURS[s.id] || { opens: '09:30', closes: '20:00' };
   return {
     '@context': 'https://schema.org',
-    '@type': 'MobilePhoneStore',
+    '@type': 'LocalBusiness',
     '@id': `${SITE_URL}/magasins#${s.id}`,
     name: s.name,
-    image: `${SITE_URL}/og-cover.jpg`,
-    url: `${SITE_URL}/magasins`,
+    image: `${SITE_URL}/og-image.jpg`,
+    url: `${SITE_URL}/magasins/${s.id}`,
     telephone: tel,
     email: s.email,
     address: {
@@ -44,13 +63,15 @@ const localBusinessFromStore = (s) => {
       postalCode: s.postalCode,
       addressCountry: 'FR',
     },
-    openingHours: 'Mo-Sa 09:30-20:00',
+    openingHoursSpecification: [
+      {
+        '@type': 'OpeningHoursSpecification',
+        dayOfWeek: DAYS_MO_SA,
+        opens: h.opens,
+        closes: h.closes,
+      },
+    ],
     priceRange: '€€',
-    aggregateRating: {
-      '@type': 'AggregateRating',
-      ratingValue: '4.7',
-      reviewCount: '120',
-    },
   };
 };
 
@@ -71,7 +92,7 @@ export const storeDetailSchema = (s) => {
     '@type': 'MobilePhoneStore',
     '@id': `${SITE_URL}/magasins/${s.id}#localbusiness`,
     name: s.name,
-    image: `${SITE_URL}/og-cover.jpg`,
+    image: `${SITE_URL}/og-image.jpg`,
     url: `${SITE_URL}/magasins/${s.id}`,
     telephone: tel,
     email: s.email,

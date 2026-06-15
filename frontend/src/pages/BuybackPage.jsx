@@ -108,8 +108,8 @@ const BuybackPage = () => {
   return (
     <div data-testid="buyback-page">
       <SEO
-        title="Rachat de smartphone — Estimation gratuite et reprise express"
-        description="Vendez votre ancien smartphone Apple, Samsung, Xiaomi à Repair & Co. Estimation immédiate, paiement rapide, reprise en magasin. Donnez une seconde vie à votre appareil."
+        title="Rachat & reprise de smartphone et tablette | Repair & Co"
+        description="Vendez votre ancien smartphone ou tablette. Estimation en ligne, paiement en magasin, reprise de toutes marques."
         path="/rachat"
         jsonLd={breadcrumbSchema([
           { name: 'Accueil', path: '/' },

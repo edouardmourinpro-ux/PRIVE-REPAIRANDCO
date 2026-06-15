@@ -18,8 +18,8 @@ const StoresPage = () => {
   return (
     <div data-testid="stores-page">
       <SEO
-        title="Nos magasins de réparation — 9 ateliers en Occitanie (Nîmes, Montpellier, Béziers, Lattes…)"
-        description="Trouvez votre atelier Repair & Co le plus proche : 9 magasins labellisés QualiRépar à Lattes, Montpellier, Nîmes, Béziers, Pérols… Diagnostic gratuit et réparation sur place."
+        title="Nos 9 magasins de réparation | Repair & Co — Montpellier, Nîmes, Béziers, Paris"
+        description="Trouvez votre magasin Repair & Co : Lattes, Montpellier, Nîmes, Béziers, Boulogne, Plaisir, Les Ulis. Horaires, adresses et prise de rendez-vous."
         path="/magasins"
         jsonLd={[
           ...allStoresSchema(),

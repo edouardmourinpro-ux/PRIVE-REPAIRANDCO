@@ -12,6 +12,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent } from '../components/ui/card';
 import { STORES } from '../data/stores';
+import SEO from '../components/SEO';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -238,6 +239,7 @@ const AdminPage = () => {
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-[#E8F5EE] flex items-center justify-center px-4" data-testid="admin-login">
+        <SEO title="Admin — Repair & Co" path="/admin" noindex />
         <Card className="w-full max-w-sm">
           <CardContent className="p-8">
             <h1 className="text-2xl font-bold text-center mb-6 text-[#1A5C3A]">Admin Repair&Co</h1>
@@ -264,6 +266,7 @@ const AdminPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50" data-testid="admin-dashboard">
+      <SEO title="Admin — Repair & Co" path="/admin" noindex />
       {/* Header */}
       <div className="bg-[#1A5C3A] text-white px-4 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">

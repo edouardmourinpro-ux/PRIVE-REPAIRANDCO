@@ -1,7 +1,7 @@
 import { Helmet } from 'react-helmet-async';
 
 const SITE_URL = 'https://repairandco.fr';
-const DEFAULT_OG_IMAGE = `${SITE_URL}/og-cover.jpg`;
+const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.jpg`;
 
 /**
  * Reusable SEO component — sets title, meta description, canonical, Open Graph,
@@ -24,9 +24,12 @@ export const SEO = ({
   jsonLd,
   noindex = false,
 }) => {
-  const fullTitle = title
-    ? `${title} | Repair & Co`
-    : 'Repair & Co — Réparation smartphone, tablette et PC | Nîmes, Montpellier, Béziers';
+  const hasBrand = title && /Repair\s*&\s*Co/i.test(title);
+  const fullTitle = !title
+    ? 'Repair & Co — Réparation smartphone, tablette et PC | Nîmes, Montpellier, Béziers'
+    : hasBrand
+      ? title
+      : `${title} | Repair & Co`;
   const fullDescription =
     description ||
     "Repair & Co : réparation rapide de smartphones, tablettes et PC à Nîmes, Montpellier, Pérols et Béziers. Devis gratuit, label QualiRépar, entre 15 et 80€ d'aide de l'État.";
@@ -38,7 +41,7 @@ export const SEO = ({
       <title>{fullTitle}</title>
       <meta name="description" content={fullDescription} />
       <link rel="canonical" href={url} />
-      {noindex && <meta name="robots" content="noindex, nofollow" />}
+      <meta name="robots" content={noindex ? 'noindex, nofollow' : 'index, follow'} />
 
       {/* Open Graph */}
       <meta property="og:type" content={type} />

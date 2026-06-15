@@ -161,8 +161,8 @@ const QuotePage = () => {
   return (
     <div data-testid="quote-page">
       <SEO
-        title="Demande de devis gratuit — Réparation smartphone, tablette, PC"
-        description="Obtenez un devis gratuit en 2 minutes pour la réparation de votre smartphone, tablette ou ordinateur. Réponse rapide par mail, label QualiRépar, 9 magasins en Occitanie."
+        title="Devis de réparation gratuit en ligne | Repair & Co"
+        description="Obtenez un devis gratuit pour réparer votre smartphone, tablette ou PC. Réponse rapide d'un conseiller, sans engagement."
         path="/devis"
         jsonLd={breadcrumbSchema([
           { name: 'Accueil', path: '/' },

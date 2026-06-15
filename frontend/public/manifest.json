@@ -1,0 +1,26 @@
+{
+  "name": "Repair & Co — Réparation smartphone, tablette et PC",
+  "short_name": "Repair & Co",
+  "description": "Réparation rapide de smartphones, tablettes, PC et électroménager. 9 magasins en France, label QualiRépar.",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#1A5C3A",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

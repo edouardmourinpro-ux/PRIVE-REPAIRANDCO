@@ -20,8 +20,8 @@ const FAQPage = () => {
   return (
     <div data-testid="faq-page">
       <SEO
-        title="FAQ — Questions fréquentes sur la réparation de smartphone et PC"
-        description="Toutes les réponses à vos questions sur la réparation Repair & Co : tarifs, délais, garantie, label QualiRépar, paiement en plusieurs fois, rachat d'appareils."
+        title="Questions fréquentes sur la réparation | Repair & Co"
+        description="Marques réparées, délais, garantie, QualiRépar, prise de rendez-vous… Toutes les réponses sur nos services de réparation."
         path="/faq"
         jsonLd={[
           faqSchema(allFaqs),

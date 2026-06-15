@@ -51,8 +51,8 @@ const AboutPage = () => {
   return (
     <div data-testid="about-page">
       <SEO
-        title="Qui sommes-nous ? — Repair & Co, expert en réparation depuis 2015"
-        description="Découvrez Repair & Co : 9 magasins en Occitanie, plus de 50 techniciens passionnés, label QualiRépar, engagement écologique. Notre mission : prolonger la vie de vos appareils."
+        title="Qui sommes-nous — Spécialiste de la réparation responsable | Repair & Co"
+        description="Depuis 10 ans, Repair & Co prolonge la vie de vos appareils. Réparation de proximité, label QualiRépar, démarche éco-responsable."
         path="/qui-sommes-nous"
         jsonLd={breadcrumbSchema([
           { name: 'Accueil', path: '/' },
