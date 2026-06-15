@@ -24,15 +24,9 @@
         <title>Repair & Co — Réparation smartphone, tablette et PC</title>
         <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
         <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
-        <!-- Google Analytics GA4 -->
-        <script async src="https://www.googletagmanager.com/gtag/js?id=G-MBR90KFN90"></script>
-        <script>
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          window.gtag = gtag;
-          gtag('js', new Date());
-          gtag('config', 'G-MBR90KFN90');
-        </script>
+        <!-- Google Analytics GA4 is loaded dynamically from src/lib/consent.js
+             ONLY after the user grants explicit consent to the "Mesure
+             d'audience" cookie category (CNIL compliance). -->
     </head>
     <body>
         <noscript>You need to enable JavaScript to run this app.</noscript>

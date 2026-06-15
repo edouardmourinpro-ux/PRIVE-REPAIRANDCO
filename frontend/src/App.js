@@ -1,5 +1,5 @@
 import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "./components/layout/Layout";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { Helmet, HelmetProvider } from "react-helmet-async";
@@ -17,6 +17,10 @@ import AboutPage from "./pages/AboutPage";
 import FAQPage from "./pages/FAQPage";
 import ContactPage from "./pages/ContactPage";
 import AdminPage from "./pages/AdminPage";
+import MentionsLegalesPage from "./pages/MentionsLegalesPage";
+import CGVPage from "./pages/CGVPage";
+import PolitiqueConfidentialitePage from "./pages/PolitiqueConfidentialitePage";
+import PolitiqueCookiesPage from "./pages/PolitiqueCookiesPage";
 
 function App() {
   return (
@@ -46,10 +50,13 @@ function App() {
             <Route path="/faq" element={<FAQPage />} />
             <Route path="/contact" element={<ContactPage />} />
             
-            {/* Legal pages - placeholders */}
-            <Route path="/mentions-legales" element={<LegalPage title="Mentions légales" />} />
-            <Route path="/cgv" element={<LegalPage title="Conditions Générales de Vente" />} />
-            <Route path="/rgpd" element={<LegalPage title="Politique de confidentialité" />} />
+            {/* Legal pages */}
+            <Route path="/mentions-legales" element={<MentionsLegalesPage />} />
+            <Route path="/cgv" element={<CGVPage />} />
+            <Route path="/politique-confidentialite" element={<PolitiqueConfidentialitePage />} />
+            <Route path="/politique-cookies" element={<PolitiqueCookiesPage />} />
+            {/* Legacy alias */}
+            <Route path="/rgpd" element={<Navigate to="/politique-confidentialite" replace />} />
             
             {/* Admin */}
             <Route path="/admin" element={<AdminPage />} />
@@ -59,26 +66,5 @@ function App() {
     </HelmetProvider>
   );
 }
-
-// Simple legal page placeholder
-const LegalPage = ({ title }) => (
-  <div className="py-16 lg:py-24 min-h-[60vh]">
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-      <h1 className="text-3xl font-bold text-[#1A5C3A] mb-8">{title}</h1>
-      <div className="prose prose-lg text-[#1A1A2E]/80">
-        <p>
-          Contenu à venir. Cette page sera complétée avec les informations légales 
-          de Repair & Co.
-        </p>
-        <p className="mt-4">
-          Pour toute question, contactez-nous à{' '}
-          <a href="mailto:edouardmourinpro@gmail.com" className="text-[#1A5C3A] hover:text-[#2ECC71]">
-            edouardmourinpro@gmail.com
-          </a>
-        </p>
-      </div>
-    </div>
-  </div>
-);
 
 export default App;
