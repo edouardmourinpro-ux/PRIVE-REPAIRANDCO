@@ -141,10 +141,28 @@ async def seed_admin():
 
 # ==================== EMAIL ====================
 
-def _send_smtp_email(subject: str, html_body: str):
+# Per-store extra email recipients. Whenever a new demand (Quote / Appointment /
+# Buyback) is created for one of these stores, the listed addresses are added
+# to the default NOTIFY_EMAIL recipients.  Centralized here so adding another
+# store is a one-line change.
+STORE_EXTRA_EMAIL_RECIPIENTS = {
+    "montpellier-sud": ["montpellier.sud@repair-and-co.fr"],
+}
+
+def extra_recipients_for_store(store_id):
+    if not store_id:
+        return []
+    return list(STORE_EXTRA_EMAIL_RECIPIENTS.get(store_id, []))
+
+def _send_smtp_email(subject: str, html_body: str, extra_recipients=None):
     raw = NOTIFY_EMAIL or ""
     recipients = [e.strip() for e in raw.split(',') if e.strip()]
-    logger.info(f"[EMAIL] NOTIFY_EMAIL raw='{raw}' → recipients={recipients} | subject='{subject}'")
+    if extra_recipients:
+        for addr in extra_recipients:
+            a = (addr or "").strip()
+            if a and a not in recipients:
+                recipients.append(a)
+    logger.info(f"[EMAIL] NOTIFY_EMAIL raw='{raw}' + extra={extra_recipients or []} → recipients={recipients} | subject='{subject}'")
     if not recipients:
         logger.error("[EMAIL] Aucun destinataire configuré dans NOTIFY_EMAIL — email non envoyé.")
         return
@@ -159,9 +177,9 @@ def _send_smtp_email(subject: str, html_body: str):
         server.sendmail(SMTP_USER, recipients, msg.as_string())
     logger.info(f"[EMAIL] Envoi OK → {recipients}")
 
-async def send_notification(subject: str, html_body: str):
+async def send_notification(subject: str, html_body: str, extra_recipients=None):
     try:
-        await asyncio.to_thread(_send_smtp_email, subject, html_body)
+        await asyncio.to_thread(_send_smtp_email, subject, html_body, extra_recipients)
     except Exception as e:
         logger.error(f"[EMAIL] Échec SMTP — sujet='{subject}' erreur={e}")
 
@@ -421,7 +439,8 @@ async def create_quote(input: QuoteRequestCreate):
             },
             submitted_at=now_fr,
             demand_id=doc["id"],
-        )
+        ),
+        extra_recipients=extra_recipients_for_store(input.store),
     ))
     asyncio.ensure_future(send_whatsapp(input.store,
         f"🚨 *Nouvelle demande - Repair&Co*\n"
@@ -473,7 +492,9 @@ async def create_contact(input: ContactRequestCreate):
             },
             submitted_at=now_fr,
             demand_id=doc["id"],
-        )
+        ),
+        # Per-store routing: only on RDV demands (per spec: "Devis, RDV, Rachat").
+        extra_recipients=extra_recipients_for_store(doc.get('store')) if is_rdv else None,
     ))
     if doc.get('store'):
         rdv_date = doc.get('rdv_date') or ''
@@ -556,7 +577,8 @@ async def create_buyback(input: BuybackRequestCreate):
             },
             submitted_at=now_fr,
             demand_id=doc["id"],
-        )
+        ),
+        extra_recipients=extra_recipients_for_store(input.store),
     ))
     asyncio.ensure_future(send_whatsapp(input.store,
         f"🚨 *Nouvelle demande - Repair&Co*\n"
