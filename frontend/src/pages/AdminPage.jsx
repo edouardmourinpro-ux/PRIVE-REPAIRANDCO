@@ -104,12 +104,12 @@ const AdminPage = () => {
   const [dataLoading, setDataLoading] = useState(false);
 
   // ---- New-lead alerts (Web Audio bip + browser notification) ----
-  // Persisted preference. On page reload, autoplay + notifications require a
-  // fresh user gesture, so we start disabled and prompt to re-enable.
+  // The persisted preference (admin_alerts_enabled) lets us AUTO-restart polling
+  // + browser notifications after a page reload — the manager sees new leads
+  // instantly without clicking. Only the audio bip stays muted until the user
+  // performs a click (mandatory browser autoplay rule), tracked by soundArmed.
   const [alertsEnabled, setAlertsEnabled] = useState(false);
-  const [alertsNeedReactivate, setAlertsNeedReactivate] = useState(
-    typeof window !== 'undefined' && localStorage.getItem('admin_alerts_enabled') === '1'
-  );
+  const [soundArmed, setSoundArmed] = useState(false);
   const [alertSound, setAlertSound] = useState(() => {
     if (typeof window === 'undefined') return DEFAULT_ALERT_SOUND;
     return localStorage.getItem('admin_alert_sound') || DEFAULT_ALERT_SOUND;
@@ -261,17 +261,19 @@ const AdminPage = () => {
 
   // ---------- New-lead alerts ----------
   const playBeep = useCallback(() => {
+    // The Web Audio API needs a user gesture to actually make sound. Until the
+    // user clicks the toggle, we stay silent (visual + system notifications
+    // still fire though — see notifyNew below).
+    if (!soundArmed) return;
     playAlertSound(audioCtxRef.current, alertSound);
-  }, [alertSound]);
+  }, [alertSound, soundArmed]);
 
   const changeAlertSound = useCallback((newId) => {
     setAlertSound(newId);
     localStorage.setItem('admin_alert_sound', newId);
   }, []);
 
-  const testAlertSound = useCallback(async () => {
-    // Ensure the AudioContext exists and is running (may be needed the very
-    // first time the user tests a sound before turning alerts ON).
+  const armAudio = useCallback(async () => {
     try {
       if (!audioCtxRef.current) {
         const AC = window.AudioContext || window.webkitAudioContext;
@@ -280,41 +282,55 @@ const AdminPage = () => {
       if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
         await audioCtxRef.current.resume();
       }
-      playAlertSound(audioCtxRef.current, alertSound);
+      setSoundArmed(true);
     } catch { /* ignore */ }
-  }, [alertSound]);
+  }, []);
+
+  const testAlertSound = useCallback(async () => {
+    // A test click also counts as a user gesture → unlock audio on the fly.
+    await armAudio();
+    try { playAlertSound(audioCtxRef.current, alertSound); } catch { /* ignore */ }
+  }, [alertSound, armAudio]);
 
   const handleToggleAlerts = useCallback(async () => {
-    // Turn OFF
+    // Case 1 — alerts already ON but audio still muted → just arm audio.
+    if (alertsEnabled && !soundArmed) {
+      await armAudio();
+      try { playAlertSound(audioCtxRef.current, alertSound); } catch { /* ignore */ }
+      toast.success('Son activé');
+      return;
+    }
+    // Case 2 — alerts ON with sound → turn OFF everything.
     if (alertsEnabled) {
       setAlertsEnabled(false);
-      setAlertsNeedReactivate(false);
+      setSoundArmed(false);
       localStorage.setItem('admin_alerts_enabled', '0');
       return;
     }
-    // Turn ON — needs a user gesture to unlock Notification + AudioContext.
-    try {
-      if (!audioCtxRef.current) {
-        const AC = window.AudioContext || window.webkitAudioContext;
-        if (AC) audioCtxRef.current = new AC();
-      }
-      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-        await audioCtxRef.current.resume();
-      }
-      // Faint confirmation bip (also “unlocks” audio on Safari/iOS).
-      playBeep();
-    } catch { /* ignore */ }
+    // Case 3 — alerts OFF → turn ON (polling + notifications + sound).
+    await armAudio();
+    try { playAlertSound(audioCtxRef.current, alertSound); } catch { /* ignore */ }
     try {
       if ('Notification' in window && Notification.permission === 'default') {
         await Notification.requestPermission();
       }
     } catch { /* ignore */ }
-    lastSeenCreatedAtRef.current = null; // will be initialized by the polling effect
+    lastSeenCreatedAtRef.current = null;
     setAlertsEnabled(true);
-    setAlertsNeedReactivate(false);
     localStorage.setItem('admin_alerts_enabled', '1');
     toast.success('Alertes nouveaux leads activées');
-  }, [alertsEnabled, playBeep]);
+  }, [alertsEnabled, soundArmed, armAudio, alertSound]);
+
+  // Auto-restart polling + browser notifications after a page reload if the
+  // manager previously activated alerts.  Only the audio bip stays silent
+  // until they perform any click (browser autoplay policy).
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const wasEnabled = localStorage.getItem('admin_alerts_enabled') === '1';
+    if (wasEnabled && !alertsEnabled) {
+      setAlertsEnabled(true);
+    }
+  }, [isLoggedIn, alertsEnabled]);
 
   // Handle document.title prefix ("(nouveau) ") until the tab regains focus.
   useEffect(() => {
@@ -514,7 +530,7 @@ const AdminPage = () => {
           </Button>
           <AlertsToggle
             enabled={alertsEnabled}
-            needsReactivate={alertsNeedReactivate}
+            soundArmed={soundArmed}
             onToggle={handleToggleAlerts}
           />
           <AlertSoundPicker
@@ -670,29 +686,37 @@ const AlertSoundPicker = ({ value, onChange, onTest }) => (
   </div>
 );
 
-// "Activer les alertes" toggle — enables sound + browser notifications.
-const AlertsToggle = ({ enabled, needsReactivate, onToggle }) => {
-  const on = enabled;
-  const label = on
+// "Activer les alertes" toggle — 3 states:
+//   - off    : alerts fully disabled (grey)
+//   - silent : polling + browser notifications ON but audio not yet unlocked
+//              (auto state after a page reload; prompts the user to arm sound)
+//   - on     : full alerts including audio bip (green)
+const AlertsToggle = ({ enabled, soundArmed, onToggle }) => {
+  const state = !enabled ? 'off' : soundArmed ? 'on' : 'silent';
+  const label = state === 'on'
     ? 'Alertes ON'
-    : (needsReactivate ? 'Réactiver alertes' : 'Activer les alertes');
+    : state === 'silent'
+      ? 'Activer le son'
+      : 'Activer les alertes';
+  const title = state === 'on'
+    ? 'Cliquez pour désactiver les alertes'
+    : state === 'silent'
+      ? 'Vous recevez déjà les pop-ups. Cliquez pour activer le bip sonore.'
+      : 'Cliquez pour activer bip + notification navigateur à chaque nouveau lead';
+  const styleByState = {
+    on: 'bg-[#1A5C3A] text-white border-[#1A5C3A] hover:bg-[#2ECC71] hover:border-[#2ECC71]',
+    silent: 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100',
+    off: 'bg-white text-[#1A1A2E] border-[#E8F5EE] hover:bg-[#E8F5EE]',
+  };
   return (
     <button
       type="button"
       onClick={onToggle}
       data-testid="alerts-toggle-btn"
-      title={on
-        ? 'Cliquez pour désactiver les alertes de nouveaux leads'
-        : 'Cliquez pour activer un bip + notification navigateur à chaque nouveau lead'}
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-        on
-          ? 'bg-[#1A5C3A] text-white border-[#1A5C3A] hover:bg-[#2ECC71] hover:border-[#2ECC71]'
-          : needsReactivate
-            ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-            : 'bg-white text-[#1A1A2E] border-[#E8F5EE] hover:bg-[#E8F5EE]'
-      }`}
+      title={title}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${styleByState[state]}`}
     >
-      {on ? <Bell size={13} /> : <BellOff size={13} />}
+      {state === 'on' ? <Bell size={13} /> : <BellOff size={13} />}
       <span>{label}</span>
     </button>
   );
