@@ -14,6 +14,7 @@ import { Input } from '../components/ui/input';
 import { Card, CardContent } from '../components/ui/card';
 import { STORES } from '../data/stores';
 import SEO from '../components/SEO';
+import { ALERT_SOUND_PRESETS, DEFAULT_ALERT_SOUND, playAlertSound } from '../lib/alertSounds';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -109,6 +110,10 @@ const AdminPage = () => {
   const [alertsNeedReactivate, setAlertsNeedReactivate] = useState(
     typeof window !== 'undefined' && localStorage.getItem('admin_alerts_enabled') === '1'
   );
+  const [alertSound, setAlertSound] = useState(() => {
+    if (typeof window === 'undefined') return DEFAULT_ALERT_SOUND;
+    return localStorage.getItem('admin_alert_sound') || DEFAULT_ALERT_SOUND;
+  });
   const audioCtxRef = useRef(null);
   const lastSeenCreatedAtRef = useRef(null);
   const pollTimerRef = useRef(null);
@@ -256,27 +261,28 @@ const AdminPage = () => {
 
   // ---------- New-lead alerts ----------
   const playBeep = useCallback(() => {
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
-    try {
-      const now = ctx.currentTime;
-      // Two soft chirps ~120ms each, moderate volume.
-      [[880, now], [1175, now + 0.16]].forEach(([freq, t]) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, t);
-        gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.exponentialRampToValueAtTime(0.18, t + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
-        osc.connect(gain).connect(ctx.destination);
-        osc.start(t);
-        osc.stop(t + 0.13);
-      });
-    } catch {
-      // ignore
-    }
+    playAlertSound(audioCtxRef.current, alertSound);
+  }, [alertSound]);
+
+  const changeAlertSound = useCallback((newId) => {
+    setAlertSound(newId);
+    localStorage.setItem('admin_alert_sound', newId);
   }, []);
+
+  const testAlertSound = useCallback(async () => {
+    // Ensure the AudioContext exists and is running (may be needed the very
+    // first time the user tests a sound before turning alerts ON).
+    try {
+      if (!audioCtxRef.current) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audioCtxRef.current = new AC();
+      }
+      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        await audioCtxRef.current.resume();
+      }
+      playAlertSound(audioCtxRef.current, alertSound);
+    } catch { /* ignore */ }
+  }, [alertSound]);
 
   const handleToggleAlerts = useCallback(async () => {
     // Turn OFF
@@ -511,6 +517,11 @@ const AdminPage = () => {
             needsReactivate={alertsNeedReactivate}
             onToggle={handleToggleAlerts}
           />
+          <AlertSoundPicker
+            value={alertSound}
+            onChange={changeAlertSound}
+            onTest={testAlertSound}
+          />
         </div>
 
         {/* Tabs */}
@@ -630,6 +641,34 @@ const AdminPage = () => {
     </div>
   );
 };
+
+// Compact sound picker for the new-lead alert bip.  Persists in localStorage
+// and lets the admin preview each preset via a "Tester" button.
+const AlertSoundPicker = ({ value, onChange, onTest }) => (
+  <div className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 border border-[#E8F5EE] rounded-full bg-white">
+    <span className="text-xs text-[#1A1A2E]/70 hidden sm:inline">Son :</span>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="bg-transparent text-xs text-[#1A1A2E] focus:outline-none pr-1 max-w-[150px]"
+      data-testid="alert-sound-picker"
+      aria-label="Choix du son d'alerte"
+    >
+      {ALERT_SOUND_PRESETS.map((p) => (
+        <option key={p.id} value={p.id}>{p.label}</option>
+      ))}
+    </select>
+    <button
+      type="button"
+      onClick={onTest}
+      data-testid="alert-sound-test-btn"
+      title="Écouter le son sélectionné"
+      className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#E8F5EE] text-[#1A5C3A] hover:bg-[#2ECC71] hover:text-white transition-colors"
+    >
+      Tester
+    </button>
+  </div>
+);
 
 // "Activer les alertes" toggle — enables sound + browser notifications.
 const AlertsToggle = ({ enabled, needsReactivate, onToggle }) => {
