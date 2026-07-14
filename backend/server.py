@@ -76,6 +76,21 @@ STORE_WHATSAPP = {
     "les-ulis":         ["33749952472", "33660713422"],   # Magasin + RPV Eren
 }
 
+# Per-store manager email — added as an extra recipient on every new lead
+# email (Devis / Contact / Rachat) so managers stay in the loop even without
+# WhatsApp. Same keys as STORE_WHATSAPP / STORE_NAMES.
+STORE_EMAIL = {
+    "lattes":           "lattes@repair-and-co.fr",
+    "montpellier-nord": "montpellier.nord@repair-and-co.fr",
+    "montpellier-sud":  "montpellier.sud@repair-and-co.fr",
+    "nimes-costieres":  "nimes.costieres@repair-and-co.fr",
+    "nimes-etoile":     "nimes.etoile@repair-and-co.fr",
+    "beziers":          "beziers@repair-and-co.fr",
+    "boulogne":         "boulogne@repair-and-co.fr",
+    "plaisir":          "plaisir@repair-and-co.fr",
+    "les-ulis":         "les.ulis@repair-and-co.fr",
+}
+
 # Destinataires systématiques de toutes les alertes (quel que soit le magasin)
 GLOBAL_WHATSAPP = ["33675511777"]  # Christelle
 
@@ -141,18 +156,12 @@ async def seed_admin():
 
 # ==================== EMAIL ====================
 
-# Per-store extra email recipients. Whenever a new demand (Quote / Appointment /
-# Buyback) is created for one of these stores, the listed addresses are added
-# to the default NOTIFY_EMAIL recipients.  Centralized here so adding another
-# store is a one-line change.
-STORE_EXTRA_EMAIL_RECIPIENTS = {
-    "montpellier-sud": ["montpellier.sud@repair-and-co.fr"],
-}
-
 def extra_recipients_for_store(store_id):
+    """Return the manager email(s) for a given store id — empty list if unknown."""
     if not store_id:
         return []
-    return list(STORE_EXTRA_EMAIL_RECIPIENTS.get(store_id, []))
+    email = STORE_EMAIL.get(store_id)
+    return [email] if email else []
 
 def _send_smtp_email(subject: str, html_body: str, extra_recipients=None):
     raw = NOTIFY_EMAIL or ""
@@ -377,6 +386,9 @@ class StaffFeedbackRequest(BaseModel):
     staff_site_opinion: Optional[str] = None
     staff_dislikes: Optional[str] = None
 
+class QuotedPriceRequest(BaseModel):
+    quoted_price: str = ""
+
 # Allowed status values (Phase 2 — pipeline 6 statuts)
 ALLOWED_STATUSES = {"nouveau", "contacte", "pris_en_charge", "facture", "refus_devis", "client_perdu"}
 # Map legacy → new
@@ -417,6 +429,9 @@ async def create_quote(input: QuoteRequestCreate):
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store)
+    store_extra = extra_recipients_for_store(input.store)
+    if store_extra:
+        logger.info(f"[EMAIL] Devis — magasin '{input.store}' → +{store_extra}")
     doc = input.model_dump()
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "devis"})
     await db.demandes_devis.insert_one(doc)
@@ -440,7 +455,7 @@ async def create_quote(input: QuoteRequestCreate):
             submitted_at=now_fr,
             demand_id=doc["id"],
         ),
-        extra_recipients=extra_recipients_for_store(input.store),
+        extra_recipients=store_extra,
     ))
     asyncio.ensure_future(send_whatsapp(input.store,
         f"🚨 *Nouvelle demande - Repair&Co*\n"
@@ -462,6 +477,9 @@ async def create_contact(input: ContactRequestCreate):
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store) if input.store else "Non précisé"
+    store_extra = extra_recipients_for_store(input.store) if input.store else []
+    if store_extra:
+        logger.info(f"[EMAIL] Contact — magasin '{input.store}' → +{store_extra}")
     doc = input.model_dump()
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "contact"})
     await db.demandes_contact.insert_one(doc)
@@ -493,8 +511,8 @@ async def create_contact(input: ContactRequestCreate):
             submitted_at=now_fr,
             demand_id=doc["id"],
         ),
-        # Per-store routing: only on RDV demands (per spec: "Devis, RDV, Rachat").
-        extra_recipients=extra_recipients_for_store(doc.get('store')) if is_rdv else None,
+        # Store manager email added on every /contact demand (RDV + Message).
+        extra_recipients=store_extra,
     ))
     if doc.get('store'):
         rdv_date = doc.get('rdv_date') or ''
@@ -556,6 +574,9 @@ async def create_buyback(input: BuybackRequestCreate):
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store)
+    store_extra = extra_recipients_for_store(input.store)
+    if store_extra:
+        logger.info(f"[EMAIL] Rachat — magasin '{input.store}' → +{store_extra}")
     doc = input.model_dump()
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "rachat"})
     await db.demandes_rachat.insert_one(doc)
@@ -578,7 +599,7 @@ async def create_buyback(input: BuybackRequestCreate):
             submitted_at=now_fr,
             demand_id=doc["id"],
         ),
-        extra_recipients=extra_recipients_for_store(input.store),
+        extra_recipients=store_extra,
     ))
     asyncio.ensure_future(send_whatsapp(input.store,
         f"🚨 *Nouvelle demande - Repair&Co*\n"
@@ -664,6 +685,50 @@ async def update_staff_feedback(category: str, demand_id: str, body: StaffFeedba
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Demande non trouvée")
     return {"status": "updated"}
+
+@api_router.patch("/admin/demandes/{category}/{demand_id}/quoted-price")
+async def update_quoted_price(category: str, demand_id: str, body: QuotedPriceRequest, user=Depends(get_current_admin)):
+    """Store the phone-quoted repair price (free text: "≈90€", "à confirmer", …).
+    Empty string clears the value."""
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    result = await db[col_name].update_one(
+        {"id": demand_id},
+        {"$set": {"quoted_price": (body.quoted_price or "").strip()}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+    return {"status": "updated"}
+
+@api_router.get("/admin/latest")
+async def get_latest_demands(store: Optional[str] = Query(None), user=Depends(get_current_admin)):
+    """Return the 5 most-recent leads across all 4 collections, optionally filtered
+    by store. Used by the admin UI for the "new lead" polling / alert system."""
+    query = {"store": store} if store else {}
+    items = []
+    for demand_type, col_name in COLLECTIONS.items():
+        docs = await db[col_name].find(
+            query,
+            {"_id": 0, "id": 1, "store": 1, "created_at": 1,
+             "name": 1, "first_name": 1, "last_name": 1, "company": 1},
+        ).sort("created_at", -1).limit(5).to_list(5)
+        for d in docs:
+            label = (
+                d.get("name")
+                or " ".join(x for x in [d.get("first_name"), d.get("last_name")] if x).strip()
+                or d.get("company")
+                or "Client"
+            )
+            items.append({
+                "id": d["id"],
+                "type": demand_type,
+                "store": d.get("store"),
+                "created_at": d.get("created_at"),
+                "label": label,
+            })
+    items.sort(key=lambda it: it.get("created_at") or "", reverse=True)
+    return items[:5]
 
 @api_router.post("/demandes/{category}/{demand_id}/survey")
 async def submit_customer_survey(category: str, demand_id: str, body: CustomerSurveyRequest):

@@ -5,6 +5,7 @@ import {
   LogOut, FileText, MessageSquare, Building2, Recycle,
   Loader2, ChevronDown, ChevronUp, Clock, Phone, Mail,
   Download, Filter, Sparkles, MessageCircle, Save, Trash2, UserX, RefreshCw, ExternalLink,
+  Bell, BellOff, Euro, Check,
 } from 'lucide-react';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
@@ -101,6 +102,18 @@ const AdminPage = () => {
   const [data, setData] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
 
+  // ---- New-lead alerts (Web Audio bip + browser notification) ----
+  // Persisted preference. On page reload, autoplay + notifications require a
+  // fresh user gesture, so we start disabled and prompt to re-enable.
+  const [alertsEnabled, setAlertsEnabled] = useState(false);
+  const [alertsNeedReactivate, setAlertsNeedReactivate] = useState(
+    typeof window !== 'undefined' && localStorage.getItem('admin_alerts_enabled') === '1'
+  );
+  const audioCtxRef = useRef(null);
+  const lastSeenCreatedAtRef = useRef(null);
+  const pollTimerRef = useRef(null);
+  const titlePrefixRef = useRef(false);
+
   const authHeaders = { Authorization: `Bearer ${token}` };
 
   useEffect(() => {
@@ -184,6 +197,15 @@ const AdminPage = () => {
     setData(prev => prev.map(d => d.id === id ? { ...d, ...payload } : d));
   };
 
+  const saveQuotedPrice = async (id, price) => {
+    await axios.patch(
+      `${API_URL}/api/admin/demandes/${activeTab}/${id}/quoted-price`,
+      { quoted_price: price },
+      { headers: authHeaders },
+    );
+    setData(prev => prev.map(d => d.id === id ? { ...d, quoted_price: price } : d));
+  };
+
   const handleDeleteDemand = async (id, code) => {
     await axios.delete(`${API_URL}/api/admin/demandes/${activeTab}/${id}`, { headers: authHeaders, data: { code } });
     setData(prev => prev.filter(d => d.id !== id));
@@ -231,6 +253,171 @@ const AdminPage = () => {
       alert("Erreur lors de l'export CSV");
     }
   };
+
+  // ---------- New-lead alerts ----------
+  const playBeep = useCallback(() => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      // Two soft chirps ~120ms each, moderate volume.
+      [[880, now], [1175, now + 0.16]].forEach(([freq, t]) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.18, t + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.13);
+      });
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleToggleAlerts = useCallback(async () => {
+    // Turn OFF
+    if (alertsEnabled) {
+      setAlertsEnabled(false);
+      setAlertsNeedReactivate(false);
+      localStorage.setItem('admin_alerts_enabled', '0');
+      return;
+    }
+    // Turn ON — needs a user gesture to unlock Notification + AudioContext.
+    try {
+      if (!audioCtxRef.current) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audioCtxRef.current = new AC();
+      }
+      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        await audioCtxRef.current.resume();
+      }
+      // Faint confirmation bip (also “unlocks” audio on Safari/iOS).
+      playBeep();
+    } catch { /* ignore */ }
+    try {
+      if ('Notification' in window && Notification.permission === 'default') {
+        await Notification.requestPermission();
+      }
+    } catch { /* ignore */ }
+    lastSeenCreatedAtRef.current = null; // will be initialized by the polling effect
+    setAlertsEnabled(true);
+    setAlertsNeedReactivate(false);
+    localStorage.setItem('admin_alerts_enabled', '1');
+    toast.success('Alertes nouveaux leads activées');
+  }, [alertsEnabled, playBeep]);
+
+  // Handle document.title prefix ("(nouveau) ") until the tab regains focus.
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible' && titlePrefixRef.current) {
+        document.title = document.title.replace(/^\(nouveau\)\s+/, '');
+        titlePrefixRef.current = false;
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  // Poll /api/admin/latest every 20s while alerts are ON.
+  useEffect(() => {
+    if (!isLoggedIn || !alertsEnabled) return undefined;
+
+    let cancelled = false;
+
+    const initBaseline = async () => {
+      try {
+        const params = {};
+        if (storeFilter) params.store = storeFilter;
+        const r = await axios.get(`${API_URL}/api/admin/latest`, { headers: authHeaders, params });
+        if (cancelled) return;
+        const arr = Array.isArray(r.data) ? r.data : [];
+        lastSeenCreatedAtRef.current = arr[0]?.created_at || null;
+      } catch (err) {
+        if (err?.response?.status === 401) {
+          // Token expired → stop polling gracefully.
+          setAlertsEnabled(false);
+        }
+      }
+    };
+
+    const notifyNew = (fresh) => {
+      // 1 or many "new" leads compared to lastSeen.
+      const storeLabel = storeFilter
+        ? (STORES.find(s => s.id === storeFilter)?.name || storeFilter)
+        : 'Tous magasins';
+      playBeep();
+      // Browser notification (single one, aggregated if many)
+      try {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          if (fresh.length === 1) {
+            const it = fresh[0];
+            const typeLabel = { devis: 'Devis', contact: 'Contact/RDV', rachat: 'Rachat', entreprise: 'Entreprise' }[it.type] || it.type;
+            const n = new Notification(`Nouveau lead — ${storeLabel}`, {
+              body: `${typeLabel} · ${it.label || 'Client'}`,
+              tag: 'repairco-lead',
+              renotify: true,
+            });
+            n.onclick = () => { window.focus(); n.close(); };
+          } else {
+            const n = new Notification(`${fresh.length} nouveaux leads — ${storeLabel}`, {
+              body: 'Ouvrez l’admin pour les consulter.',
+              tag: 'repairco-lead',
+              renotify: true,
+            });
+            n.onclick = () => { window.focus(); n.close(); };
+          }
+        }
+      } catch { /* ignore */ }
+      // Toast fallback (visible dans l'onglet)
+      toast(fresh.length === 1
+        ? `Nouveau lead · ${storeLabel}`
+        : `${fresh.length} nouveaux leads · ${storeLabel}`);
+      // Title prefix if tab is hidden
+      if (document.visibilityState !== 'visible' && !titlePrefixRef.current) {
+        document.title = `(nouveau) ${document.title}`;
+        titlePrefixRef.current = true;
+      }
+    };
+
+    const tick = async () => {
+      try {
+        const params = {};
+        if (storeFilter) params.store = storeFilter;
+        const r = await axios.get(`${API_URL}/api/admin/latest`, { headers: authHeaders, params });
+        if (cancelled) return;
+        const arr = Array.isArray(r.data) ? r.data : [];
+        const baseline = lastSeenCreatedAtRef.current;
+        if (!baseline) {
+          lastSeenCreatedAtRef.current = arr[0]?.created_at || null;
+          return;
+        }
+        const fresh = arr.filter(x => (x.created_at || '') > baseline);
+        if (fresh.length > 0) {
+          lastSeenCreatedAtRef.current = fresh[0].created_at;
+          notifyNew(fresh);
+          // Refresh list + counters so the new lead appears in the UI.
+          loadData(activeTab);
+          loadStats();
+        }
+      } catch (err) {
+        if (err?.response?.status === 401) {
+          setAlertsEnabled(false);
+        }
+      }
+    };
+
+    initBaseline();
+    pollTimerRef.current = setInterval(tick, 20000);
+    return () => {
+      cancelled = true;
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    };
+  }, [isLoggedIn, alertsEnabled, storeFilter, activeTab, loadData, loadStats, playBeep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-[#1A5C3A]" size={32} /></div>;
@@ -319,6 +506,11 @@ const AdminPage = () => {
           >
             <Download size={14} className="mr-1" /> Exporter CSV
           </Button>
+          <AlertsToggle
+            enabled={alertsEnabled}
+            needsReactivate={alertsNeedReactivate}
+            onToggle={handleToggleAlerts}
+          />
         </div>
 
         {/* Tabs */}
@@ -386,6 +578,7 @@ const AdminPage = () => {
                 type={activeTab}
                 onStatusChange={updateStatus}
                 onSaveStaffFeedback={saveStaffFeedback}
+                onSaveQuotedPrice={saveQuotedPrice}
                 onDelete={handleDeleteDemand}
                 onPushWA={handlePushWADemand}
               />
@@ -438,7 +631,102 @@ const AdminPage = () => {
   );
 };
 
-const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete, onPushWA }) => {
+// "Activer les alertes" toggle — enables sound + browser notifications.
+const AlertsToggle = ({ enabled, needsReactivate, onToggle }) => {
+  const on = enabled;
+  const label = on
+    ? 'Alertes ON'
+    : (needsReactivate ? 'Réactiver alertes' : 'Activer les alertes');
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      data-testid="alerts-toggle-btn"
+      title={on
+        ? 'Cliquez pour désactiver les alertes de nouveaux leads'
+        : 'Cliquez pour activer un bip + notification navigateur à chaque nouveau lead'}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+        on
+          ? 'bg-[#1A5C3A] text-white border-[#1A5C3A] hover:bg-[#2ECC71] hover:border-[#2ECC71]'
+          : needsReactivate
+            ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+            : 'bg-white text-[#1A1A2E] border-[#E8F5EE] hover:bg-[#E8F5EE]'
+      }`}
+    >
+      {on ? <Bell size={13} /> : <BellOff size={13} />}
+      <span>{label}</span>
+    </button>
+  );
+};
+
+// Compact inline input for the phone-quoted repair price.  Auto-saves on blur
+// or Enter (only if the value changed).  stopPropagation on all events so
+// clicking / typing does not toggle the parent DemandCard.
+const QuotedPriceInput = ({ itemId, initialValue, onSave }) => {
+  const [value, setValue] = useState(initialValue || '');
+  const [saved, setSaved] = useState(false);
+  const initialRef = useRef(initialValue || '');
+  const savedTimerRef = useRef(null);
+
+  useEffect(() => {
+    // If the parent (setData) updates the demand, mirror the change.
+    setValue(initialValue || '');
+    initialRef.current = initialValue || '';
+  }, [initialValue]);
+
+  useEffect(() => () => {
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+  }, []);
+
+  const flush = async () => {
+    const next = (value || '').trim();
+    if (next === (initialRef.current || '').trim()) return;
+    try {
+      await onSave(itemId, next);
+      initialRef.current = next;
+      setSaved(true);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSaved(false), 1500);
+    } catch {
+      toast.error("Erreur lors de l'enregistrement du prix");
+    }
+  };
+
+  return (
+    <div
+      className="flex items-center gap-1 pl-2 pr-1 py-1 border border-[#E8F5EE] rounded-lg bg-white focus-within:border-[#2ECC71] transition-colors"
+      onClick={e => e.stopPropagation()}
+    >
+      <Euro size={13} className="text-[#1A5C3A] flex-shrink-0" />
+      <input
+        type="text"
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        onClick={e => e.stopPropagation()}
+        onMouseDown={e => e.stopPropagation()}
+        onKeyDown={e => {
+          e.stopPropagation();
+          if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
+        }}
+        onBlur={flush}
+        placeholder="Prix"
+        title="Prix annoncé au client au téléphone (note interne)"
+        aria-label="Prix annoncé au client"
+        className="w-[72px] bg-transparent text-xs text-[#1A1A2E] focus:outline-none placeholder:text-[#1A1A2E]/40"
+        data-testid={`quoted-price-input-${itemId}`}
+      />
+      {saved && (
+        <Check
+          size={12}
+          className="text-[#2ECC71] flex-shrink-0"
+          data-testid={`quoted-price-saved-${itemId}`}
+        />
+      )}
+    </div>
+  );
+};
+
+const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onPushWA }) => {
   const [open, setOpen] = useState(false);
   const feedbackRef = useRef(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -659,7 +947,12 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onDelete,
             {open ? <ChevronUp size={20} className="text-[#1A5C3A] flex-shrink-0 ml-2" /> : <ChevronDown size={20} className="text-[#1A1A2E]/40 flex-shrink-0 ml-2" />}
           </button>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+            <QuotedPriceInput
+              itemId={item.id}
+              initialValue={item.quoted_price || ''}
+              onSave={onSaveQuotedPrice}
+            />
             <span className={`text-xs px-2 py-1 rounded-full font-medium hidden sm:inline ${currentStatus.color}`} data-testid={`demand-status-badge-${item.id}`}>
               {currentStatus.label}
             </span>

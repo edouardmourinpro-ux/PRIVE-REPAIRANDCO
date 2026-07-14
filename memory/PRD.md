@@ -1,5 +1,10 @@
 # Repair & Co — PRD
 
+> **MAJ 14/07/2026 (v5) — Alertes admin, prix annoncé & routage email 9 magasins** :
+> - **Routage email par magasin** : dict `STORE_EMAIL` (9 magasins → email boîte magasin) dans `backend/server.py`. `send_notification()` / `_send_smtp_email()` acceptent `extra_recipients` (dédupliqué). Appliqué aux endpoints `/api/quote`, `/api/contact` (RDV **et** messages), `/api/buyback`. B2B non touché.
+> - **Prix annoncé (note interne)** : `PATCH /api/admin/demandes/{category}/{demand_id}/quoted-price` (string libre, vide = reset). Petit input € dans l'en-tête de chaque `DemandCard` (visible même repliée), sauvegarde inline au blur/Enter, ✓ vert éphémère. `data-testid` : `quoted-price-input-{id}`, `quoted-price-saved-{id}`.
+> - **Alertes nouveau lead** : `GET /api/admin/latest?store=…` (5 leads récents tous types, projection minimale). Bouton "Activer les alertes" (`data-testid="alerts-toggle-btn"`) OFF / ON / à-réactiver, préférence dans `localStorage`. Polling 20s dès activation, bip Web Audio (2 notes, pas de fichier), notification navigateur (agrégée si multiples), toast `sonner`, préfixe `(nouveau)` sur `document.title` si onglet caché. Respecte `storeFilter`. Arrêt propre sur 401.
+
 > **MAJ 15/06/2026 (v4) — Fondations SEO** :
 > - `public/index.html` nettoyé : `lang="fr"`, `theme-color="#1A5C3A"`, favicon/manifest/apple-touch-icon, `<title>` + OG truly-global (og:type, og:locale, og:site_name) + `twitter:card`. Tags **dynamiques** (description, canonical, og:url, og:title, og:description, og:image, twitter:image, twitter:title, twitter:description, robots) retirés du HTML statique pour éviter les doublons avec `react-helmet-async` qui n'écrase pas les meta statiques.
 > - `SEO.jsx` : émet désormais 1 seul tag par catégorie (description, canonical, og:*, twitter:*, robots). Default `robots="index, follow"`, `noindex, nofollow` si prop `noindex` true. Évite l'auto-suffixe `| Repair & Co` si le titre le contient déjà.
