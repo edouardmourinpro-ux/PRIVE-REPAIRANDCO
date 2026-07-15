@@ -90,7 +90,9 @@ const AdminPage = () => {
   const [loginLoading, setLoginLoading] = useState(false);
 
   const [activeTab, setActiveTab] = useState('devis');
-  const [storeFilter, setStoreFilter] = useState('');
+  const [storeFilter, setStoreFilter] = useState(
+    () => (typeof window !== 'undefined' && localStorage.getItem('admin_store_filter')) || ''
+  );
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -507,7 +509,11 @@ const AdminPage = () => {
           </div>
           <select
             value={storeFilter}
-            onChange={e => setStoreFilter(e.target.value)}
+            onChange={e => {
+              const v = e.target.value;
+              setStoreFilter(v);
+              try { localStorage.setItem('admin_store_filter', v); } catch { /* ignore */ }
+            }}
             className="px-3 py-1.5 border border-[#E8F5EE] rounded-lg text-sm text-[#1A1A2E] bg-white focus:outline-none focus:border-[#2ECC71]"
             data-testid="admin-store-filter"
           >
@@ -533,6 +539,23 @@ const AdminPage = () => {
             soundArmed={soundArmed}
             onToggle={handleToggleAlerts}
           />
+          {alertsEnabled && (
+            <span
+              className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${
+                storeFilter
+                  ? 'bg-[#E8F5EE] text-[#1A5C3A]'
+                  : 'bg-amber-50 text-amber-800'
+              }`}
+              data-testid="alerts-scope-badge"
+              title={storeFilter
+                ? 'Vous ne recevrez d’alerte que pour ce magasin.'
+                : 'Vous recevrez une alerte pour TOUS les leads. Sélectionnez un magasin ci-dessus pour cibler.'}
+            >
+              {storeFilter
+                ? `Alertes : ${STORES.find(s => s.id === storeFilter)?.name?.replace('Repair&Co ', '') || storeFilter} uniquement`
+                : 'Alertes : tous magasins'}
+            </span>
+          )}
           <AlertSoundPicker
             value={alertSound}
             onChange={changeAlertSound}
