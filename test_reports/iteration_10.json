@@ -1,0 +1,73 @@
+{
+  "summary": "Read-only SEO verification on preview build. All per-page Helmet-injected SEO tags (title/description/canonical/og:url/og:title/og:description) are unique (count=1) and match the expected values exactly for the 10 public pages. Legal pages (mentions-legales, cgv, politique-confidentialite, politique-cookies) each have their own title containing 'Repair & Co' and correct canonical. /rgpd correctly redirects to /politique-confidentialite. /admin has exactly ONE robots meta with 'noindex, nofollow'; all other public pages have 'index, follow'. Home JSON-LD Organization matches expected fields (name, legalName, url, logo, email, telephone) byte-for-byte. /magasins renders exactly 9 LocalBusiness JSON-LD blocks (+ 1 BreadcrumbList) — for every store: image, url prefix, telephone (+33, no spaces, no leading 0), addressCountry=FR, priceRange=€€, dayOfWeek Mon–Sat, and opens/closes match spec (lattes/montpellier-nord/montpellier-sud/nimes-costieres 09:30-20:00, nimes-etoile/beziers 09:30-19:30, boulogne/plaisir/les-ulis 10:00-20:00). /faq FAQPage JSON-LD has 12 Question entries with proper @type/name/acceptedAnswer.@type/text. Static assets /robots.txt, /sitemap.xml, /manifest.json, /og-image.jpg all return HTTP 200; manifest.json contains name/short_name/theme_color=#1A5C3A/icons for /icon-192.png and /icon-512.png. No occurrence of 'edouardmourinpro@gmail.com' anywhere in rendered pages; legal pages expose 'contact@repair-and-co.fr' as expected. index.html static: lang=fr, exact <title>, theme-color #1A5C3A, og:type=website, og:locale=fr_FR, og:site_name, twitter:card=summary_large_image, favicon icon, apple-touch-icon, manifest link — all present. As noted in the brief, description/canonical/og:url/og:title/og:description/twitter:*/og:image/robots are intentionally NOT in static index.html and are injected per-page — verified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "seo_verification_matrix": {
+    "index_html_static": {
+      "lang_fr": "PASS",
+      "title_exact": "PASS",
+      "theme_color_1A5C3A": "PASS",
+      "og_type_website": "PASS",
+      "og_locale_fr_FR": "PASS",
+      "og_site_name": "PASS",
+      "twitter_card_summary_large_image": "PASS",
+      "favicon_icon": "PASS",
+      "apple_touch_icon": "PASS",
+      "manifest_link": "PASS",
+      "no_static_dedup_tags (description/canonical/og:url/og:title/og:desc/robots absent as intended)": "PASS",
+      "emergent_boilerplate_note": "Static index.html still injects <script src=\"https://assets.emergent.sh/scripts/emergent-main.js\"></script> at line 31 (preview-environment platform badge). NOT the classic React/CRA boilerplate; likely auto-injected by the preview infra and absent in real production deploy on repairandco.fr. Flag as informational only."
+    },
+    "per_page_tags": {
+      "/": "PASS (title/desc/canonical/og:url all unique & exact)",
+      "/services": "PASS",
+      "/magasins": "PASS",
+      "/devis": "PASS",
+      "/rendez-vous": "PASS",
+      "/rachat": "PASS",
+      "/entreprises": "PASS",
+      "/qui-sommes-nous": "PASS",
+      "/faq": "PASS",
+      "/contact": "PASS"
+    },
+    "legal_pages": {
+      "/mentions-legales": "PASS (title 'Mentions légales | Repair & Co', canonical /mentions-legales)",
+      "/cgv": "PASS",
+      "/politique-confidentialite": "PASS",
+      "/politique-cookies": "PASS"
+    },
+    "redirects": {"/rgpd -> /politique-confidentialite": "PASS"},
+    "robots_meta": {
+      "public_pages": "index, follow (verified on all 10 public pages)",
+      "/admin": "PASS — exactly 1 robots meta with 'noindex, nofollow' (login screen; dashboard requires auth but SEO injected in both branches per code review)"
+    },
+    "json_ld": {
+      "home_Organization": "PASS (all 6 fields exact)",
+      "magasins_LocalBusiness_x9": "PASS (all 9 stores, tel E.164, addressCountry FR, priceRange €€, days Mon-Sat, hours matching spec)",
+      "faq_FAQPage": "PASS (12 Question entries, acceptedAnswer.@type=Answer with text)"
+    },
+    "static_files": {
+      "/robots.txt": "200",
+      "/sitemap.xml": "200 (19 URLs incl. /magasins/<slug> pages)",
+      "/manifest.json": "200 (name, short_name, theme_color=#1A5C3A, icons 192+512)",
+      "/og-image.jpg": "200"
+    },
+    "email_leak_edouardmourinpro": "PASS — not present on any of the 14 pages tested (10 public + 4 legal). 'contact@repair-and-co.fr' present on legal pages."
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "index.html line 31 loads https://assets.emergent.sh/scripts/emergent-main.js — verify this is intended for the preview deploy only and stripped for the real repairandco.fr production build; otherwise it is a leftover Emergent artefact.",
+    "Everything else conforms to the SEO brief; no fixes required."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped)", "frontend": "100%"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Full SEO audit read-only, no code changed. All requirements pass. Only informational note: preview index.html still contains the platform-injected emergent-main.js script tag; expected to disappear on real prod deploy.",
+  "test_credentials": "Admin creds provided in brief were NOT used — /admin robots meta could be validated on the public login screen (SEO wrapper injected in both login and dashboard branches per code)."
+}
