@@ -118,3 +118,34 @@ html {
     border-left-color: inherit; border-right-color: inherit; border-top-color: inherit; border-bottom-color: inherit;
   }
 }
+
+/* Typography for blog article content — applied on the outer <div className="blog-prose"> */
+.blog-prose h2 {
+  font-size: 1.75rem;
+  line-height: 1.25;
+  font-weight: 800;
+  color: #1A5C3A;
+  margin-top: 3rem;
+  margin-bottom: 1rem;
+  scroll-margin-top: 6rem;
+}
+@media (min-width: 640px) { .blog-prose h2 { font-size: 2rem; } }
+.blog-prose h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1A5C3A;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+.blog-prose p {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: rgba(26, 26, 46, 0.9);
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+.blog-prose ul { list-style: disc; padding-left: 1.5rem; margin: 1rem 0; }
+.blog-prose ul li { margin: 0.5rem 0; line-height: 1.7; }
+.blog-prose ul li::marker { color: #2ECC71; }
+.blog-prose strong { color: #1A1A2E; font-weight: 600; }
+.blog-prose .not-prose h2 { /* no-op guard */ }

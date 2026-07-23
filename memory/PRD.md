@@ -1,5 +1,18 @@
 # Repair & Co — PRD
 
+> **MAJ 23/07/2026 (v6) — Blog SEO** :
+> - Section blog data-driven créée : `/blog` (index en cartes) + `/blog/:slug` (article, template `BlogArticlePage`).
+> - Ajouter un futur article = ajouter une entrée dans `/app/frontend/src/data/blog.js` (import du composant contenu depuis `content/articles/`).
+> - 1er article publié : « Prix réparation écran iPhone 2026 : le guide par modèle » (slug `prix-reparation-ecran-iphone`). Contenu React (pas de markdown runtime) : `content/articles/PrixReparationEcranIphone.jsx` — hero, callout "L'essentiel", tableau de prix responsive, 2 SVG inline (compat clair/sombre via `currentColor`), FAQ accordéon, CTA `/devis` + `/rendez-vous`, sources externes.
+> - **3 JSON-LD** par article injectés en `<head>` via Helmet : `BlogPosting`, `BreadcrumbList`, `FAQPage` (générés dynamiquement depuis les données de l'article).
+> - **OpenGraph par page** : `og:type=article` sur l'article (retiré d'`index.html` pour laisser Helmet gérer). `og:image` = hero absolu `https://repairandco.fr/blog/hero.png`.
+> - **Aucun lien mort** : liens internes vers routes existantes uniquement (`/services`, `/magasins`, `/devis`, `/rendez-vous`, `/rachat`, `/blog`). Liens externes : `target="_blank" rel="nofollow noopener noreferrer"`.
+> - Nav "Blog" ajouté dans le Header (`data-testid="nav-blog"`) et le Footer (`data-testid="footer-blog"`).
+> - Image `/public/blog/hero.png` (1200×630) self-hostée.
+> - Styles typographiques article dans `index.css` (`.blog-prose`).
+
+> **MAJ 15/07/2026 (v5b) — Filtre magasin persistant + badge périmètre alertes** : storeFilter persisté dans `localStorage.admin_store_filter`. Badge coloré à côté du toggle Alertes indique le magasin ciblé.
+
 > **MAJ 14/07/2026 (v5) — Alertes admin, prix annoncé & routage email 9 magasins** :
 > - **Routage email par magasin** : dict `STORE_EMAIL` (9 magasins → email boîte magasin) dans `backend/server.py`. `send_notification()` / `_send_smtp_email()` acceptent `extra_recipients` (dédupliqué). Appliqué aux endpoints `/api/quote`, `/api/contact` (RDV **et** messages), `/api/buyback`. B2B non touché.
 > - **Prix annoncé (note interne)** : `PATCH /api/admin/demandes/{category}/{demand_id}/quoted-price` (string libre, vide = reset). Petit input € dans l'en-tête de chaque `DemandCard` (visible même repliée), sauvegarde inline au blur/Enter, ✓ vert éphémère. `data-testid` : `quoted-price-input-{id}`, `quoted-price-saved-{id}`.

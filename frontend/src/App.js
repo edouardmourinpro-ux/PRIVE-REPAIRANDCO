@@ -21,6 +21,8 @@ import MentionsLegalesPage from "./pages/MentionsLegalesPage";
 import CGVPage from "./pages/CGVPage";
 import PolitiqueConfidentialitePage from "./pages/PolitiqueConfidentialitePage";
 import PolitiqueCookiesPage from "./pages/PolitiqueCookiesPage";
+import BlogIndexPage from "./pages/BlogIndexPage";
+import BlogArticlePage from "./pages/BlogArticlePage";
 
 function App() {
   return (
@@ -49,6 +51,10 @@ function App() {
             <Route path="/qui-sommes-nous" element={<AboutPage />} />
             <Route path="/faq" element={<FAQPage />} />
             <Route path="/contact" element={<ContactPage />} />
+
+            {/* Blog */}
+            <Route path="/blog" element={<BlogIndexPage />} />
+            <Route path="/blog/:slug" element={<BlogArticlePage />} />
             
             {/* Legal pages */}
             <Route path="/mentions-legales" element={<MentionsLegalesPage />} />

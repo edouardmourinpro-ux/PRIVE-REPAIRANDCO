@@ -27,6 +27,7 @@ export const Footer = () => {
               <li><Link to="/devis" className="footer-link text-sm" data-testid="footer-quote">Devis gratuit</Link></li>
               <li><Link to="/rendez-vous" className="footer-link text-sm" data-testid="footer-appointment">Rendez-vous</Link></li>
               <li><Link to="/rachat" className="footer-link text-sm" data-testid="footer-buyback">Rachat & Reconditionnés</Link></li>
+              <li><Link to="/blog" className="footer-link text-sm" data-testid="footer-blog">Blog</Link></li>
             </ul>
           </div>
           <div>

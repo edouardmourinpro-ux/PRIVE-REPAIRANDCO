@@ -20,8 +20,9 @@ export const Navbar = () => {
     { to: '/', label: 'Accueil' }, { to: '/services', label: 'Services' },
     { to: '/magasins', label: 'Magasins' }, { to: '/devis', label: 'Devis' },
     { to: '/rendez-vous', label: 'Rendez-vous' }, { to: '/rachat', label: 'Boutique' },
+    { to: '/blog', label: 'Blog' },
   ];
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) => location.pathname === path || (path === '/blog' && location.pathname.startsWith('/blog'));
 
   return (
     <>
