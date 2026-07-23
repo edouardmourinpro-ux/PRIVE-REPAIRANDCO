@@ -1,12 +1,12 @@
-// Cookie consent manager — CNIL compliant
-// - Stores user choice in localStorage with a 6-month expiry.
-// - Exposes helpers to read / update consent.
-// - Loads Google Analytics (GA4) ONLY after explicit consent to the
-//   "analytics" category. No GA script or cookie is set before consent.
+// Cookie consent manager — CNIL compliant, Google Consent Mode v2.
+//
+// GA4 is loaded STATICALLY in public/index.html with all consent categories
+// denied by default. This file only flips the switches when the user makes a
+// choice in the cookie banner. As long as consent is denied, GA4 stores no
+// cookies and sends no /g/collect hits (Google's official spec).
 
 const STORAGE_KEY = 'rc-cookie-consent';
 const SIX_MONTHS_MS = 6 * 30 * 24 * 60 * 60 * 1000;
-const GA_MEASUREMENT_ID = 'G-MBR90KFN90';
 
 // Custom event used by the UI to know when to re-open the preferences modal.
 export const OPEN_COOKIE_PREFS_EVENT = 'rc:open-cookie-prefs';
@@ -23,7 +23,6 @@ export const readConsent = () => {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return null;
     if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
-      // expired -> ask again
       localStorage.removeItem(STORAGE_KEY);
       return null;
     }
@@ -63,49 +62,6 @@ export const openPreferences = () => {
   }
 };
 
-// ----- Google Analytics dynamic loader (loaded only on consent) -----
-
-let gaScriptLoaded = false;
-
-const loadGoogleAnalytics = () => {
-  if (gaScriptLoaded) {
-    // Update consent state on an already-loaded gtag.
-    if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
-      window.gtag('consent', 'update', {
-        ad_storage: 'denied',
-        analytics_storage: 'granted',
-      });
-    }
-    return;
-  }
-
-  if (typeof window === 'undefined' || typeof document === 'undefined') return;
-
-  // Bootstrap dataLayer + gtag before the script tag, exactly like Google docs.
-  window.dataLayer = window.dataLayer || [];
-  function gtag() { window.dataLayer.push(arguments); }
-  window.gtag = gtag;
-
-  // Default consent = denied. Then update to granted for analytics only.
-  gtag('consent', 'default', {
-    ad_storage: 'denied',
-    analytics_storage: 'denied',
-    wait_for_update: 500,
-  });
-  gtag('js', new Date());
-  gtag('consent', 'update', {
-    ad_storage: 'denied',
-    analytics_storage: 'granted',
-  });
-  gtag('config', GA_MEASUREMENT_ID, { anonymize_ip: true });
-
-  const script = document.createElement('script');
-  script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`;
-  document.head.appendChild(script);
-  gaScriptLoaded = true;
-};
-
 const removeGaCookies = () => {
   if (typeof document === 'undefined') return;
   const cookies = document.cookie.split(';');
@@ -114,7 +70,6 @@ const removeGaCookies = () => {
     const name = (eq > -1 ? c.substr(0, eq) : c).trim();
     if (name.startsWith('_ga') || name === '_gid') {
       const domains = [window.location.hostname, `.${window.location.hostname}`];
-      // Try to clear the cookie on common domains.
       domains.forEach((d) => {
         document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${d}`;
       });
@@ -123,23 +78,36 @@ const removeGaCookies = () => {
   });
 };
 
+// Flip Google Consent Mode v2 signals based on the user's saved preferences.
+// The gtag() function is bootstrapped in public/index.html, so it exists even
+// before the analytics library finishes loading (calls are queued in
+// dataLayer and honored once gtag.js is ready).
 export const applyConsent = (preferences) => {
-  if (!preferences) return;
+  if (!preferences || typeof window === 'undefined') return;
+  const gtag = window.gtag;
+  if (typeof gtag !== 'function') return;
+
   if (preferences.analytics) {
-    loadGoogleAnalytics();
+    gtag('consent', 'update', {
+      analytics_storage: 'granted',
+      // Ads categories stay denied — we only collect audience measurement.
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+    });
   } else {
-    // Tell any already-loaded gtag to stop storing analytics data.
-    if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
-      window.gtag('consent', 'update', {
-        ad_storage: 'denied',
-        analytics_storage: 'denied',
-      });
-    }
+    gtag('consent', 'update', {
+      analytics_storage: 'denied',
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+    });
     removeGaCookies();
   }
 };
 
-// Initialize on page load: if user already consented, apply it immediately.
+// Called once at app boot: re-apply any existing consent so gtag knows the
+// state after a hard refresh.
 export const initConsent = () => {
   const existing = readConsent();
   if (existing) applyConsent(existing.preferences);

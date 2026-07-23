@@ -29,12 +29,22 @@
 
         <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
         <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
-        <!-- Google Analytics GA4 -->
+        <!-- Google Analytics GA4 with Consent Mode v2 -->
         <script async src="https://www.googletagmanager.com/gtag/js?id=G-MBR90KFN90"></script>
         <script>
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}
           window.gtag = gtag;
+          // Consent Mode v2 — deny everything by default until the user chooses
+          // in the CNIL cookie banner. No _ga cookies, no /g/collect hits are
+          // sent until consent.js calls gtag('consent', 'update', ...).
+          gtag('consent', 'default', {
+            'analytics_storage': 'denied',
+            'ad_storage': 'denied',
+            'ad_user_data': 'denied',
+            'ad_personalization': 'denied',
+            'wait_for_update': 500
+          });
           gtag('js', new Date());
           gtag('config', 'G-MBR90KFN90');
         </script>
