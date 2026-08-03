@@ -25,7 +25,7 @@ export const organizationSchema = () => ({
   name: 'Repair & Co',
   legalName: 'VDMI REPAIR&CO GROUPE',
   url: SITE_URL,
-  logo: `${SITE_URL}/icon-512.png`,
+  logo: `${SITE_URL}/logo.png`,
   email: 'contact@repair-and-co.fr',
   telephone: '+33467716769',
   sameAs: [
