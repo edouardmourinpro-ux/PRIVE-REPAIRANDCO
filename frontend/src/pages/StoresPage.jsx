@@ -101,15 +101,24 @@ const StoresPage = () => {
                     <div className="flex items-center gap-2"><Phone size={14} className="text-[#1A5C3A] flex-shrink-0" /><a href={`tel:${store.phone.replace(/\s/g, '')}`} className="text-xs hover:underline">{store.phone}</a></div>
                     <div className="flex items-center gap-2"><Mail size={14} className="text-[#1A5C3A] flex-shrink-0" /><a href={`mailto:${store.email}`} className="text-xs hover:underline">{store.email}</a></div>
                   </div>
+                  {store.acceptsLeads === false && (
+                    <div className="mb-4 p-3 bg-[#1A1A2E] rounded-xl" data-testid={`store-closed-banner-${store.id}`}>
+                      <p className="text-white text-xs leading-relaxed">
+                        <strong>Fermé pour travaux.</strong> Réouverture prochainement. Nos magasins de Montpellier et Lattes restent à votre disposition.
+                      </p>
+                    </div>
+                  )}
                   <div className="flex gap-2">
-                    <Link to={`/magasins/${store.id}`} className="flex-1" data-testid={`store-detail-link-${store.id}`}>
+                    <Link to={`/magasins/${store.id}`} className={store.acceptsLeads === false ? "w-full" : "flex-1"} data-testid={`store-detail-link-${store.id}`}>
                       <Button size="sm" variant="outline" className="w-full border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full text-xs">
                         <Navigation size={14} className="mr-1" /> En savoir plus
                       </Button>
                     </Link>
-                    <Link to="/rendez-vous" className="flex-1">
-                      <Button size="sm" className="w-full bg-[#1A5C3A] text-white hover:bg-[#1A5C3A]/90 rounded-full text-xs" data-testid={`store-appointment-${store.id}`}>Prendre RDV</Button>
-                    </Link>
+                    {store.acceptsLeads !== false && (
+                      <Link to="/rendez-vous" className="flex-1">
+                        <Button size="sm" className="w-full bg-[#1A5C3A] text-white hover:bg-[#1A5C3A]/90 rounded-full text-xs" data-testid={`store-appointment-${store.id}`}>Prendre RDV</Button>
+                      </Link>
+                    )}
                   </div>
                 </CardContent>
               </Card>

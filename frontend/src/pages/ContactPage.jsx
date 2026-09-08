@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import { STORES } from '../data/stores';
+import { LEAD_STORES } from '../data/stores';
 import MiniSurvey from '../components/MiniSurvey';
 import { trackFormSubmission } from '../lib/analytics';
 import SEO from '../components/SEO';
@@ -217,7 +217,7 @@ const ContactPage = () => {
                         <SelectValue placeholder="Sélectionnez un magasin" />
                       </SelectTrigger>
                       <SelectContent>
-                        {STORES.map((store) => (
+                        {LEAD_STORES.map((store) => (
                           <SelectItem key={store.id} value={store.id}>
                             {store.name} — {store.city}
                           </SelectItem>
@@ -268,7 +268,7 @@ const ContactPage = () => {
                 Nos <span className="text-[#1A5C3A]">magasins</span>
               </h2>
               <div className="space-y-4">
-                {STORES.map((store) => (
+                {LEAD_STORES.map((store) => (
                   <Card key={store.id} className="border border-[#E8F5EE]">
                     <CardContent className="p-6">
                       <h3 className="font-semibold text-[#1A5C3A] mb-3">{store.name}</h3>

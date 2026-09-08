@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import { STORES, DEVICE_BRANDS, ISSUE_TYPES } from '../data/stores';
+import { LEAD_STORES, DEVICE_BRANDS, ISSUE_TYPES } from '../data/stores';
 import MiniSurvey from '../components/MiniSurvey';
 import { trackFormSubmission } from '../lib/analytics';
 import SEO from '../components/SEO';
@@ -386,7 +386,7 @@ const QuotePage = () => {
                         <SelectValue placeholder="Choisissez un magasin" />
                       </SelectTrigger>
                       <SelectContent>
-                        {STORES.map((store) => (
+                        {LEAD_STORES.map((store) => (
                           <SelectItem key={store.id} value={store.id}>
                             {store.name} — {store.city}
                           </SelectItem>

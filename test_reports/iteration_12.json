@@ -1,0 +1,20 @@
+{
+  "summary": "Verified Béziers store closure changes across backend and frontend. Backend: 7/7 pytest tests pass — POST /api/quote, /api/buyback, /api/contact reject store='beziers' with HTTP 400 + exact message; store='lattes' succeeds with HTTP 200 + id; sitemap.xml still has 19 <url> entries incl. beziers. Frontend: All 4 lead form store selects (data-testid=store-select on /devis step 4, appointment-store-select on /rendez-vous, buyback-store on /rachat, contact-store on /contact) list exactly 8 open stores with NO Béziers. ContactPage 'Nos magasins' info list also shows 8 stores (no Béziers). /magasins shows all 9 cards, only 8 'Prendre RDV' testids (no store-appointment-beziers), Béziers card shows dark closure banner. /magasins/beziers loads (no redirect), shows dark banner 'Magasin temporairement fermé pour travaux', tel: link + Appeler + Voir tous nos magasins present, Prendre RDV=0 and Devis gratuit=0 in the page (only 1 Devis gratuit link exists globally in the footer nav which is expected). /magasins/lattes shows Prendre RDV + Appeler + Devis gratuit normally, no banner. /admin login OK, store filter (data-testid=admin-store-filter) still lists Repair&Co Béziers as an option — no regression.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_beziers_closure.py",
+    "/app/test_reports/pytest/beziers_closure_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Note (informational, not a bug): banner text on StoreDetailPage is 'Magasin temporairement fermé pour travaux.' while the acceptance checklist wording said 'Fermé pour travaux'. Both convey the same closure message and the requirement (dark banner + reopening message) is satisfied. Main agent may want to align wording if strictly required."
+  ],
+  "updated_files": ["/app/backend/tests/test_beziers_closure.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin: david.m@repairandco.fr / Repair2025Admin!",
+  "seed_data_creation": "Backend tests create TEST_-prefixed leads on lattes (quote + buyback); harmless test data, admin CRM shows them.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Béziers closure change is complete and verified. STORES.acceptsLeads=false drives all frontend filtering via LEAD_STORES; backend CLOSED_STORES={'beziers'} guards /api/quote, /api/buyback, /api/contact, /api/b2b. Admin filter uses raw STORES so Béziers remains selectable for viewing historical leads. Regression test file at /app/backend/tests/test_beziers_closure.py."
+}

@@ -1,7 +1,7 @@
 import { useParams, Link, Navigate } from 'react-router-dom';
 import {
   MapPin, Phone, Mail, Clock, BadgeCheck, Navigation, ArrowRight,
-  Smartphone, Tablet, Laptop, Gamepad2, ChevronRight,
+  Smartphone, Tablet, Laptop, Gamepad2, ChevronRight, AlertTriangle,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
@@ -76,22 +76,37 @@ const StoreDetailPage = () => {
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
-                <Link to="/rendez-vous">
-                  <Button className="bg-[#1A5C3A] text-white hover:bg-[#1A5C3A]/90 rounded-full" data-testid={`store-detail-rdv-${store.id}`}>
-                    Prendre RDV <ArrowRight size={18} className="ml-2" />
-                  </Button>
-                </Link>
+                {store.acceptsLeads !== false && (
+                  <Link to="/rendez-vous">
+                    <Button className="bg-[#1A5C3A] text-white hover:bg-[#1A5C3A]/90 rounded-full" data-testid={`store-detail-rdv-${store.id}`}>
+                      Prendre RDV <ArrowRight size={18} className="ml-2" />
+                    </Button>
+                  </Link>
+                )}
                 <a href={`tel:${phoneClean}`}>
                   <Button variant="outline" className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full" data-testid={`store-detail-call-${store.id}`}>
                     <Phone size={16} className="mr-2" /> Appeler {store.phone}
                   </Button>
                 </a>
-                <Link to="/devis">
-                  <Button variant="outline" className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full">
-                    Devis gratuit
-                  </Button>
-                </Link>
+                {store.acceptsLeads !== false && (
+                  <Link to="/devis">
+                    <Button variant="outline" className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] rounded-full">
+                      Devis gratuit
+                    </Button>
+                  </Link>
+                )}
               </div>
+
+              {store.acceptsLeads === false && (
+                <div className="mt-6 p-4 sm:p-5 bg-[#1A1A2E] rounded-2xl flex items-start gap-3" data-testid={`store-closed-banner-${store.id}`}>
+                  <AlertTriangle className="text-[#2ECC71] flex-shrink-0 mt-0.5" size={20} />
+                  <p className="text-white text-sm leading-relaxed">
+                    <strong>Magasin temporairement fermé pour travaux.</strong> Nous rouvrons prochainement.
+                    En attendant, nos magasins de Montpellier et Lattes restent à votre disposition — ou appelez-nous, on vous oriente.{' '}
+                    <Link to="/magasins" className="underline text-[#2ECC71] hover:text-white">Voir tous nos magasins</Link>.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Info card */}
@@ -167,11 +182,13 @@ const StoreDetailPage = () => {
             La réduction est appliquée automatiquement sur votre facture.
           </p>
           <div className="mt-6 flex flex-wrap gap-3 justify-center">
-            <Link to="/rendez-vous">
-              <Button className="bg-[#1A5C3A] text-white hover:bg-[#1A5C3A]/90 rounded-full">
-                Prendre RDV à {cityShort} <ArrowRight size={18} className="ml-2" />
-              </Button>
-            </Link>
+            {store.acceptsLeads !== false && (
+              <Link to="/rendez-vous">
+                <Button className="bg-[#1A5C3A] text-white hover:bg-[#1A5C3A]/90 rounded-full">
+                  Prendre RDV à {cityShort} <ArrowRight size={18} className="ml-2" />
+                </Button>
+              </Link>
+            )}
             <Link to="/magasins">
               <Button variant="outline" className="border-[#1A5C3A] text-[#1A5C3A] hover:bg-white rounded-full">
                 Voir tous nos magasins

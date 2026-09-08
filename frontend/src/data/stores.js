@@ -12,6 +12,7 @@ export const STORES = [
     hours: "Lundi–Samedi : 9h30–20h00",
     qualirepar: true,
     mapsUrl: "https://share.google/lFzdAJaUSU0dZM7JL",
+    acceptsLeads: true,
   },
   {
     id: "montpellier-nord",
@@ -26,6 +27,7 @@ export const STORES = [
     hours: "Lundi–Samedi : 9h30–20h00",
     qualirepar: true,
     mapsUrl: "https://share.google/cjKv9XBwmmeiSo7G8",
+    acceptsLeads: true,
   },
   {
     id: "montpellier-sud",
@@ -40,6 +42,7 @@ export const STORES = [
     hours: "Lundi–Samedi : 9h30–20h00",
     qualirepar: true,
     mapsUrl: "https://share.google/8vetq0WeJoznjXbR6",
+    acceptsLeads: true,
   },
   {
     id: "nimes-costieres",
@@ -54,6 +57,7 @@ export const STORES = [
     hours: "Lundi–Samedi : 9h30–20h00",
     qualirepar: true,
     mapsUrl: "https://share.google/7D1tlWpfmE2Qv5Iq0",
+    acceptsLeads: true,
   },
   {
     id: "nimes-etoile",
@@ -68,6 +72,7 @@ export const STORES = [
     hours: "Lundi–Samedi : 9h30–19h30",
     qualirepar: true,
     mapsUrl: "https://share.google/3Lw5HHNnYOYc6ggsI",
+    acceptsLeads: true,
   },
   {
     id: "beziers",
@@ -82,6 +87,8 @@ export const STORES = [
     hours: "Lundi–Samedi : 9h30–19h30",
     qualirepar: true,
     mapsUrl: "https://maps.app.goo.gl/8EK9ZbNd77gP5v759",
+    // Magasin fermé pour travaux — retiré des formulaires (voir LEAD_STORES ci-dessous)
+    acceptsLeads: false,
   },
   {
     id: "boulogne",
@@ -96,6 +103,7 @@ export const STORES = [
     hours: "Lundi–Samedi : 10h00–20h00",
     qualirepar: true,
     mapsUrl: "https://share.google/eatJYSOrIqBDGof4S",
+    acceptsLeads: true,
   },
   {
     id: "plaisir",
@@ -110,6 +118,7 @@ export const STORES = [
     hours: "Lundi–Samedi : 10h00–20h00",
     qualirepar: true,
     mapsUrl: "https://share.google/psFOmyRzMZ8fc1MsB",
+    acceptsLeads: true,
   },
   {
     id: "les-ulis",
@@ -124,8 +133,15 @@ export const STORES = [
     hours: "Lundi–Samedi : 10h00–20h00",
     qualirepar: true,
     mapsUrl: "https://share.google/XYoPozYOfuetnBCx6",
+    acceptsLeads: true,
   }
 ];
+
+// Magasins qui peuvent réellement prendre une demande aujourd'hui.
+// Béziers est fermé pour travaux : on le garde dans STORES (pages magasin,
+// SEO, filtres admin sur l'historique) mais on ne le propose plus dans les
+// formulaires. Le remettre = repasser acceptsLeads à true, rien d'autre.
+export const LEAD_STORES = STORES.filter((s) => s.acceptsLeads !== false);
 
 // 4 magasins sélectionnés pour la homepage et la page "Qui sommes-nous"
 export const FEATURED_STORE_IDS = ["nimes-etoile", "nimes-costieres", "montpellier-sud", "lattes"];

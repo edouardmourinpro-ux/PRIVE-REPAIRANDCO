@@ -157,3 +157,13 @@ Convertit anciens statuts → simplifiés :
 - **P2** : SEO Schema.org structuré
 - **P3** : Notification push admin temps-réel quand nouvelle demande arrive (toast sonore navigateur)
 - **P3** : Permettre de vider un champ `staff_*` (actuellement le PATCH ne traite pas les chaînes vides comme reset)
+
+## S15 (08/09/2026) — Fermeture Béziers : retrait des formulaires uniquement
+- Contexte : Béziers fermé pour travaux, continuait de recevoir des leads impossibles à honorer (116 leads / 4 mois, 6960€ de marge perdue).
+- `frontend/src/data/stores.js` : ajout `acceptsLeads` (false uniquement sur `beziers`) + export dérivé `LEAD_STORES = STORES.filter(s => s.acceptsLeads !== false)`.
+- `QuotePage.jsx`, `AppointmentPage.jsx`, `BuybackPage.jsx`, `ContactPage.jsx` (2 sélecteurs) : `STORES` → `LEAD_STORES` uniquement dans les listes déroulantes de magasin.
+- `StoresPage.jsx` (carte Béziers) et `StoreDetailPage.jsx` (`/magasins/beziers`) : bandeau "Fermé pour travaux" piloté par `acceptsLeads === false`, boutons Prendre RDV/Devis gratuit masqués, téléphone toujours visible.
+- Aucune régression : `StoresPage`, `AdminPage`, `Footer`, `HomePage`, `FAQPage`, `AboutPage` gardent `STORES` (Béziers toujours visible/filtrable). `sitemap.xml` toujours 19 URLs.
+- `backend/server.py` : `CLOSED_STORES = {"beziers"}` + garde-fou HTTP 400 sur `/api/quote`, `/api/buyback`, `/api/contact`, `/api/b2b` (store optionnel pour ces 2 derniers) si `store` est fermé.
+- Testé via testing_agent : 100% pass (backend pytest + frontend Playwright), fichier régression `/app/backend/tests/test_beziers_closure.py`.
+

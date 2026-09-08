@@ -15,7 +15,7 @@ import { Card, CardContent } from '../components/ui/card';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../components/ui/select';
-import { STORES, DEVICE_BRANDS, ISSUE_TYPES } from '../data/stores';
+import { STORES, LEAD_STORES, DEVICE_BRANDS, ISSUE_TYPES } from '../data/stores';
 import MiniSurvey from '../components/MiniSurvey';
 import { trackFormSubmission } from '../lib/analytics';
 import SEO from '../components/SEO';
@@ -173,7 +173,7 @@ const AppointmentPage = () => {
                   <SelectValue placeholder="Choisissez votre magasin" />
                 </SelectTrigger>
                 <SelectContent>
-                  {STORES.map((store) => (
+                  {LEAD_STORES.map((store) => (
                     <SelectItem key={store.id} value={store.id}>{store.name} — {store.city}</SelectItem>
                   ))}
                 </SelectContent>

@@ -106,6 +106,10 @@ STORE_NAMES = {
     "les-ulis": "Les Ulis",
 }
 
+# Magasins qui n'acceptent pas de demande (fermés / en travaux).
+# Doit rester aligné avec acceptsLeads dans frontend/src/data/stores.js.
+CLOSED_STORES = {"beziers"}
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -356,6 +360,7 @@ class B2BRequestCreate(BaseModel):
     fleet_size: str
     need_type: Optional[str] = None
     message: Optional[str] = None
+    store: Optional[str] = None
 
 class BuybackRequestCreate(BaseModel):
     brand: str
@@ -426,6 +431,8 @@ async def root():
 
 @api_router.post("/quote")
 async def create_quote(input: QuoteRequestCreate):
+    if input.store in CLOSED_STORES:
+        raise HTTPException(status_code=400, detail="Ce magasin est temporairement fermé. Merci de choisir un autre magasin.")
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store)
@@ -474,6 +481,8 @@ async def create_quote(input: QuoteRequestCreate):
 
 @api_router.post("/contact")
 async def create_contact(input: ContactRequestCreate):
+    if input.store and input.store in CLOSED_STORES:
+        raise HTTPException(status_code=400, detail="Ce magasin est temporairement fermé. Merci de choisir un autre magasin.")
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store) if input.store else "Non précisé"
@@ -537,6 +546,8 @@ async def create_contact(input: ContactRequestCreate):
 
 @api_router.post("/b2b")
 async def create_b2b(input: B2BRequestCreate):
+    if input.store and input.store in CLOSED_STORES:
+        raise HTTPException(status_code=400, detail="Ce magasin est temporairement fermé. Merci de choisir un autre magasin.")
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
     doc = input.model_dump()
@@ -571,6 +582,8 @@ async def create_b2b(input: B2BRequestCreate):
 
 @api_router.post("/buyback")
 async def create_buyback(input: BuybackRequestCreate):
+    if input.store in CLOSED_STORES:
+        raise HTTPException(status_code=400, detail="Ce magasin est temporairement fermé. Merci de choisir un autre magasin.")
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store)
