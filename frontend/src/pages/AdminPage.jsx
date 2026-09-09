@@ -96,6 +96,8 @@ const AdminPage = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [notifFailedOnly, setNotifFailedOnly] = useState(false);
+  const [showNotifTestPanel, setShowNotifTestPanel] = useState(false);
   const [stats, setStats] = useState(null);
   const [showRattrapageModal, setShowRattrapageModal] = useState(false);
   const [rattrapageCode, setRattrapageCode] = useState('');
@@ -219,15 +221,15 @@ const AdminPage = () => {
     loadStats();
   };
 
-  const handlePushWADemand = async (id, code) => {
-    await axios.post(`${API_URL}/api/admin/demandes/${activeTab}/${id}/push-whatsapp`, { code }, { headers: authHeaders });
+  const handlePushSMSDemand = async (id, code) => {
+    await axios.post(`${API_URL}/api/admin/demandes/${activeTab}/${id}/push-sms`, { code }, { headers: authHeaders });
   };
 
   const handleRattrapage = async () => {
     setRattrapageLoading(true);
     setRattrapageError('');
     try {
-      const r = await axios.post(`${API_URL}/api/admin/push-whatsapp/rattrapage`, { code: rattrapageCode }, { headers: authHeaders });
+      const r = await axios.post(`${API_URL}/api/admin/push-sms/rattrapage`, { code: rattrapageCode }, { headers: authHeaders });
       setRattrapageResult(r.data);
     } catch (err) {
       setRattrapageError(err.response?.data?.detail || 'Erreur');
@@ -475,6 +477,10 @@ const AdminPage = () => {
     { id: 'rachat', label: 'Rachat', icon: Recycle, count: stats?.rachat },
   ];
 
+  const filteredData = notifFailedOnly
+    ? data.filter(d => d.notify_status === 'failed' || d.notify_status === 'partial')
+    : data;
+
   return (
     <div className="min-h-screen bg-gray-50" data-testid="admin-dashboard">
       <SEO title="Admin — Repair & Co" path="/admin" noindex />
@@ -614,14 +620,36 @@ const AdminPage = () => {
           })()}
         </div>
 
+        {/* Notif filter toggle */}
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <button
+            onClick={() => setNotifFailedOnly(v => !v)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+              notifFailedOnly ? 'bg-orange-500 text-white border-transparent' : 'bg-white text-[#1A1A2E] border-[#E8F5EE] hover:bg-orange-50'
+            }`}
+            data-testid="admin-notif-failed-filter"
+          >
+            <Bell size={13} /> Notification en échec uniquement
+          </button>
+          <button
+            onClick={() => setShowNotifTestPanel(v => !v)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border border-[#E8F5EE] bg-white text-[#1A1A2E] hover:bg-[#E8F5EE] transition-colors"
+            data-testid="admin-open-notif-test-panel"
+          >
+            <MessageCircle size={13} /> Tester les notifications
+          </button>
+        </div>
+
+        {showNotifTestPanel && <NotifTestPanel authHeaders={authHeaders} />}
+
         {/* Content */}
         {dataLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="animate-spin text-[#1A5C3A]" size={32} /></div>
-        ) : data.length === 0 ? (
+        ) : filteredData.length === 0 ? (
           <div className="text-center py-12 text-[#1A1A2E]/50" data-testid="admin-empty-state">Aucune demande dans cette catégorie.</div>
         ) : (
           <div className="space-y-3" data-testid="admin-demands-list">
-            {data.map((item, idx) => (
+            {filteredData.map((item, idx) => (
               <DemandCard
                 key={item.id || idx}
                 item={item}
@@ -630,7 +658,7 @@ const AdminPage = () => {
                 onSaveStaffFeedback={saveStaffFeedback}
                 onSaveQuotedPrice={saveQuotedPrice}
                 onDelete={handleDeleteDemand}
-                onPushWA={handlePushWADemand}
+                onPushSMS={handlePushSMSDemand}
               />
             ))}
           </div>
@@ -645,7 +673,7 @@ const AdminPage = () => {
               <RefreshCw size={18} className="text-[#1A5C3A]" /> Rattrapage leads Nouveau
             </DialogTitle>
             <DialogDescription>
-              Renvoie un WhatsApp au magasin pour <strong>tous les leads au statut "Nouveau"</strong>. Entrez le code de sécurité.
+              Renvoie un SMS au magasin pour <strong>tous les leads au statut "Nouveau"</strong>. Entrez le code de sécurité.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 mt-2">
@@ -667,7 +695,7 @@ const AdminPage = () => {
               </>
             ) : (
               <div className="text-center py-2 space-y-2">
-                <p className="text-[#1A5C3A] font-semibold text-lg">{rattrapageResult.count} WhatsApp envoyé{rattrapageResult.count > 1 ? 's' : ''}</p>
+                <p className="text-[#1A5C3A] font-semibold text-lg">{rattrapageResult.count} SMS envoyé{rattrapageResult.count > 1 ? 's' : ''}</p>
                 {rattrapageResult.details?.map((d, i) => (
                   <p key={i} className="text-xs text-[#1A1A2E]/70">{d.client} ({d.category})</p>
                 ))}
@@ -812,7 +840,93 @@ const QuotedPriceInput = ({ itemId, initialValue, onSave }) => {
   );
 };
 
-const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onPushWA }) => {
+// Small colored dot showing whether SMS+email actually reached the store for
+// this lead — 🟢 ok / 🟠 partial / 🔴 failed / — no data (pre-dates this feature).
+const NotifBadge = ({ item }) => {
+  const status = item.notify_status;
+  if (!status) {
+    return <span className="text-xs text-gray-300" data-testid={`notif-badge-${item.id}`} title="Pas de suivi (lead antérieur)">—</span>;
+  }
+  const cfg = {
+    ok: { color: 'bg-green-500', label: 'Notification envoyée' },
+    partial: { color: 'bg-orange-500', label: 'Notification partielle' },
+    failed: { color: 'bg-red-500', label: 'Notification en échec' },
+  }[status] || { color: 'bg-gray-300', label: status };
+  const details = (item.notifications || []).map(n => {
+    const chan = n.channel === 'sms' ? 'SMS' : 'Email';
+    const when = n.at ? new Date(n.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+    return n.status === 'sent'
+      ? `${chan} → ${n.to} (${when})`
+      : `${chan} → ${n.to} : ÉCHEC — ${n.error || 'inconnu'}`;
+  }).join('\n') || 'Aucune tentative enregistrée';
+  return (
+    <span
+      className={`inline-block w-2.5 h-2.5 rounded-full flex-shrink-0 ${cfg.color}`}
+      title={`${cfg.label}\n${details}`}
+      data-testid={`notif-badge-${item.id}`}
+    />
+  );
+};
+
+// Admin panel to manually test the SMS + email flow against a store's real
+// recipients, without creating a fake lead.
+const NotifTestPanel = ({ authHeaders }) => {
+  const [store, setStore] = useState(STORES[0]?.id || '');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+
+  const runTest = async () => {
+    setLoading(true);
+    setError('');
+    setResult(null);
+    try {
+      const r = await axios.post(`${API_URL}/api/admin/notifications/test`, { store }, { headers: authHeaders });
+      setResult(r.data);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Erreur lors du test');
+    }
+    setLoading(false);
+  };
+
+  const renderEntry = (label, entry) => {
+    if (!entry) return <p className="text-xs text-gray-400">{label} : aucune tentative</p>;
+    if (entry.status === 'sent') return <p className="text-xs text-[#1A5C3A]" data-testid={`notif-test-${label.toLowerCase()}-result`}>{label} : ✅ envoyé à {entry.to}</p>;
+    if (entry.status === 'skipped') return <p className="text-xs text-gray-500" data-testid={`notif-test-${label.toLowerCase()}-result`}>{label} : ⏭ ignoré ({entry.error})</p>;
+    return <p className="text-xs text-red-600" data-testid={`notif-test-${label.toLowerCase()}-result`}>{label} : ❌ échec — {entry.error}</p>;
+  };
+
+  return (
+    <Card className="bg-white border border-[#E8F5EE] mb-6" data-testid="admin-notif-test-panel">
+      <CardContent className="p-4">
+        <p className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2"><MessageCircle size={15} className="text-[#1A5C3A]" /> Tester les notifications</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={store}
+            onChange={e => setStore(e.target.value)}
+            className="px-2 py-1.5 border border-[#E8F5EE] rounded-lg text-xs text-[#1A1A2E] bg-white focus:outline-none"
+            data-testid="notif-test-store-select"
+          >
+            {STORES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <Button onClick={runTest} disabled={loading} className="bg-[#1A5C3A] hover:bg-[#2ECC71] text-white text-xs rounded-full" data-testid="notif-test-run-button">
+            {loading ? <Loader2 className="animate-spin mr-1" size={14} /> : <MessageCircle size={14} className="mr-1" />}
+            Envoyer un test
+          </Button>
+        </div>
+        {error && <p className="text-red-600 text-xs mt-2">{error}</p>}
+        {result && (
+          <div className="mt-3 space-y-1" data-testid="notif-test-results">
+            {renderEntry('Email', result.email)}
+            {renderEntry('SMS', result.sms)}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onPushSMS }) => {
   const [open, setOpen] = useState(false);
   const feedbackRef = useRef(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -849,7 +963,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
     setPushLoading(true);
     setPushError('');
     try {
-      await onPushWA(item.id, pushCode);
+      await onPushSMS(item.id, pushCode);
       setPushSuccess(true);
     } catch (err) {
       setPushError(err.response?.data?.detail || 'Code incorrect');
@@ -1042,6 +1156,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             <span className={`text-xs px-2 py-1 rounded-full font-medium hidden sm:inline ${currentStatus.color}`} data-testid={`demand-status-badge-${item.id}`}>
               {currentStatus.label}
             </span>
+            <NotifBadge item={item} />
             <select
               value={item.status || 'nouveau'}
               onChange={e => handleStatusChange(e.target.value)}
@@ -1054,7 +1169,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             <button
               onClick={e => { e.stopPropagation(); setPushCode(''); setPushError(''); setPushSuccess(false); setShowPushModal(true); }}
               className="p-1.5 rounded text-gray-300 hover:text-[#2ECC71] hover:bg-[#E8F5EE] transition-colors"
-              title="Push WhatsApp magasin"
+              title="Push SMS magasin"
               data-testid={`demand-push-${item.id}`}
             >
               <RefreshCw size={13} />
@@ -1161,10 +1276,10 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-[#1A1A2E] flex items-center gap-2">
-              <RefreshCw size={16} className="text-[#1A5C3A]" /> Push WhatsApp magasin
+              <RefreshCw size={16} className="text-[#1A5C3A]" /> Push SMS magasin
             </DialogTitle>
             <DialogDescription>
-              Renvoie l'alerte WhatsApp au magasin pour cette demande. Entrez le code de sécurité.
+              Renvoie l'alerte SMS au magasin pour cette demande. Entrez le code de sécurité.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 mt-2">
@@ -1186,7 +1301,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
               </>
             ) : (
               <div className="text-center py-4">
-                <p className="text-[#1A5C3A] font-semibold">WhatsApp envoyé !</p>
+                <p className="text-[#1A5C3A] font-semibold">SMS envoyé !</p>
                 <Button onClick={() => setShowPushModal(false)} className="mt-3 bg-[#1A5C3A] text-white rounded-full text-xs">Fermer</Button>
               </div>
             )}

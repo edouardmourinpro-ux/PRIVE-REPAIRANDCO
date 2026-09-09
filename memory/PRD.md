@@ -158,7 +158,17 @@ Convertit anciens statuts → simplifiés :
 - **P3** : Notification push admin temps-réel quand nouvelle demande arrive (toast sonore navigateur)
 - **P3** : Permettre de vider un champ `staff_*` (actuellement le PATCH ne traite pas les chaînes vides comme reset)
 
-## S15 (08/09/2026) — Fermeture Béziers : retrait des formulaires uniquement
+## S16 (09/09/2026) — Remplacement WhatsApp (UltraMsg, compte banni) par SMS (Brevo) + tracking complet
+- `backend/server.py` : suppression totale UltraMsg (`ULTRAMSG_*`, `send_whatsapp`, endpoints `push-whatsapp*`). Ajout `BREVO_API_KEY`/`SMS_SENDER`/`SMS_ENABLED` (false par défaut, expéditeur "RepairCo" pas encore validé opérateurs)/`SUPERVISION_EMAIL`.
+- `STORE_PRIMARY_SMS` (mobile magasin) + `STORE_ESCALATION_SMS` (RPV) — tables figées fournies par l'utilisateur, aucun numéro ajouté.
+- Chaque lead (devis/contact/b2b/rachat) déclenche en tâche de fond `_notify_lead()` : email (NOTIFY_EMAIL + magasin) + SMS primaire, avec 3 tentatives (0/5/15s), résultat persisté dans `notifications[]` + `notify_status` (ok/partial/failed) sur le document.
+- Escalade automatique (`_run_escalation_once`, cron 5min, 9h-20h Paris uniquement) : SMS au RPV à 30min (ou email supervision direct si primaire=escalade, ex. Plaisir), email supervision à 2h. Garde `escalations_sent` anti-doublon.
+- Digest quotidien 8h Paris (`_send_daily_digest`) + `GET /api/admin/notifications/health` (ok/degraded/down) + `POST /api/admin/notifications/test` (bouton admin, single-attempt rapide).
+- `push-sms` (single + rattrapage) remplacent `push-whatsapp*`, même protection par code.
+- Frontend `/admin` : pastille `NotifBadge` (🟢/🟠/🔴/—) par lead, filtre "Notification en échec", panneau `NotifTestPanel` (9 magasins).
+- Testé via testing_agent (88%→100% après fix) : bug réel trouvé et corrigé — `smtplib.SMTP_SSL` sans `timeout=` provoquait des hangs de 2min/502 ; fix `timeout=10`. Nettoyage code mort résiduel dans `create_buyback`.
+- **BLOCAGE CONNU (préexistant, hors périmètre de cette tâche)** : SMTP réel renvoie `535 Incorrect authentication data` — mot de passe `SMTP_PASSWORD` incorrect/expiré chez o2switch. Tant que non corrigé, `notify_status` sera `failed` pour l'email sur TOUS les leads (SMS reste `SMS_ENABLED=false` en attendant validation opérateur du expéditeur "RepairCo"). C'est exactement le problème P0 "emails production non reçus" déjà identifié — désormais VISIBLE dans `/admin` au lieu d'être silencieux.
+
 - Contexte : Béziers fermé pour travaux, continuait de recevoir des leads impossibles à honorer (116 leads / 4 mois, 6960€ de marge perdue).
 - `frontend/src/data/stores.js` : ajout `acceptsLeads` (false uniquement sur `beziers`) + export dérivé `LEAD_STORES = STORES.filter(s => s.acceptsLeads !== false)`.
 - `QuotePage.jsx`, `AppointmentPage.jsx`, `BuybackPage.jsx`, `ContactPage.jsx` (2 sélecteurs) : `STORES` → `LEAD_STORES` uniquement dans les listes déroulantes de magasin.

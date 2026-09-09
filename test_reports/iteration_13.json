@@ -1,0 +1,43 @@
+{
+  "summary": "Tested WhatsApp→SMS(Brevo)+email-tracked notification replacement. Structural/logic behavior all correct: forms return 200 fast, notifications array persisted with clear per-channel status/error, notify_status computed correctly, Béziers closure guard applied to /b2b too, /admin/notifications/health returns correct shape, old push-whatsapp endpoints return 404, new push-sms endpoints work (single + rattrapage). Frontend admin page: filter toggle, test panel with 9 stores (incl. Béziers), colored notif badges with tooltips, updated dialog copy ('Push SMS magasin', 'Renvoie un SMS') — all present and functional. Two failures on time-sensitive assertions caused by a NEW backend bug (missing SMTP socket timeout — see RCA), not the pre-existing 535 auth error as described in the task brief.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "/api/admin/notifications/test", "issue": "Hangs > 60s and returns 502 via Cloudflare gateway when SMTP host is unreachable. Task spec explicitly says this endpoint must respond within ~10s (single-attempt, no retries). Single-attempt is implemented, BUT _send_smtp_email uses smtplib.SMTP_SSL(host, port, context=...) with NO `timeout=` argument, so a socket connect timeout takes ~2 min. Fix: add `timeout=8` (or similar) to the SMTP_SSL constructor in _send_smtp_email (server.py:215). This also affects /api/quote, /api/contact, /api/b2b, /api/buyback background _notify_lead: with retry delays [0,5,15] each attempt hangs ~2min → total ~6-7min for notifications to appear on a lead.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "N/A (server.py:733-751)", "issue": "Dead/unreachable code after `return` in create_buyback (duplicate insert_one + ensure_future block after the return statement). Should be deleted."},
+      {"endpoint": "Task description mismatch", "issue": "Task brief claims SMTP fails with '535 Incorrect authentication data'; actual error is TCP 'Connection timed out' — the SMTP host (nerus.o2switch.net:465) is not reachable from this env at all. Notification visibility still works correctly (email entry has status='failed', attempts=3, readable error, at timestamp)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Tester les notifications button (admin)", "issue": "Clicking 'Envoyer un test' will visibly hang and eventually 502 due to the same SMTP timeout bug above. Not tested via click to avoid noise, but confirmed via curl.", "affected_selectors": ["[data-testid=notif-test-run-button]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_sms_notifications.py",
+    "/app/test_reports/pytest/sms_notifs.xml"
+  ],
+  "action_items": [
+    "HIGH: Add `timeout=8` (or similar) to `smtplib.SMTP_SSL(...)` call in `_send_smtp_email` (server.py line ~215). This single change resolves both the /admin/notifications/test 502 and the multi-minute background _notify_lead hang.",
+    "LOW: Remove dead code in create_buyback after the `return` statement (server.py:732-751).",
+    "INFO for user: real SMTP error is TCP connection timeout to nerus.o2switch.net:465 (not 535 auth) — the SMTP host appears unreachable from this preview env; user should verify firewall / correct host+port for their o2switch account."
+  ],
+  "critical_code_review_comments": [
+    "server.py:215 – smtplib.SMTP_SSL called without `timeout=`; a hung TCP connect can block the FastAPI worker for minutes.",
+    "server.py:732-751 – dead code (duplicate insert/notify block) after `return` in create_buyback.",
+    "server.py is 1523 lines – exceeds the 700-line guideline; should be split (routes / notifications / models / auth)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_sms_notifications.py"
+  ],
+  "success_rate": {"backend": "88% (15/17 pytest — 2 failures both root-caused to the same SMTP-no-timeout bug)", "frontend": "100% of listed acceptance criteria verified"},
+  "test_credentials": "david.m@repairandco.fr / Repair2025Admin! (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Created 4 TEST_ prefixed leads during backend tests (Lattes store): TEST_Quote (devis), TEST_Contact (contact), TEST_Buyback (rachat), TEST_B2B_NoStore (entreprise). IDs are visible in admin dashboard. Main agent may clean up via admin delete UI or MongoDB.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Frontend is fully working. Only pending backend fix is adding a socket timeout to smtplib.SMTP_SSL — once done, /admin/notifications/test will respond in <10s and /admin/notifications/test button in UI can be tested end-to-end. All other assertions in the task are already validated.",
+  "rca of the issue": "Symptom: /api/admin/notifications/test returns HTTP 502 after 60s; new leads only get their `notifications` array populated after ~2 minutes instead of ~10s. Reproduction: `curl -X POST .../api/admin/notifications/test -d '{\"store\":\"lattes\"}'` hangs; direct smtplib test `smtplib.SMTP_SSL(SMTP_HOST, 465, timeout=15)` fails with 'TimeoutError: timed out'. Root cause: in backend/server.py:215, `smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context)` is called WITHOUT a `timeout=` parameter → default is None → OS-level TCP timeout (~2 min) applies. Since the SMTP host is unreachable in this env (network/firewall issue, not the 535 credential issue mentioned in the task brief), each SMTP attempt hangs the whole handler / background task for ~2 min. Cloudflare kills the HTTP connection at 60s → user sees 502. In _notify_lead, the retry loop with delays [0,5,15] compounds this into 6-7 min per lead. Mitigation: pass `timeout=8` (or similar reasonable value) to smtplib.SMTP_SSL; failure will be raised cleanly as socket.timeout and captured by the try/except → the endpoint returns email status='failed' with the timeout error immediately. This is a genuine feature-related bug introduced by the migration (endpoint author added single-attempt behavior for speed but did not add the socket timeout that speed requires)."
+}

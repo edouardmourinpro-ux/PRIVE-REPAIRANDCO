@@ -23,8 +23,12 @@ from typing import List, Optional
 import uuid
 import bcrypt
 import jwt
+import unicodedata
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from hiboutik_sync import sync_lead_to_hiboutik
+
+PARIS_TZ = ZoneInfo("Europe/Paris")
 
 
 async def _sync_and_persist(collection_name: str, demand_id: str, **kwargs) -> None:
@@ -59,26 +63,52 @@ ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@repair-and-co.fr')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
 DELETE_CODE = os.environ.get('DELETE_CODE', 'MOUR1')
 
-# UltraMsg WhatsApp config
-ULTRAMSG_INSTANCE = os.environ.get('ULTRAMSG_INSTANCE')
-ULTRAMSG_TOKEN = os.environ.get('ULTRAMSG_TOKEN')
+# SMS via Brevo — https://api.brevo.com/v3/transactionalSMS/send
+BREVO_API_KEY = os.environ.get('BREVO_API_KEY')
+# Expediteur : charte af2m (France, depuis le 01/03/2026) = 11 caracteres max,
+# strictement alphanumeriques. Pas d'espace, pas de tiret, PAS de "&".
+# "Repair&Co" serait refuse par les operateurs ; "RepairCo" est conforme.
+SMS_SENDER = os.environ.get('SMS_SENDER', 'RepairCo')
+# Interrupteur : reste a "false" tant que l'expediteur n'est pas valide par les
+# operateurs. Quand false, on n'essaie meme pas d'envoyer le SMS et on ne le
+# compte PAS comme un echec — sinon le digest quotidien crie a la panne tous les
+# matins pour une cause connue, et l'alerte perd toute credibilite.
+SMS_ENABLED = os.environ.get('SMS_ENABLED', 'false').lower() == 'true'
+# Destinataires des alertes de supervision (pannes, escalades finales)
+SUPERVISION_EMAIL = os.environ.get('SUPERVISION_EMAIL', '')
 
-# Mapping magasin ID → [numéro magasin, numéro RPV]  (double notification)
-STORE_WHATSAPP = {
-    "lattes":           ["33788809386", "33695661867"],   # Magasin + RPV Mathilde
-    "montpellier-nord": ["33987136893", "33663955650"],   # Magasin + RPV Aurélie
-    "montpellier-sud":  ["33467588139", "33623371642"],   # Magasin + RPV Laurence
-    "nimes-costieres":  ["33757532389", "33671835831"],   # Magasin + RPV Charlotte
-    "nimes-etoile":     ["33466848079", "33671835831"],   # Magasin + RPV Charlotte
-    "beziers":          ["33467943034", "33685319758"],   # Magasin + RPV Mickael
-    "boulogne":         ["33767118896", "33660713422"],   # Magasin + RPV Eren
-    "plaisir":          ["33130438907", "33660713422"],   # Magasin + RPV Eren
-    "les-ulis":         ["33749952472", "33660713422"],   # Magasin + RPV Eren
+# Destinataire PRIMAIRE du SMS : le mobile du magasin, un seul responsable par lead.
+# RÈGLE : uniquement des mobiles francais (33 6.. ou 33 7..).
+# Un SMS vers une ligne fixe n'est JAMAIS delivre — c'est pour ca que les
+# numeros publics des magasins (04/09/01) sont absents de cette table.
+STORE_PRIMARY_SMS = {
+    "lattes":           "33788809386",
+    "montpellier-nord": "33647908879",  # Elisa
+    "montpellier-sud":  "33623371642",  # TODO: RPV Laurence en attendant la creation du mobile magasin
+    "nimes-costieres":  "33757532389",
+    "nimes-etoile":     "33671835831",  # TODO: RPV Charlotte en attendant la creation du mobile magasin
+    "beziers":          "33757528256",  # magasin ferme pour travaux — configure pour la reouverture
+    "boulogne":         "33767118896",
+    "plaisir":          "33660713422",  # Eren : Plaisir n'a pas de mobile propre
+    "les-ulis":         "33749952472",
+}
+
+# Destinataire d'ESCALADE : le RPV, prevenu seulement si le lead n'est pas pris en charge.
+STORE_ESCALATION_SMS = {
+    "lattes":           "33695661867",  # Mathilde
+    "montpellier-nord": "33663955650",  # Aurelie
+    "montpellier-sud":  "33623371642",  # Laurence
+    "nimes-costieres":  "33671835831",  # Charlotte
+    "nimes-etoile":     "33671835831",  # Charlotte
+    "beziers":          "33685319758",  # Mickael
+    "boulogne":         "33660713422",  # Eren
+    "plaisir":          "33660713422",  # Eren
+    "les-ulis":         "33660713422",  # Eren
 }
 
 # Per-store manager email — added as an extra recipient on every new lead
 # email (Devis / Contact / Rachat) so managers stay in the loop even without
-# WhatsApp. Same keys as STORE_WHATSAPP / STORE_NAMES.
+# SMS. Same keys as STORE_PRIMARY_SMS / STORE_NAMES.
 STORE_EMAIL = {
     "lattes":           "lattes@repair-and-co.fr",
     "montpellier-nord": "montpellier.nord@repair-and-co.fr",
@@ -90,9 +120,6 @@ STORE_EMAIL = {
     "plaisir":          "plaisir@repair-and-co.fr",
     "les-ulis":         "les.ulis@repair-and-co.fr",
 }
-
-# Destinataires systématiques de toutes les alertes (quel que soit le magasin)
-GLOBAL_WHATSAPP = ["33675511777"]  # Christelle
 
 STORE_NAMES = {
     "lattes": "Lattes",
@@ -185,7 +212,7 @@ def _send_smtp_email(subject: str, html_body: str, extra_recipients=None):
     msg["Subject"] = subject
     msg.attach(MIMEText(html_body, "html", "utf-8"))
     context = ssl.create_default_context()
-    with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context) as server:
+    with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context, timeout=10) as server:
         server.login(SMTP_USER, SMTP_PASSWORD)
         server.sendmail(SMTP_USER, recipients, msg.as_string())
     logger.info(f"[EMAIL] Envoi OK → {recipients}")
@@ -280,39 +307,163 @@ SOURCE_LABELS = {
 }
 
 
-# ==================== WHATSAPP ====================
+# ==================== SMS (Brevo) ====================
 
-async def send_whatsapp(store_id: str, message: str):
-    if not ULTRAMSG_INSTANCE or not ULTRAMSG_TOKEN:
-        return
-    store_numbers = STORE_WHATSAPP.get(store_id, [])
-    # Merge store/RPV numbers + global recipients (no duplicates)
-    seen = set()
-    all_numbers = []
-    for n in store_numbers + GLOBAL_WHATSAPP:
-        if n not in seen:
-            all_numbers.append(n)
-            seen.add(n)
-    if not all_numbers:
-        return
-    # Envoi simultané à tous les numéros
-    tasks = [asyncio.to_thread(_send_ultramsg, num, message) for num in all_numbers]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    for num, result in zip(all_numbers, results):
-        if isinstance(result, Exception):
-            logger.error(f"WhatsApp send failed ({store_id} → {num}): {result}")
-        else:
-            logger.info(f"WhatsApp sent to {store_id} → {num}")
+def _is_french_mobile(number: str) -> bool:
+    """Only 33 6.. / 33 7.. mobiles are ever SMS-deliverable — landlines are not."""
+    return (number or "").startswith(("336", "337"))
 
-def _send_ultramsg(to_number: str, message: str):
-    url = f"https://api.ultramsg.com/{ULTRAMSG_INSTANCE}/messages/chat"
-    payload = {'token': ULTRAMSG_TOKEN, 'to': to_number, 'body': message}
-    headers = {'content-type': 'application/x-www-form-urlencoded'}
-    resp = http_requests.post(url, data=payload, headers=headers, timeout=15)
-    result = resp.json()
-    if result.get('sent') != 'true':
-        raise Exception(f"UltraMsg error: {result}")
-    return result
+def _strip_accents(text: str) -> str:
+    """SMS content must be pure ASCII — any accent flips encoding to UCS-2 and
+    drops the segment limit from 160 to 70 characters."""
+    if not text:
+        return ""
+    nfkd = unicodedata.normalize('NFKD', text)
+    return ''.join(c for c in nfkd if not unicodedata.combining(c))
+
+def _is_business_hours(now_paris: datetime = None) -> bool:
+    now_paris = now_paris or datetime.now(PARIS_TZ)
+    return 9 <= now_paris.hour < 20
+
+def build_sms_text(doc: dict, category: str, prefix: str = "") -> str:
+    """Build an ASCII, <=160-char SMS body from a lead document."""
+    store_name = STORE_NAMES.get(doc.get('store'), doc.get('store') or '')
+    name = (
+        doc.get('name')
+        or " ".join(x for x in [doc.get('first_name'), doc.get('last_name')] if x).strip()
+        or doc.get('company')
+        or 'Client'
+    )
+    phone = doc.get('phone') or ''
+    label = {"devis": "Devis", "contact": "RDV/Contact", "entreprise": "Entreprise", "rachat": "Rachat"}.get(category, category)
+    if category == 'devis':
+        extra = " ".join(x for x in [doc.get('brand'), doc.get('model')] if x)
+        issues = doc.get('issue_types') or []
+        if issues:
+            extra = f"{extra} / {issues[0]}".strip(' /')
+    elif category == 'rachat':
+        extra = " ".join(x for x in [doc.get('brand'), doc.get('model')] if x)
+    elif category == 'contact':
+        extra = doc.get('subject') or ''
+    elif category == 'entreprise':
+        extra = doc.get('company') or ''
+    else:
+        extra = ''
+    lines = ([prefix] if prefix else []) + [
+        f"Repair&Co - NOUVEAU LEAD {label}",
+        f"{store_name} - {name}".strip(' -'),
+        phone,
+        extra,
+        "repairandco.fr/admin",
+    ]
+    text = _strip_accents("\n".join(l for l in lines if l))
+    return text[:157] + "..." if len(text) > 160 else text
+
+def _brevo_send_sms_sync(to_number: str, message: str) -> dict:
+    """Single Brevo Transactional SMS call — raises on any non-success."""
+    url = "https://api.brevo.com/v3/transactionalSMS/send"
+    headers = {"api-key": BREVO_API_KEY, "content-type": "application/json"}
+    payload = {"sender": SMS_SENDER, "recipient": to_number, "content": message, "type": "transactional"}
+    resp = http_requests.post(url, json=payload, headers=headers, timeout=15)
+    try:
+        data = resp.json()
+    except Exception:
+        data = {}
+    if resp.status_code < 200 or resp.status_code >= 300 or not data.get("messageId"):
+        raise Exception(f"Brevo HTTP {resp.status_code}: {data}")
+    return data
+
+async def send_sms(to_number: str, message: str, kind: str = "primary") -> Optional[dict]:
+    """Send one SMS via Brevo, retrying up to 3 times (immediate, +5s, +15s).
+    Returns a notifications[] entry — never raises. Returns None if SMS is
+    globally disabled (SMS_ENABLED=false), so it is never logged/counted."""
+    if not SMS_ENABLED:
+        return None
+    entry = {"channel": "sms", "kind": kind, "to": to_number, "status": "failed", "attempts": 0}
+    if not _is_french_mobile(to_number):
+        entry["attempts"] = 1
+        entry["error"] = "numero non mobile"
+        entry["at"] = datetime.now(timezone.utc).isoformat()
+        return entry
+    last_error = None
+    for i, delay in enumerate([0, 5, 15]):
+        if delay:
+            await asyncio.sleep(delay)
+        entry["attempts"] = i + 1
+        try:
+            result = await asyncio.to_thread(_brevo_send_sms_sync, to_number, message)
+            entry["status"] = "sent"
+            entry["provider_id"] = result.get("messageId")
+            entry["at"] = datetime.now(timezone.utc).isoformat()
+            return entry
+        except Exception as e:
+            last_error = str(e)[:300]
+    entry["error"] = last_error
+    entry["at"] = datetime.now(timezone.utc).isoformat()
+    return entry
+
+async def send_email_tracked(to_addresses: str, subject: str, html_body: str, kind: str = "primary") -> Optional[dict]:
+    """Send one email via SMTP, retrying up to 3 times. Returns a
+    notifications[] entry — never raises."""
+    if not to_addresses:
+        return None
+    entry = {"channel": "email", "kind": kind, "to": to_addresses, "status": "failed", "attempts": 0}
+    recipients = [a.strip() for a in to_addresses.split(',') if a.strip()]
+    last_error = None
+    for i, delay in enumerate([0, 5, 15]):
+        if delay:
+            await asyncio.sleep(delay)
+        entry["attempts"] = i + 1
+        try:
+            await asyncio.to_thread(_send_smtp_email, subject, html_body, recipients[1:] if len(recipients) > 1 else None)
+            entry["status"] = "sent"
+            entry["at"] = datetime.now(timezone.utc).isoformat()
+            return entry
+        except Exception as e:
+            last_error = str(e)[:300]
+    entry["error"] = last_error
+    entry["at"] = datetime.now(timezone.utc).isoformat()
+    return entry
+
+def compute_notify_status(notifications: list) -> str:
+    email_ok = any(n['channel'] == 'email' and n['status'] == 'sent' for n in notifications)
+    if not SMS_ENABLED:
+        return 'ok' if email_ok else 'failed'
+    sms_primary = [n for n in notifications if n['channel'] == 'sms' and n['kind'] == 'primary']
+    sms_ok = any(n['status'] == 'sent' for n in sms_primary)
+    if email_ok and sms_ok:
+        return 'ok'
+    if email_ok or sms_ok:
+        return 'partial'
+    return 'failed'
+
+async def _notify_lead(collection_name: str, demand_id: str, store_id: str, subject: str, html_body: str, doc: dict, category: str) -> None:
+    """Background task: send email (NOTIFY_EMAIL + store manager) and primary
+    SMS (store mobile), then persist the result on the lead document itself.
+    The HTTP response of the form never waits for this."""
+    notifications = []
+    recipients = [e.strip() for e in (NOTIFY_EMAIL or "").split(',') if e.strip()]
+    for addr in extra_recipients_for_store(store_id):
+        if addr and addr not in recipients:
+            recipients.append(addr)
+    if recipients:
+        email_entry = await send_email_tracked(", ".join(recipients), subject, html_body, kind="primary")
+        if email_entry:
+            notifications.append(email_entry)
+    if store_id:
+        primary_number = STORE_PRIMARY_SMS.get(store_id)
+        if primary_number:
+            sms_entry = await send_sms(primary_number, build_sms_text(doc, category), kind="primary")
+            if sms_entry:
+                notifications.append(sms_entry)
+    notify_status = compute_notify_status(notifications)
+    try:
+        await db[collection_name].update_one(
+            {"id": demand_id},
+            {"$push": {"notifications": {"$each": notifications}}, "$set": {"notify_status": notify_status}},
+        )
+    except Exception as e:
+        logger.error(f"[NOTIFY] Failed to persist notification result ({collection_name}/{demand_id}): {e}")
 
 def format_now_fr():
     """Current datetime formatted in French timezone-ish (UTC+2)."""
@@ -436,9 +587,6 @@ async def create_quote(input: QuoteRequestCreate):
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store)
-    store_extra = extra_recipients_for_store(input.store)
-    if store_extra:
-        logger.info(f"[EMAIL] Devis — magasin '{input.store}' → +{store_extra}")
     doc = input.model_dump()
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "devis"})
     await db.demandes_devis.insert_one(doc)
@@ -447,7 +595,8 @@ async def create_quote(input: QuoteRequestCreate):
         first_name=doc.get('first_name'), last_name=doc['name'],
         phone=doc['phone'], email=doc['email'],
     ))
-    asyncio.ensure_future(send_notification(
+    asyncio.ensure_future(_notify_lead(
+        "demandes_devis", doc["id"], doc.get("store"),
         f"[Repair&Co] Nouveau devis — {doc['name']} — {store_name}",
         build_email_html(
             title="Nouvelle demande de devis",
@@ -462,20 +611,7 @@ async def create_quote(input: QuoteRequestCreate):
             submitted_at=now_fr,
             demand_id=doc["id"],
         ),
-        extra_recipients=store_extra,
-    ))
-    asyncio.ensure_future(send_whatsapp(input.store,
-        f"🚨 *Nouvelle demande - Repair&Co*\n"
-        f"- *Date* : {now_fr}\n"
-        f"- *Type* : Demande de devis\n"
-        f"- *Client* : {doc['name']}\n"
-        f"- *Tél* : {doc['phone']}\n"
-        f"- *Email* : {doc['email']}\n"
-        f"- *Appareil* : {doc['device_type']} {doc['brand']} {doc['model']}\n"
-        f"- *Problème* : {', '.join(doc['issue_types'])}\n"
-        f"- *Magasin* : {store_name}\n\n"
-        f"👉 *Lien Admin* : https://repairandco.fr/admin\n"
-        f"👉 *Action requise* : Appeler le client dans les *15 minutes*."
+        doc, "devis",
     ))
     return {"status": "success", "id": doc["id"]}
 
@@ -486,9 +622,6 @@ async def create_contact(input: ContactRequestCreate):
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store) if input.store else "Non précisé"
-    store_extra = extra_recipients_for_store(input.store) if input.store else []
-    if store_extra:
-        logger.info(f"[EMAIL] Contact — magasin '{input.store}' → +{store_extra}")
     doc = input.model_dump()
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "contact"})
     await db.demandes_contact.insert_one(doc)
@@ -499,7 +632,8 @@ async def create_contact(input: ContactRequestCreate):
     ))
     is_rdv = bool(doc.get('rdv_device_type') or doc.get('rdv_brand') or (doc.get('subject') or '').startswith('RDV'))
     demand_label = "RDV" if is_rdv else "message"
-    asyncio.ensure_future(send_notification(
+    asyncio.ensure_future(_notify_lead(
+        "demandes_contact", doc["id"], doc.get("store"),
         f"[Repair&Co] Nouveau {demand_label} — {doc['name']} — {store_name}",
         build_email_html(
             title="Nouvelle demande de rendez-vous" if is_rdv else "Nouveau message",
@@ -520,28 +654,8 @@ async def create_contact(input: ContactRequestCreate):
             submitted_at=now_fr,
             demand_id=doc["id"],
         ),
-        # Store manager email added on every /contact demand (RDV + Message).
-        extra_recipients=store_extra,
+        doc, "contact",
     ))
-    if doc.get('store'):
-        rdv_date = doc.get('rdv_date') or ''
-        rdv_slot = doc.get('rdv_slot') or ''
-        rdv_info = f"- *RDV souhaité* : {rdv_date} — {rdv_slot}\n" if rdv_date else ""
-        free_msg = (doc.get('message') or '').strip() or 'Aucun'
-        asyncio.ensure_future(send_whatsapp(doc['store'],
-            f"🚨 *Nouvelle demande - Repair&Co*\n"
-            f"- *Date* : {now_fr}\n"
-            f"- *Type* : {'RDV' if is_rdv else 'Message / Contact'}\n"
-            f"- *Client* : {doc['name']}\n"
-            f"- *Tél* : {doc.get('phone') or 'Non précisé'}\n"
-            f"- *Email* : {doc['email']}\n"
-            f"- *Objet* : {doc['subject']}\n"
-            f"- *Magasin* : {store_name}\n"
-            f"{rdv_info}"
-            f"- *Message* : {free_msg}\n\n"
-            f"👉 *Lien Admin* : https://repairandco.fr/admin\n"
-            f"👉 *Action requise* : Appeler le client dans les *15 minutes*."
-        ))
     return {"status": "success", "id": doc["id"]}
 
 @api_router.post("/b2b")
@@ -550,6 +664,7 @@ async def create_b2b(input: B2BRequestCreate):
         raise HTTPException(status_code=400, detail="Ce magasin est temporairement fermé. Merci de choisir un autre magasin.")
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
+    store_name = STORE_NAMES.get(input.store, input.store) if input.store else "—"
     doc = input.model_dump()
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "entreprise"})
     await db.demandes_entreprise.insert_one(doc)
@@ -559,12 +674,13 @@ async def create_b2b(input: B2BRequestCreate):
         phone=doc['phone'], email=doc['email'],
     ))
     full_name = f"{doc['first_name']} {doc['last_name']}".strip()
-    asyncio.ensure_future(send_notification(
+    asyncio.ensure_future(_notify_lead(
+        "demandes_entreprise", doc["id"], doc.get("store"),
         f"[Repair&Co] Nouveau B2B — {full_name} — {doc['company']}",
         build_email_html(
             title="Demande Services Entreprise",
             demand_type="Demande B2B / Entreprise",
-            store_name="—",
+            store_name=store_name,
             client={
                 "Prénom": doc['first_name'], "Nom": doc['last_name'], "Société": doc['company'],
                 "Email": doc['email'], "Téléphone": doc['phone'],
@@ -576,7 +692,8 @@ async def create_b2b(input: B2BRequestCreate):
             },
             submitted_at=now_fr,
             demand_id=doc["id"],
-        )
+        ),
+        doc, "entreprise",
     ))
     return {"status": "success", "id": doc["id"]}
 
@@ -587,9 +704,6 @@ async def create_buyback(input: BuybackRequestCreate):
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store)
-    store_extra = extra_recipients_for_store(input.store)
-    if store_extra:
-        logger.info(f"[EMAIL] Rachat — magasin '{input.store}' → +{store_extra}")
     doc = input.model_dump()
     doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "rachat"})
     await db.demandes_rachat.insert_one(doc)
@@ -598,7 +712,8 @@ async def create_buyback(input: BuybackRequestCreate):
         first_name=doc.get('first_name'), last_name=doc['name'],
         phone=doc['phone'],
     ))
-    asyncio.ensure_future(send_notification(
+    asyncio.ensure_future(_notify_lead(
+        "demandes_rachat", doc["id"], doc.get("store"),
         f"[Repair&Co] Nouveau rachat — {doc['name']} — {store_name}",
         build_email_html(
             title="Demande de rachat",
@@ -612,19 +727,7 @@ async def create_buyback(input: BuybackRequestCreate):
             submitted_at=now_fr,
             demand_id=doc["id"],
         ),
-        extra_recipients=store_extra,
-    ))
-    asyncio.ensure_future(send_whatsapp(input.store,
-        f"🚨 *Nouvelle demande - Repair&Co*\n"
-        f"- *Date* : {now_fr}\n"
-        f"- *Type* : Demande de rachat\n"
-        f"- *Client* : {doc['name']}\n"
-        f"- *Tél* : {doc['phone']}\n"
-        f"- *Appareil* : {doc['brand']} {doc['model']}\n"
-        f"- *État* : {CONDITION_LABELS.get(doc['condition'], doc['condition'])}\n"
-        f"- *Magasin* : {store_name}\n\n"
-        f"👉 *Lien Admin* : https://repairandco.fr/admin\n"
-        f"👉 *Action requise* : Appeler le client dans les *15 minutes*."
+        doc, "rachat",
     ))
     return {"status": "success", "id": doc["id"]}
 
@@ -806,53 +909,17 @@ async def submit_customer_survey(category: str, demand_id: str, body: CustomerSu
         ))
     return {"status": "saved"}
 
-def build_whatsapp_message_from_doc(doc: dict, category: str) -> str:
-    """Build WhatsApp recall message from a stored lead document."""
-    first_name = doc.get('first_name', '') or ''
-    name = doc.get('name', '') or ''
-    full_name = f"{first_name} {name}".strip() if first_name else name
-    phone = doc.get('phone', 'N/A')
-    email = doc.get('email', 'N/A')
-    store_id = doc.get('store', '')
-    store_name = STORE_NAMES.get(store_id, store_id)
-    admin_link = "https://repairandco.fr/admin"
-    if category == 'devis':
-        brand = doc.get('brand', '')
-        model = doc.get('model', '')
-        device = doc.get('device_type', '')
-        issues = ', '.join(doc.get('issue_types') or [])
-        return (f"🔔 *RAPPEL — Demande de Devis*\n"
-                f"- *Client* : {full_name}\n- *Tél* : {phone}\n- *Email* : {email}\n"
-                f"- *Appareil* : {device} {brand} {model}\n- *Problème* : {issues}\n"
-                f"- *Magasin* : {store_name}\n\n👉 *Admin* : {admin_link}")
-    if category == 'contact':
-        brand = doc.get('rdv_brand', '') or ''
-        model = doc.get('rdv_model', '') or ''
-        date = doc.get('rdv_date', '') or ''
-        slot = doc.get('rdv_slot', '') or ''
-        subject = doc.get('subject', 'Contact')
-        appareil = f"- *Appareil* : {brand} {model}\n" if brand or model else ""
-        rdv = f"- *RDV* : {date} {slot}\n" if date else ""
-        return (f"🔔 *RAPPEL — {subject}*\n"
-                f"- *Client* : {full_name}\n- *Tél* : {phone}\n- *Email* : {email}\n"
-                f"{appareil}{rdv}- *Magasin* : {store_name}\n\n👉 *Admin* : {admin_link}")
-    if category == 'entreprise':
-        company = doc.get('company', '')
-        return (f"🔔 *RAPPEL — Demande Entreprise*\n"
-                f"- *Société* : {company}\n- *Contact* : {full_name}\n"
-                f"- *Tél* : {phone}\n- *Email* : {email}\n\n👉 *Admin* : {admin_link}")
-    if category == 'rachat':
-        brand = doc.get('brand', '')
-        model = doc.get('model', '')
-        condition = doc.get('condition', '')
-        return (f"🔔 *RAPPEL — Demande de Rachat*\n"
-                f"- *Client* : {full_name}\n- *Appareil* : {brand} {model} ({condition})\n"
-                f"- *Tél* : {phone}\n- *Magasin* : {store_name}\n\n👉 *Admin* : {admin_link}")
-    return f"🔔 *RAPPEL — Repair&Co*\n- *Client* : {full_name}\n- *Tél* : {phone}"
+def build_sms_recall_message(doc: dict, category: str) -> str:
+    """Build the SMS recall message ('RAPPEL') from a stored lead document."""
+    return build_sms_text(doc, category, prefix="RAPPEL - LEAD NON TRAITE")
 
 
-@api_router.post("/admin/demandes/{category}/{demand_id}/push-whatsapp")
-async def push_whatsapp_single(category: str, demand_id: str, body: DeleteRequest, user=Depends(get_current_admin)):
+class NotificationsTestRequest(BaseModel):
+    store: str
+
+
+@api_router.post("/admin/demandes/{category}/{demand_id}/push-sms")
+async def push_sms_single(category: str, demand_id: str, body: DeleteRequest, user=Depends(get_current_admin)):
     if body.code != DELETE_CODE:
         raise HTTPException(status_code=403, detail="Code de sécurité incorrect")
     col_name = COLLECTIONS.get(category)
@@ -862,14 +929,18 @@ async def push_whatsapp_single(category: str, demand_id: str, body: DeleteReques
     if not doc:
         raise HTTPException(status_code=404, detail="Demande non trouvée")
     store_id = doc.get("store", "")
-    message = build_whatsapp_message_from_doc(doc, category)
-    await send_whatsapp(store_id, message)
-    logger.info(f"[PUSH WA] Single push: {category}/{demand_id} → {store_id}")
-    return {"status": "sent", "store": store_id}
+    primary_number = STORE_PRIMARY_SMS.get(store_id)
+    if not primary_number:
+        raise HTTPException(status_code=400, detail="Aucun numéro SMS configuré pour ce magasin")
+    entry = await send_sms(primary_number, build_sms_recall_message(doc, category), kind="primary")
+    if entry:
+        await db[col_name].update_one({"id": demand_id}, {"$push": {"notifications": entry}})
+    logger.info(f"[PUSH SMS] Single push: {category}/{demand_id} → {store_id}")
+    return {"status": "sent" if entry and entry.get("status") == "sent" else "failed", "store": store_id}
 
 
-@api_router.post("/admin/push-whatsapp/rattrapage")
-async def push_whatsapp_rattrapage(body: DeleteRequest, user=Depends(get_current_admin)):
+@api_router.post("/admin/push-sms/rattrapage")
+async def push_sms_rattrapage(body: DeleteRequest, user=Depends(get_current_admin)):
     if body.code != DELETE_CODE:
         raise HTTPException(status_code=403, detail="Code de sécurité incorrect")
     sent = []
@@ -877,13 +948,128 @@ async def push_whatsapp_rattrapage(body: DeleteRequest, user=Depends(get_current
         docs = await db[col_name].find({"status": "nouveau"}, {"_id": 0}).to_list(500)
         for doc in docs:
             store_id = doc.get("store", "")
-            if not store_id:
+            primary_number = STORE_PRIMARY_SMS.get(store_id)
+            if not primary_number:
                 continue
-            message = build_whatsapp_message_from_doc(doc, category)
-            asyncio.ensure_future(send_whatsapp(store_id, message))
+            message = build_sms_recall_message(doc, category)
+
+            async def _send_and_persist(col=col_name, demand_id=doc["id"], num=primary_number, msg=message):
+                entry = await send_sms(num, msg, kind="primary")
+                if entry:
+                    await db[col].update_one({"id": demand_id}, {"$push": {"notifications": entry}})
+
+            asyncio.ensure_future(_send_and_persist())
             sent.append({"category": category, "id": doc.get("id"), "client": f"{doc.get('first_name','')} {doc.get('name','')}".strip()})
-    logger.info(f"[PUSH WA] Rattrapage: {len(sent)} messages envoyés")
+    logger.info(f"[PUSH SMS] Rattrapage: {len(sent)} messages envoyés")
     return {"status": "sent", "count": len(sent), "details": sent}
+
+
+@api_router.post("/admin/notifications/test")
+async def test_notifications(body: NotificationsTestRequest, user=Depends(get_current_admin)):
+    """Send a real test SMS + email to a store's actual recipients — lets the
+    admin verify all 9 stores in a few minutes without creating fake leads.
+    Single attempt only (no retries) so the button responds quickly."""
+    store_id = body.store
+    if store_id not in STORE_NAMES:
+        raise HTTPException(status_code=400, detail="Magasin inconnu")
+    store_name = STORE_NAMES[store_id]
+    recipients = [e.strip() for e in (NOTIFY_EMAIL or "").split(',') if e.strip()]
+    for addr in extra_recipients_for_store(store_id):
+        if addr and addr not in recipients:
+            recipients.append(addr)
+
+    email_entry = {"channel": "email", "kind": "primary", "to": ", ".join(recipients), "status": "failed", "attempts": 1}
+    try:
+        await asyncio.to_thread(
+            _send_smtp_email,
+            f"[TEST] Notification — {store_name}",
+            build_email_html(
+                title="TEST — ne pas traiter",
+                demand_type="Test de notification (bouton admin)",
+                store_name=store_name,
+                client={},
+                details={"Note": "Ceci est un envoi de test déclenché depuis /admin — ne correspond à aucun client réel."},
+                submitted_at=format_now_fr(),
+                demand_id="test",
+            ),
+            recipients[1:] if len(recipients) > 1 else None,
+        )
+        email_entry["status"] = "sent"
+        email_entry["at"] = datetime.now(timezone.utc).isoformat()
+    except Exception as e:
+        email_entry["error"] = str(e)[:300]
+        email_entry["at"] = datetime.now(timezone.utc).isoformat()
+
+    primary_number = STORE_PRIMARY_SMS.get(store_id)
+    if not primary_number:
+        sms_entry = {"channel": "sms", "status": "skipped", "error": "aucun numéro configuré"}
+    elif not SMS_ENABLED:
+        sms_entry = {"channel": "sms", "status": "skipped", "error": "SMS_ENABLED=false"}
+    elif not _is_french_mobile(primary_number):
+        sms_entry = {"channel": "sms", "to": primary_number, "status": "failed", "error": "numero non mobile"}
+    else:
+        sms_entry = {"channel": "sms", "kind": "primary", "to": primary_number, "status": "failed", "attempts": 1}
+        try:
+            text = _strip_accents(f"TEST - ne pas traiter\nRepair&Co - Test {store_name}\nrepairandco.fr/admin")
+            result = await asyncio.to_thread(_brevo_send_sms_sync, primary_number, text)
+            sms_entry["status"] = "sent"
+            sms_entry["provider_id"] = result.get("messageId")
+            sms_entry["at"] = datetime.now(timezone.utc).isoformat()
+        except Exception as e:
+            sms_entry["error"] = str(e)[:300]
+            sms_entry["at"] = datetime.now(timezone.utc).isoformat()
+
+    return {"store": store_id, "email": email_entry, "sms": sms_entry}
+
+
+@api_router.get("/admin/notifications/health")
+async def notifications_health(user=Depends(get_current_admin)):
+    async def window_stats(hours: int):
+        since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+        leads = 0
+        sms_sent = sms_failed = 0
+        email_sent = email_failed = 0
+        leads_without_notification = 0
+        for col_name in COLLECTIONS.values():
+            docs = await db[col_name].find(
+                {"created_at": {"$gte": since}}, {"_id": 0, "notifications": 1}
+            ).to_list(2000)
+            for d in docs:
+                leads += 1
+                notifs = d.get("notifications") or []
+                if not notifs:
+                    leads_without_notification += 1
+                for n in notifs:
+                    if n.get("channel") == "sms" and n.get("kind") == "primary":
+                        sms_sent += 1 if n.get("status") == "sent" else 0
+                        sms_failed += 1 if n.get("status") != "sent" else 0
+                    elif n.get("channel") == "email" and n.get("kind") == "primary":
+                        email_sent += 1 if n.get("status") == "sent" else 0
+                        email_failed += 1 if n.get("status") != "sent" else 0
+        return {
+            "leads": leads,
+            "sms": {"disabled": True} if not SMS_ENABLED else {"sent": sms_sent, "failed": sms_failed},
+            "email": {"sent": email_sent, "failed": email_failed},
+            "leads_without_notification": leads_without_notification,
+        }
+
+    w24 = await window_stats(24)
+    w7d = await window_stats(24 * 7)
+
+    status = "ok"
+    if w24["leads"] > 0:
+        email_total = w24["email"]["sent"] + w24["email"]["failed"]
+        if email_total == 0 or w24["email"]["sent"] == 0:
+            status = "down"
+        elif email_total and (w24["email"]["failed"] / email_total) > 0.2:
+            status = "degraded"
+        if SMS_ENABLED:
+            sms_total = w24["sms"]["sent"] + w24["sms"]["failed"]
+            if sms_total == 0 or w24["sms"]["sent"] == 0:
+                status = "down"
+            elif sms_total and (w24["sms"]["failed"] / sms_total) > 0.2 and status == "ok":
+                status = "degraded"
+    return {"window_24h": w24, "window_7d": w7d, "status": status}
 
 
 @api_router.get("/admin/stats")
@@ -1133,11 +1319,179 @@ async def migrate_legacy_statuses():
     if total:
         logger.info(f"Migrated {total} statuses to 6-status pipeline (contacte/facture/refus_devis...)")
 
+
+# ==================== ESCALATION & DAILY DIGEST ====================
+
+def _build_escalation_email_html(doc: dict, category: str, tier: str) -> str:
+    store_name = STORE_NAMES.get(doc.get('store'), doc.get('store') or 'Non précisé')
+    client_name = (
+        doc.get('name')
+        or " ".join(x for x in [doc.get('first_name'), doc.get('last_name')] if x).strip()
+        or doc.get('company')
+        or 'Client'
+    )
+    return build_email_html(
+        title="⏰ Lead non traité — Escalade",
+        demand_type=category,
+        store_name=store_name,
+        client={"Nom": client_name, "Téléphone": doc.get('phone'), "Email": doc.get('email')},
+        details={"Statut": "Toujours \"nouveau\"", "Palier d'escalade": tier},
+        submitted_at=format_now_fr(),
+        demand_id=doc.get("id"),
+        header_note=f"Ce lead n'a été pris en charge par personne depuis au moins {tier}.",
+    )
+
+async def _run_escalation_once():
+    """Runs every 5 minutes (see _background_scheduler). Only acts during
+    business hours (9h-20h Paris) — a lead created at 21h waits until 9h the
+    next day before it ever triggers an SMS or email."""
+    if not _is_business_hours():
+        return
+    now_utc = datetime.now(timezone.utc)
+    for category, col_name in COLLECTIONS.items():
+        docs = await db[col_name].find({"status": "nouveau"}, {"_id": 0}).to_list(500)
+        for doc in docs:
+            created_at = doc.get("created_at")
+            if not created_at:
+                continue
+            try:
+                created_dt = datetime.fromisoformat(created_at)
+            except Exception:
+                continue
+            age = now_utc - created_dt
+            store_id = doc.get("store") or ""
+            demand_id = doc["id"]
+            escalations_sent = doc.get("escalations_sent") or []
+
+            if age >= timedelta(minutes=30) and "30min" not in escalations_sent:
+                primary = STORE_PRIMARY_SMS.get(store_id)
+                escalation = STORE_ESCALATION_SMS.get(store_id)
+                notif_entries = []
+                if store_id and escalation and escalation != primary:
+                    text = build_sms_text(doc, category, prefix="RELANCE - LEAD NON TRAITE")
+                    entry = await send_sms(escalation, text, kind="escalation")
+                    if entry:
+                        notif_entries.append(entry)
+                elif SUPERVISION_EMAIL:
+                    # Même destinataire en primaire et en escalade (ou pas de magasin) :
+                    # on saute le SMS et on passe directement à la supervision.
+                    entry = await send_email_tracked(
+                        SUPERVISION_EMAIL,
+                        f"⏰ LEAD NON TRAITÉ — {STORE_NAMES.get(store_id, store_id or 'Sans magasin')}",
+                        _build_escalation_email_html(doc, category, "30 minutes"),
+                        kind="supervision",
+                    )
+                    if entry:
+                        notif_entries.append(entry)
+                await db[col_name].update_one(
+                    {"id": demand_id},
+                    {"$push": {"notifications": {"$each": notif_entries}}, "$addToSet": {"escalations_sent": "30min"}},
+                )
+
+            if age >= timedelta(hours=2) and "2h" not in escalations_sent:
+                notif_entries = []
+                if SUPERVISION_EMAIL:
+                    entry = await send_email_tracked(
+                        SUPERVISION_EMAIL,
+                        f"⏰ LEAD NON TRAITÉ — {STORE_NAMES.get(store_id, store_id or 'Sans magasin')}",
+                        _build_escalation_email_html(doc, category, "2 heures"),
+                        kind="supervision",
+                    )
+                    if entry:
+                        notif_entries.append(entry)
+                await db[col_name].update_one(
+                    {"id": demand_id},
+                    {"$push": {"notifications": {"$each": notif_entries}}, "$addToSet": {"escalations_sent": "2h"}},
+                )
+
+async def _send_daily_digest():
+    """Sent every day at 8h Paris — even when everything is fine, so a
+    digest that stops arriving is itself a signal."""
+    since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    leads = 0
+    sms_sent = sms_failed = 0
+    email_sent = email_failed = 0
+    escalated = 0
+    failed_leads = []
+    for category, col_name in COLLECTIONS.items():
+        docs = await db[col_name].find({"created_at": {"$gte": since}}, {"_id": 0}).to_list(2000)
+        for d in docs:
+            leads += 1
+            if d.get("escalations_sent"):
+                escalated += 1
+            for n in (d.get("notifications") or []):
+                if n.get("channel") == "sms" and n.get("kind") == "primary":
+                    sms_sent += 1 if n.get("status") == "sent" else 0
+                    sms_failed += 1 if n.get("status") != "sent" else 0
+                elif n.get("channel") == "email" and n.get("kind") == "primary":
+                    email_sent += 1 if n.get("status") == "sent" else 0
+                    email_failed += 1 if n.get("status") != "sent" else 0
+            if d.get("notify_status") in ("failed", "partial"):
+                store_name = STORE_NAMES.get(d.get("store"), d.get("store") or "—")
+                client = d.get("name") or d.get("company") or "Client"
+                failed_leads.append(f"{category} — {client} — {store_name}")
+
+    email_total = email_sent + email_failed
+    sms_total = sms_sent + sms_failed
+    status = "ok"
+    if leads > 0:
+        if email_total == 0 or email_sent == 0:
+            status = "down"
+        elif email_total and (email_failed / email_total) > 0.2:
+            status = "degraded"
+        if SMS_ENABLED and (sms_total == 0 or sms_sent == 0):
+            status = "down"
+        elif SMS_ENABLED and sms_total and (sms_failed / sms_total) > 0.2 and status == "ok":
+            status = "degraded"
+
+    subject = f"{'🚨 ALERTE — ' if status in ('down', 'degraded') else ''}Digest quotidien notifications — {leads} leads (24h)"
+    report_lines = [
+        f"Leads (24h) : {leads}",
+        (f"SMS envoyés : {sms_sent} / échoués : {sms_failed}" if SMS_ENABLED else "SMS : désactivé (SMS_ENABLED=false)"),
+        f"Emails envoyés : {email_sent} / échoués : {email_failed}",
+        f"Leads escaladés : {escalated}",
+    ]
+    if failed_leads:
+        report_lines.append("Leads en échec de notification :")
+        report_lines.extend(f"- {x}" for x in failed_leads)
+    html = build_email_html(
+        title="Digest quotidien — Notifications",
+        demand_type="Rapport de supervision (24h)",
+        store_name="Tous magasins",
+        client={},
+        details={"Statut": status.upper()},
+        submitted_at=format_now_fr(),
+        demand_id="digest",
+        header_note="\n".join(report_lines),
+    )
+    if SUPERVISION_EMAIL:
+        await send_email_tracked(SUPERVISION_EMAIL, subject, html, kind="supervision")
+    else:
+        logger.warning("[DIGEST] SUPERVISION_EMAIL non configuré — digest non envoyé")
+
+_last_digest_date = None
+
+async def _background_scheduler():
+    """Runs every 5 minutes: escalation checks + (once/day at 8h Paris) the digest."""
+    global _last_digest_date
+    while True:
+        try:
+            await _run_escalation_once()
+            now_paris = datetime.now(PARIS_TZ)
+            today_str = now_paris.strftime('%Y-%m-%d')
+            if now_paris.hour == 8 and _last_digest_date != today_str:
+                await _send_daily_digest()
+                _last_digest_date = today_str
+        except Exception as e:
+            logger.error(f"[SCHEDULER] error: {e}")
+        await asyncio.sleep(300)
+
 @app.on_event("startup")
 async def startup():
     await seed_admin()
     await db.admin_users.create_index("email", unique=True)
     await migrate_legacy_statuses()
+    asyncio.create_task(_background_scheduler())
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
