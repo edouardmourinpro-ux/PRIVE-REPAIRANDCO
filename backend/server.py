@@ -554,7 +554,9 @@ class LoginRequest(BaseModel):
 
 class UpdateStatusRequest(BaseModel):
     status: str
+    by: str
     lost_reason: Optional[str] = None
+    lost_reason_code: Optional[str] = None
 
 class CustomerSurveyRequest(BaseModel):
     customer_source: Optional[str] = None
@@ -571,6 +573,16 @@ class StaffFeedbackRequest(BaseModel):
 class QuotedPriceRequest(BaseModel):
     quoted_price: str = ""
 
+class CallLogRequest(BaseModel):
+    by: str
+    outcome: str  # joint | pas_de_reponse | numero_invalide
+    detail: Optional[str] = None  # rdv_pris | vient_magasin | devis_accepte | rappeler | refus
+    callback_choice: Optional[str] = None  # 1h | 18h | demain_10h | custom
+    callback_at: Optional[str] = None
+    refus_reason: Optional[str] = None
+    message_laisse: Optional[bool] = None
+    note: Optional[str] = None
+
 # Allowed status values (Phase 2 — pipeline 6 statuts)
 ALLOWED_STATUSES = {"nouveau", "contacte", "pris_en_charge", "facture", "refus_devis", "client_perdu"}
 # Map legacy → new
@@ -583,6 +595,109 @@ LEGACY_STATUS_MAP = {
     "repare": "facture",
     "annule": "facture",
 }
+
+# ==================== JOURNAL D'APPEL (S18) ====================
+
+# Motifs de perte / refus — liste fixe en un clic. "Injoignable" couvre déjà
+# "ne répond plus" (pas de doublon sémantique dans la liste).
+LOST_REASON_LABELS = {
+    "injoignable": "Injoignable",
+    "prix": "Prix",
+    "delai": "Délai",
+    "deja_repare_ailleurs": "Déjà réparé ailleurs",
+    "plus_besoin": "N'en a plus besoin",
+    "piece_indisponible": "Pièce indisponible",
+    "magasin_ferme": "Magasin fermé",
+    "numero_invalide": "Numéro invalide",
+    "doublon_erreur": "Doublon / erreur",
+    "autre": "Autre",
+}
+LOST_REASON_CODES = set(LOST_REASON_LABELS.keys())
+# Sous-ensemble proposé après un appel "Refus" (pas de Magasin fermé / Numéro
+# invalide / Injoignable / Doublon dans ce contexte précis).
+REFUS_REASON_CODES = {"prix", "delai", "deja_repare_ailleurs", "plus_besoin", "piece_indisponible", "autre"}
+
+CALL_OUTCOMES = {"joint", "pas_de_reponse", "numero_invalide"}
+CALL_JOINT_DETAILS = {"rdv_pris", "vient_magasin", "devis_accepte", "rappeler", "refus"}
+CALLBACK_CHOICES = {"1h", "18h", "demain_10h", "custom"}
+
+CALL_DETAIL_LABELS = {
+    "rdv_pris": "RDV pris", "vient_magasin": "Vient en magasin",
+    "devis_accepte": "Devis accepté", "rappeler": "À rappeler", "refus": "Refus",
+}
+
+def _unreachable_rule_satisfied(doc: dict) -> bool:
+    """« Injoignable » exige >= 3 appels "pas de réponse" répartis sur >= 2
+    jours calendaires distincts (heure de Paris) — mais SEULEMENT pour les
+    leads créés après le début du suivi complet (tracking_since). Un lead
+    plus ancien (créé avant tracking_since) a pu recevoir de vrais appels
+    jamais journalisés avant le déploiement : la règle ne s'applique pas."""
+    created_at = doc.get("created_at")
+    tracking_since = doc.get("tracking_since")
+    if created_at and tracking_since and created_at < tracking_since:
+        return True
+    days = set()
+    count = 0
+    for c in doc.get("call_attempts") or []:
+        if c.get("outcome") == "pas_de_reponse":
+            count += 1
+            try:
+                days.add(datetime.fromisoformat(c["at"]).astimezone(PARIS_TZ).date())
+            except Exception:
+                pass
+    return count >= 3 and len(days) >= 2
+
+def _resolve_callback_at(choice: Optional[str], custom_at: Optional[str]) -> Optional[str]:
+    now_paris = datetime.now(PARIS_TZ)
+    if choice == "1h":
+        dt = now_paris + timedelta(hours=1)
+    elif choice == "18h":
+        dt = now_paris.replace(hour=18, minute=0, second=0, microsecond=0)
+        if dt <= now_paris:
+            dt += timedelta(days=1)
+    elif choice == "demain_10h":
+        dt = (now_paris + timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0)
+    elif choice == "custom":
+        return custom_at
+    else:
+        return None
+    return dt.astimezone(timezone.utc).isoformat()
+
+def _call_result_label(entry: Optional[dict]) -> str:
+    if not entry:
+        return ""
+    outcome = entry.get("outcome")
+    if outcome == "joint":
+        label = CALL_DETAIL_LABELS.get(entry.get("detail"), entry.get("detail") or "")
+        if entry.get("detail") == "refus" and entry.get("refus_reason"):
+            label += f" ({LOST_REASON_LABELS.get(entry['refus_reason'], entry['refus_reason'])})"
+        return label
+    if outcome == "pas_de_reponse":
+        return "Pas de réponse — message laissé" if entry.get("message_laisse") else "Pas de réponse — sans message"
+    if outcome == "numero_invalide":
+        return "Numéro invalide"
+    return outcome or ""
+
+def _annotate_call_journal_export_fields(d: dict) -> None:
+    """Mutates a lead dict in-place, guaranteeing the 7 Call Journal CSV columns
+    are always present (even empty) regardless of the document's actual fields."""
+    d["assigned_to"] = d.get("assigned_to") or ""
+    d["lost_reason_code"] = d.get("lost_reason_code") or ""
+    attempts = d.get("call_attempts") or []
+    d["call_attempts_count"] = len(attempts)
+    d["messages_left_count"] = sum(1 for c in attempts if c.get("outcome") == "pas_de_reponse" and c.get("message_laisse"))
+    d["last_call_result"] = _call_result_label(attempts[-1]) if attempts else ""
+    first_contact_at = d.get("first_contact_at")
+    d["first_contact_at"] = first_contact_at or ""
+    if first_contact_at and d.get("created_at"):
+        try:
+            created_dt = datetime.fromisoformat(d["created_at"])
+            fc_dt = datetime.fromisoformat(first_contact_at)
+            d["first_contact_delay_min"] = round(_business_minutes_elapsed(created_dt, fc_dt))
+        except Exception:
+            d["first_contact_delay_min"] = ""
+    else:
+        d["first_contact_delay_min"] = ""
 
 
 # ==================== AUTH ROUTES ====================
@@ -614,7 +729,12 @@ async def create_quote(input: QuoteRequestCreate):
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store)
     doc = input.model_dump()
-    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "devis"})
+    doc.update({
+        "id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "devis",
+        "status_history": [{"status": "nouveau", "at": now_str, "by": "system"}],
+        "call_attempts": [], "assigned_to": None, "first_contact_at": None,
+        "lost_reason_code": None, "tracking_since": now_str,
+    })
     await db.demandes_devis.insert_one(doc)
     asyncio.ensure_future(_sync_and_persist(
         "demandes_devis", doc["id"],
@@ -649,7 +769,12 @@ async def create_contact(input: ContactRequestCreate):
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store) if input.store else "Non précisé"
     doc = input.model_dump()
-    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "contact"})
+    doc.update({
+        "id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "contact",
+        "status_history": [{"status": "nouveau", "at": now_str, "by": "system"}],
+        "call_attempts": [], "assigned_to": None, "first_contact_at": None,
+        "lost_reason_code": None, "tracking_since": now_str,
+    })
     await db.demandes_contact.insert_one(doc)
     asyncio.ensure_future(_sync_and_persist(
         "demandes_contact", doc["id"],
@@ -692,7 +817,12 @@ async def create_b2b(input: B2BRequestCreate):
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store) if input.store else "—"
     doc = input.model_dump()
-    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "entreprise"})
+    doc.update({
+        "id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "entreprise",
+        "status_history": [{"status": "nouveau", "at": now_str, "by": "system"}],
+        "call_attempts": [], "assigned_to": None, "first_contact_at": None,
+        "lost_reason_code": None, "tracking_since": now_str,
+    })
     await db.demandes_entreprise.insert_one(doc)
     asyncio.ensure_future(_sync_and_persist(
         "demandes_entreprise", doc["id"],
@@ -731,7 +861,12 @@ async def create_buyback(input: BuybackRequestCreate):
     now_fr = format_now_fr()
     store_name = STORE_NAMES.get(input.store, input.store)
     doc = input.model_dump()
-    doc.update({"id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "rachat"})
+    doc.update({
+        "id": str(uuid.uuid4()), "created_at": now_str, "status": "nouveau", "type": "rachat",
+        "status_history": [{"status": "nouveau", "at": now_str, "by": "system"}],
+        "call_attempts": [], "assigned_to": None, "first_contact_at": None,
+        "lost_reason_code": None, "tracking_since": now_str,
+    })
     await db.demandes_rachat.insert_one(doc)
     asyncio.ensure_future(_sync_and_persist(
         "demandes_rachat", doc["id"],
@@ -792,16 +927,94 @@ async def update_demand_status(category: str, demand_id: str, body: UpdateStatus
     col_name = COLLECTIONS.get(category)
     if not col_name:
         raise HTTPException(status_code=400, detail="Catégorie invalide")
+    by = (body.by or "").strip()
+    if not by:
+        raise HTTPException(status_code=400, detail="Identité manquante — merci de préciser qui effectue le changement")
     new_status = LEGACY_STATUS_MAP.get(body.status, body.status)
     if new_status not in ALLOWED_STATUSES:
         raise HTTPException(status_code=400, detail="Statut invalide")
+
+    doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
     update_fields = {"status": new_status}
-    if body.lost_reason and new_status == "client_perdu":
+    if new_status in ("client_perdu", "refus_devis") and body.lost_reason_code:
+        if body.lost_reason_code not in LOST_REASON_CODES:
+            raise HTTPException(status_code=400, detail="Motif de perte invalide")
+        if new_status == "client_perdu" and body.lost_reason_code == "injoignable" and not _unreachable_rule_satisfied(doc):
+            raise HTTPException(status_code=400, detail="Il faut au moins 3 appels « Pas de réponse » sur 2 jours différents avant de marquer Injoignable.")
+        update_fields["lost_reason_code"] = body.lost_reason_code
+    if body.lost_reason:
         update_fields["lost_reason"] = body.lost_reason
-    result = await db[col_name].update_one({"id": demand_id}, {"$set": update_fields})
+    if not doc.get("assigned_to"):
+        update_fields["assigned_to"] = by
+    if (doc.get("status") or "nouveau") == "nouveau" and not doc.get("first_contact_at"):
+        update_fields["first_contact_at"] = now_iso
+
+    result = await db[col_name].update_one(
+        {"id": demand_id},
+        {"$set": update_fields, "$push": {"status_history": {"status": new_status, "at": now_iso, "by": by}}},
+    )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Demande non trouvée")
     return {"status": "updated"}
+
+@api_router.post("/admin/demandes/{category}/{demand_id}/call")
+async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Depends(get_current_admin)):
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    by = (body.by or "").strip()
+    if not by:
+        raise HTTPException(status_code=400, detail="Identité manquante — merci de préciser qui appelle")
+    if body.outcome not in CALL_OUTCOMES:
+        raise HTTPException(status_code=400, detail="Résultat d'appel invalide")
+    if body.outcome == "joint":
+        if body.detail not in CALL_JOINT_DETAILS:
+            raise HTTPException(status_code=400, detail="Détail d'appel invalide")
+        if body.detail == "rappeler":
+            if body.callback_choice not in CALLBACK_CHOICES:
+                raise HTTPException(status_code=400, detail="Choix de rappel invalide")
+            if body.callback_choice == "custom" and not body.callback_at:
+                raise HTTPException(status_code=400, detail="Date de rappel requise")
+        if body.detail == "refus" and body.refus_reason not in REFUS_REASON_CODES:
+            raise HTTPException(status_code=400, detail="Motif de refus invalide")
+
+    doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    entry = {
+        "at": now_iso, "by": by, "outcome": body.outcome, "detail": body.detail,
+        "refus_reason": body.refus_reason if body.detail == "refus" else None,
+        "message_laisse": body.message_laisse if body.outcome == "pas_de_reponse" else None,
+        "note": (body.note or "").strip() or None,
+    }
+    if body.detail == "rappeler":
+        entry["callback_at"] = _resolve_callback_at(body.callback_choice, body.callback_at)
+
+    set_fields = {}
+    if not doc.get("first_contact_at"):
+        set_fields["first_contact_at"] = now_iso
+    if not doc.get("assigned_to"):
+        set_fields["assigned_to"] = by
+    push_fields = {"call_attempts": entry}
+    if (doc.get("status") or "nouveau") == "nouveau":
+        set_fields["status"] = "contacte"
+        push_fields["status_history"] = {"status": "contacte", "at": now_iso, "by": by}
+
+    update_op = {"$push": push_fields}
+    if set_fields:
+        update_op["$set"] = set_fields
+    await db[col_name].update_one({"id": demand_id}, update_op)
+    return {
+        "status": "logged",
+        "call_attempts_count": len(doc.get("call_attempts") or []) + 1,
+        "new_status": set_fields.get("status", doc.get("status") or "nouveau"),
+    }
 
 @api_router.delete("/admin/demandes/{category}/{demand_id}")
 async def delete_demand(category: str, demand_id: str, body: DeleteRequest, user=Depends(get_current_admin)):
@@ -1248,6 +1461,10 @@ async def export_all_demandes_csv(store: Optional[str] = Query(None), date_from:
         "customer_source": "Source client", "customer_feedback": "Avis client",
         "staff_source": "Source technicien", "staff_site_opinion": "Avis site",
         "staff_dislikes": "Points négatifs", "lost_reason": "Raison perte client",
+        "first_contact_at": "Premier contact le", "first_contact_delay_min": "Délai 1er contact (min ouvrées)",
+        "call_attempts_count": "Nb tentatives", "messages_left_count": "Nb messages laissés",
+        "last_call_result": "Dernier résultat d'appel", "lost_reason_code": "Motif de perte (code)",
+        "assigned_to": "Traité par",
     }
     query = {"is_test": {"$ne": True}}
     if store:
@@ -1267,6 +1484,7 @@ async def export_all_demandes_csv(store: Optional[str] = Query(None), date_from:
         docs = await db[col_name].find(query, {"_id": 0}).sort("created_at", -1).to_list(5000)
         for d in docs:
             d["type"] = TYPE_LABELS.get(category, category)
+            _annotate_call_journal_export_fields(d)
         all_docs.extend(docs)
 
     # Sort all by date desc
@@ -1278,13 +1496,17 @@ async def export_all_demandes_csv(store: Optional[str] = Query(None), date_from:
                 "issue_types", "other_issue", "subject", "message", "fleet_size",
                 "need_type", "condition", "preferred_time",
                 "customer_source", "customer_feedback",
-                "staff_source", "staff_site_opinion", "staff_dislikes", "lost_reason"]
+                "staff_source", "staff_site_opinion", "staff_dislikes", "lost_reason",
+                "first_contact_at", "first_contact_delay_min", "call_attempts_count",
+                "messages_left_count", "last_call_result", "lost_reason_code", "assigned_to"]
     cols_raw = []
     seen = set()
     for k in priority:
         for d in all_docs:
             if k in d and k not in seen:
                 cols_raw.append(k); seen.add(k); break
+    # Colonnes internes jamais exportées telles quelles (remplacées par les colonnes calculées ci-dessus)
+    seen.update({"status_history", "call_attempts", "tracking_since"})
     for d in all_docs:
         for k in d.keys():
             if k not in seen and k != "id":
@@ -1300,7 +1522,7 @@ async def export_all_demandes_csv(store: Optional[str] = Query(None), date_from:
         row = []
         for k in cols_raw:
             v = d.get(k)
-            if k == "created_at":
+            if k in ("created_at", "first_contact_at"):
                 v = format_date_fr(v)
             elif isinstance(v, list):
                 v = ', '.join(str(x) for x in v)
@@ -1771,12 +1993,34 @@ async def _background_scheduler():
             logger.error(f"[SCHEDULER] error: {e}")
         await asyncio.sleep(300)
 
+async def _migrate_call_journal_fields():
+    """One-shot, idempotent: backfill Journal d'appel fields on legacy leads.
+    Adds only the creation entry to status_history — never invents dates."""
+    deployment_ts = datetime.now(timezone.utc).isoformat()
+    total = 0
+    for col_name in COLLECTIONS.values():
+        docs = await db[col_name].find({"status_history": {"$exists": False}}, {"_id": 0, "id": 1, "created_at": 1}).to_list(20000)
+        for d in docs:
+            created_at = d.get("created_at") or deployment_ts
+            await db[col_name].update_one(
+                {"id": d["id"]},
+                {"$set": {
+                    "status_history": [{"status": "nouveau", "at": created_at, "by": "system"}],
+                    "call_attempts": [], "assigned_to": None, "first_contact_at": None,
+                    "lost_reason_code": None, "tracking_since": deployment_ts,
+                }},
+            )
+            total += 1
+    if total:
+        logger.info(f"[CALL JOURNAL] Migrated {total} legacy leads with base tracking fields (tracking_since={deployment_ts})")
+
 @app.on_event("startup")
 async def startup():
     await seed_admin()
     await db.admin_users.create_index("email", unique=True)
     await migrate_legacy_statuses()
     await _migrate_skip_stale_escalations()
+    await _migrate_call_journal_fields()
     asyncio.create_task(_background_scheduler())
 
 @app.on_event("shutdown")

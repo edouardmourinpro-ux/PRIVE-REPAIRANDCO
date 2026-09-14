@@ -1,0 +1,23 @@
+{
+  "summary": "Targeted regression on 3 specific bug fixes on the S18 'Journal d'appel' feature (no full re-test — iteration_15 covered that at 100%). All 3 fixes VERIFIED. (1) Frontend optimistic status_history push in logCall (AdminPage.jsx L268-288): a fresh is_test lead (nouveau) was created, Appeler flow logged 'Pas de réponse / sans message', and WITHOUT reloading the page the call-timeline showed BOTH 'Appel — Pas de réponse — sans message · David' AND 'Statut → Client contacté · David' with matching 14/09 timestamps; status badge updated to 'Client contacté' and call-count badge = 1. (2) The 'Appeler' <a> (data-testid=demand-call-{id}) at L1452-1457 now triggers requireIdentity(() => setShowCallPanel(true)) in addition to the tel: href: verified twice — first without any identity in localStorage → Identity Modal opened (requireIdentity fired) on Appeler click; after selecting David + Confirmer, the call-log-dialog opened automatically via the pending-action pattern. Second run with identity pre-set → call panel opens directly (path also exercised via call-log-open button). (3) The 'Injoignable' bypass rule: _unreachable_rule_satisfied now takes the full doc and returns True when doc['created_at'] < doc['tracking_since']. Verified via a dedicated pytest (test_unreachable_bypass.py, 5/5 pass) covering: legacy lead with 0 attempts → True (bypass), new lead with 0 attempts → False, 3 attempts same day → False, 3 attempts across 2 days → True, missing tracking_since → standard rule. Also re-ran TestInjoignableRule from test_call_journal.py: fresh is_test lead (created_at >= tracking_since) with 0 attempts → PATCH client_perdu / injoignable returns 400 (rule not bypassed for new leads). All is_test leads created were deleted with MOUR1. No real store leads were touched.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_unreachable_bypass.py",
+    "/app/backend/tests/test_call_journal.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AdminPage.jsx now 1784 lines — still exceeds the 700-line guideline. Recommend extracting DemandCard, CallPanel and the Identity Modal into separate files (pre-existing tech debt, non-blocking).",
+    "canMarkUnreachable (AdminPage.jsx L46-57) uses lexicographic string comparison on ISO timestamps (item.created_at < item.tracking_since) — works correctly because both are UTC ISO-8601 strings, but consider adding a comment or using Date parsing for future-proofing if formats ever diverge.",
+    "logCall optimistic status_history push adds an entry with by=payload.by, which matches server behavior. If in the future the backend adds more fields (e.g., 'via':'call') to the auto-appended status_history entry, the optimistic version will diverge until reload — low risk since the timeline renderer only reads {status,at,by}."
+  ],
+  "updated_files": ["/app/backend/tests/test_unreachable_bypass.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "david.m@repairandco.fr / Repair2025Admin! ; DELETE_CODE=MOUR1",
+  "seed_data_creation": "Created and deleted 4 is_test devis leads via POST /api/admin/notifications/test-lead during frontend Playwright runs, plus 2 more via the backend test_call_journal.py::TestInjoignableRule re-run. All deleted with DELETE + code MOUR1. No real store data was modified.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Bug Fix 3 backend bypass is now covered by a dedicated unit test at /app/backend/tests/test_unreachable_bypass.py (imports _unreachable_rule_satisfied from server.py). Bug Fixes 1 & 2 were verified live via Playwright on the preview URL — the key visual evidence is /root/.screenshots/bug1_final.png-equivalent (chronology showing both 'Statut → Client contacté' and 'Appel — Pas de réponse — sans message' lines immediately after submission, no reload). Note for future automation: the call panel's 'Non' choice for message_laisse auto-submits (there is no separate 'Enregistrer' button in the Pas de réponse → message_laisse subflow); tests should not wait for such a button.",
+  "rca of the issue": "n/a — all 3 fixes verified working. Playwright warning about a missing 'Enregistrer' button in the compact Pas-de-réponse subflow is expected (the flow auto-submits on message_laisse choice) and does not indicate a bug."
+}

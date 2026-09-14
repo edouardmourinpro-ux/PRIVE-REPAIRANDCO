@@ -15,8 +15,46 @@ import { Card, CardContent } from '../components/ui/card';
 import { STORES } from '../data/stores';
 import SEO from '../components/SEO';
 import { ALERT_SOUND_PRESETS, DEFAULT_ALERT_SOUND, playAlertSound } from '../lib/alertSounds';
+import { IdentityModal } from '../components/admin/IdentityModal';
+import { CallLogPanel } from '../components/admin/CallLogPanel';
+import { LOST_REASON_OPTIONS, LOST_REASON_LABELS } from '../data/lostReasons';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+const CALL_DETAIL_LABELS = {
+  rdv_pris: 'RDV pris', vient_magasin: 'Vient en magasin',
+  devis_accepte: 'Devis accepté', rappeler: 'À rappeler', refus: 'Refus',
+};
+
+const callResultLabel = (c) => {
+  if (!c) return '';
+  if (c.outcome === 'joint') {
+    let l = CALL_DETAIL_LABELS[c.detail] || c.detail || '';
+    if (c.detail === 'refus' && c.refus_reason) l += ` (${LOST_REASON_LABELS[c.refus_reason] || c.refus_reason})`;
+    if (c.detail === 'rappeler' && c.callback_at) {
+      try { l += ` — ${new Date(c.callback_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`; } catch { /* ignore */ }
+    }
+    return l;
+  }
+  if (c.outcome === 'pas_de_reponse') return c.message_laisse ? 'Pas de réponse — message laissé' : 'Pas de réponse — sans message';
+  if (c.outcome === 'numero_invalide') return 'Numéro invalide';
+  return c.outcome || '';
+};
+
+// « Injoignable » exige >= 3 « pas de réponse » sur >= 2 jours distincts (Paris),
+// mais seulement pour les leads créés après le début du suivi complet (tracking_since).
+const canMarkUnreachable = (item) => {
+  if (item.created_at && item.tracking_since && item.created_at < item.tracking_since) return true;
+  const days = new Set();
+  let count = 0;
+  (item.call_attempts || []).forEach(c => {
+    if (c.outcome === 'pas_de_reponse') {
+      count += 1;
+      try { days.add(new Date(c.at).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })); } catch { /* ignore */ }
+    }
+  });
+  return count >= 3 && days.size >= 2;
+};
 
 const STATUS_OPTIONS = [
   { value: 'nouveau',        label: 'Nouveau client',     color: 'bg-red-100 text-red-700' },
@@ -107,6 +145,27 @@ const AdminPage = () => {
   const [data, setData] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
 
+  // ---- "Qui êtes-vous ?" identity (compte admin partagé — S18 Journal d'appel) ----
+  const [currentIdentity, setCurrentIdentity] = useState(() => (typeof window !== 'undefined' && localStorage.getItem('admin_identity')) || '');
+  const [showIdentityModal, setShowIdentityModal] = useState(false);
+  const pendingActionRef = useRef(null);
+
+  const requireIdentity = useCallback((action) => {
+    const current = (typeof window !== 'undefined' && localStorage.getItem('admin_identity')) || '';
+    if (current) { action(); return; }
+    pendingActionRef.current = action;
+    setShowIdentityModal(true);
+  }, []);
+
+  const handleIdentityConfirm = (name) => {
+    localStorage.setItem('admin_identity', name);
+    setCurrentIdentity(name);
+    setShowIdentityModal(false);
+    const action = pendingActionRef.current;
+    pendingActionRef.current = null;
+    if (action) action();
+  };
+
   // ---- New-lead alerts (Web Audio bip + browser notification) ----
   // The persisted preference (admin_alerts_enabled) lets us AUTO-restart polling
   // + browser notifications after a page reload — the manager sees new leads
@@ -189,16 +248,43 @@ const AdminPage = () => {
     setIsLoggedIn(false);
   };
 
-  const updateStatus = async (id, newStatus, lostReason) => {
+  const updateStatus = async (id, newStatus, extra = {}) => {
     try {
-      const payload = { status: newStatus };
-      if (lostReason) payload.lost_reason = lostReason;
+      const payload = { status: newStatus, by: localStorage.getItem('admin_identity') || '' };
+      if (extra.lostReasonCode) payload.lost_reason_code = extra.lostReasonCode;
+      if (extra.lostReasonText) payload.lost_reason = extra.lostReasonText;
       await axios.patch(`${API_URL}/api/admin/demandes/${activeTab}/${id}/status`, payload, { headers: authHeaders });
-      setData(prev => prev.map(d => d.id === id ? { ...d, status: newStatus, ...(lostReason ? { lost_reason: lostReason } : {}) } : d));
+      setData(prev => prev.map(d => d.id === id ? {
+        ...d, status: newStatus,
+        ...(extra.lostReasonCode ? { lost_reason_code: extra.lostReasonCode } : {}),
+        ...(extra.lostReasonText ? { lost_reason: extra.lostReasonText } : {}),
+      } : d));
       loadStats();
     } catch (e) {
-      alert('Erreur lors de la mise à jour du statut');
+      toast.error(e.response?.data?.detail || 'Erreur lors de la mise à jour du statut');
     }
+  };
+
+  const logCall = async (id, payload) => {
+    const res = await axios.post(`${API_URL}/api/admin/demandes/${activeTab}/${id}/call`, payload, { headers: authHeaders });
+    const nowIso = new Date().toISOString();
+    setData(prev => prev.map(d => {
+      if (d.id !== id) return d;
+      const entry = { at: nowIso, by: payload.by, outcome: payload.outcome, detail: payload.detail, refus_reason: payload.refus_reason, message_laisse: payload.message_laisse, note: payload.note, callback_at: payload.callback_at };
+      const statusChanged = res.data.new_status && res.data.new_status !== d.status;
+      return {
+        ...d,
+        call_attempts: [...(d.call_attempts || []), entry],
+        status: res.data.new_status || d.status,
+        status_history: statusChanged
+          ? [...(d.status_history || []), { status: res.data.new_status, at: nowIso, by: payload.by }]
+          : (d.status_history || []),
+        first_contact_at: d.first_contact_at || nowIso,
+        assigned_to: d.assigned_to || payload.by,
+      };
+    }));
+    loadStats();
+    toast.success('Appel enregistré');
   };
 
   const saveStaffFeedback = async (id, payload) => {
@@ -493,6 +579,13 @@ const AdminPage = () => {
               {stats?.total || 0} demandes · <span className="text-red-300 font-semibold">{stats?.nouveau || 0} à traiter</span>
             </span>
             <button
+              onClick={() => { pendingActionRef.current = null; setShowIdentityModal(true); }}
+              className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/30 rounded-full text-xs text-white font-medium transition-colors"
+              data-testid="admin-identity-change-link"
+            >
+              👤 {currentIdentity || 'Non défini'} · changer
+            </button>
+            <button
               onClick={() => { setRattrapageCode(''); setRattrapageError(''); setRattrapageResult(null); setShowRattrapageModal(true); }}
               className="hidden sm:flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/30 rounded-full text-xs text-white font-medium transition-colors"
               data-testid="admin-rattrapage-btn"
@@ -505,6 +598,13 @@ const AdminPage = () => {
           </div>
         </div>
       </div>
+
+      <IdentityModal
+        open={showIdentityModal}
+        currentIdentity={currentIdentity}
+        onConfirm={handleIdentityConfirm}
+        onClose={() => { setShowIdentityModal(false); pendingActionRef.current = null; }}
+      />
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Filters bar */}
@@ -659,6 +759,8 @@ const AdminPage = () => {
                 onSaveQuotedPrice={saveQuotedPrice}
                 onDelete={handleDeleteDemand}
                 onPushSMS={handlePushSMSDemand}
+                requireIdentity={requireIdentity}
+                onLogCall={logCall}
               />
             ))}
           </div>
@@ -1027,7 +1129,7 @@ const NotifTestPanel = ({ authHeaders }) => {
   );
 };
 
-const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onPushSMS }) => {
+const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onPushSMS, requireIdentity, onLogCall }) => {
   const [open, setOpen] = useState(false);
   const feedbackRef = useRef(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -1035,12 +1137,14 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   const [deleteError, setDeleteError] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showLostModal, setShowLostModal] = useState(false);
-  const [lostReason, setLostReason] = useState('');
+  const [lostReasonCode, setLostReasonCode] = useState('');
+  const [lostReasonText, setLostReasonText] = useState('');
   const [showPushModal, setShowPushModal] = useState(false);
   const [pushCode, setPushCode] = useState('');
   const [pushError, setPushError] = useState('');
   const [pushLoading, setPushLoading] = useState(false);
   const [pushSuccess, setPushSuccess] = useState(false);
+  const [showCallPanel, setShowCallPanel] = useState(false);
 
   const handleDeleteSubmit = async () => {
     setDeleteLoading(true);
@@ -1055,10 +1159,14 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   };
 
   const handleLostSubmit = () => {
-    if (!lostReason.trim()) return;
-    onStatusChange(item.id, 'client_perdu', lostReason);
-    setShowLostModal(false);
+    if (!lostReasonCode) return;
+    requireIdentity(() => {
+      onStatusChange(item.id, 'client_perdu', { lostReasonCode, lostReasonText: lostReasonText.trim() || undefined });
+      setShowLostModal(false);
+    });
   };
+
+  const handleCallSubmit = (payload) => onLogCall(item.id, { ...payload, by: localStorage.getItem('admin_identity') || '' });
 
   const handlePushSubmit = async () => {
     setPushLoading(true);
@@ -1115,21 +1223,31 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   const hasCustomerSurvey = item.customer_source || item.customer_feedback;
 
   const handleStatusChange = async (newStatus) => {
-    if (newStatus === 'client_perdu') {
-      setLostReason('');
-      setShowLostModal(true);
-      return;
-    }
-    if (newStatus === 'facture') {
-      setOpen(true);
-    }
-    await onStatusChange(item.id, newStatus);
-    if (newStatus === 'facture') {
-      setTimeout(() => {
-        feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 350);
-    }
+    requireIdentity(() => {
+      if (newStatus === 'client_perdu') {
+        setLostReasonCode(''); setLostReasonText('');
+        setShowLostModal(true);
+        return;
+      }
+      if (newStatus === 'facture') setOpen(true);
+      onStatusChange(item.id, newStatus);
+      if (newStatus === 'facture') {
+        setTimeout(() => {
+          feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 350);
+      }
+    });
   };
+
+  const callAttempts = item.call_attempts || [];
+  const lastCall = callAttempts.length ? callAttempts[callAttempts.length - 1] : null;
+  const showRefusAction = lastCall?.outcome === 'joint' && lastCall?.detail === 'refus' && !['refus_devis', 'client_perdu', 'facture'].includes(item.status);
+  const showInvalidAction = lastCall?.outcome === 'numero_invalide' && !['client_perdu', 'facture'].includes(item.status);
+  const unreachableAllowed = canMarkUnreachable(item);
+  const timeline = [
+    ...(item.status_history || []).map(h => ({ at: h.at, by: h.by, note: null, label: `Statut → ${STATUS_OPTIONS.find(s => s.value === h.status)?.label || h.status}` })),
+    ...callAttempts.map(c => ({ at: c.at, by: c.by, note: c.note, label: `Appel — ${callResultLabel(c)}` })),
+  ].sort((a, b) => new Date(a.at) - new Date(b.at));
 
   const getTitle = () => {
     // Affichage admin : priorité au NOM (name / last_name). Prénom réservé aux relances.
@@ -1258,6 +1376,18 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
               {currentStatus.label}
             </span>
             <NotifBadge item={item} />
+            {callAttempts.length > 0 && (
+              <span className="flex items-center gap-1 text-xs text-[#1A5C3A] font-semibold" data-testid={`call-count-${item.id}`}>
+                <Phone size={12} /> {callAttempts.length}
+              </span>
+            )}
+            <button
+              onClick={e => { e.stopPropagation(); requireIdentity(() => setShowCallPanel(true)); }}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-[#1A5C3A] rounded-full text-xs text-white font-medium hover:bg-[#2ECC71] transition-colors min-h-[30px]"
+              data-testid={`call-log-open-${item.id}`}
+            >
+              <Phone size={12} /> Appel
+            </button>
             <select
               value={item.status || 'nouveau'}
               onChange={e => handleStatusChange(e.target.value)}
@@ -1318,7 +1448,14 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             )}
 
             <div className="flex flex-wrap gap-2">
-              {item.phone && <a href={`tel:${item.phone}`} className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#E8F5EE] rounded-full text-xs text-[#1A5C3A] font-medium hover:bg-[#2ECC71]/20" data-testid={`demand-call-${item.id}`}><Phone size={12} />Appeler</a>}
+              {item.phone && (
+                <a
+                  href={`tel:${item.phone}`}
+                  onClick={() => requireIdentity(() => setShowCallPanel(true))}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#E8F5EE] rounded-full text-xs text-[#1A5C3A] font-medium hover:bg-[#2ECC71]/20"
+                  data-testid={`demand-call-${item.id}`}
+                ><Phone size={12} />Appeler</a>
+              )}
               {item.email && (
                 <button
                   onClick={handleRelanceEmail}
@@ -1354,11 +1491,53 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
               )}
             </div>
 
+            {/* Actions rapides suggérées après un appel */}
+            {(showRefusAction || showInvalidAction) && (
+              <div className="flex flex-wrap gap-2">
+                {showRefusAction && (
+                  <button
+                    onClick={() => requireIdentity(() => onStatusChange(item.id, 'refus_devis', { lostReasonCode: lastCall.refus_reason }))}
+                    className="px-3 py-2 rounded-full text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 min-h-[36px]"
+                    data-testid={`quick-action-refus-devis-${item.id}`}
+                  >
+                    Passer en Refus devis
+                  </button>
+                )}
+                {showInvalidAction && (
+                  <button
+                    onClick={() => requireIdentity(() => onStatusChange(item.id, 'client_perdu', { lostReasonCode: 'numero_invalide' }))}
+                    className="px-3 py-2 rounded-full text-xs font-medium bg-gray-200 text-gray-900 hover:bg-gray-300 min-h-[36px]"
+                    data-testid={`quick-action-perdu-invalide-${item.id}`}
+                  >
+                    Passer en perdu — numéro invalide
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Chronologie des appels et changements de statut */}
+            {timeline.length > 0 && (
+              <div className="p-3 bg-gray-50 rounded-xl border border-gray-100" data-testid={`call-timeline-${item.id}`}>
+                <p className="text-xs font-semibold text-[#1A1A2E] mb-2">Historique</p>
+                <ul className="space-y-1.5">
+                  {timeline.map((t, i) => (
+                    <li key={i} className="text-xs text-[#1A1A2E]/80 flex flex-col sm:flex-row sm:justify-between gap-1">
+                      <span>{t.label}{t.note ? ` — « ${t.note} »` : ''}</span>
+                      <span className="text-[#1A1A2E]/40 whitespace-nowrap">
+                        {new Date(t.at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · {t.by}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Raison perte client */}
-            {item.lost_reason && (
+            {(item.lost_reason || item.lost_reason_code) && (
               <div className="p-3 bg-red-50 rounded-xl border border-red-100">
                 <p className="text-xs font-semibold text-red-600 mb-1 flex items-center gap-1"><UserX size={12} /> Raison perte client</p>
-                <p className="text-sm text-red-700">{item.lost_reason}</p>
+                {item.lost_reason_code && <p className="text-sm text-red-700 font-medium">{LOST_REASON_LABELS[item.lost_reason_code] || item.lost_reason_code}</p>}
+                {item.lost_reason && <p className="text-sm text-red-700">{item.lost_reason}</p>}
               </div>
             )}
 
@@ -1410,7 +1589,16 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
         </DialogContent>
       </Dialog>
 
-      {/* Client perdu — modale de raison obligatoire */}
+      {/* Journal d'appel */}
+      <CallLogPanel
+        open={showCallPanel}
+        onClose={() => setShowCallPanel(false)}
+        itemId={item.id}
+        phone={item.phone}
+        onSubmit={handleCallSubmit}
+      />
+
+      {/* Client perdu — motif fixe en un clic */}
       <Dialog open={showLostModal} onOpenChange={o => { setShowLostModal(o); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -1418,18 +1606,39 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
               <UserX size={18} className="text-red-500" /> Client perdu
             </DialogTitle>
             <DialogDescription>
-              Indiquez la raison pour laquelle ce client est perdu.
+              Choisissez le motif (1 clic).
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 mt-2">
+            <div className="grid gap-1.5 max-h-64 overflow-y-auto">
+              {LOST_REASON_OPTIONS.map(r => {
+                const disabled = r.value === 'injoignable' && !unreachableAllowed;
+                const selected = lostReasonCode === r.value;
+                return (
+                  <button
+                    key={r.value}
+                    disabled={disabled}
+                    onClick={() => setLostReasonCode(r.value)}
+                    title={disabled ? 'Nécessite 3 appels « Pas de réponse » sur 2 jours différents' : ''}
+                    className={`min-h-[44px] px-3 rounded-lg text-sm border text-left transition-colors ${
+                      selected ? 'bg-red-600 text-white border-red-600'
+                        : disabled ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
+                        : 'bg-white border-gray-200 text-[#1A1A2E] hover:bg-red-50'
+                    }`}
+                    data-testid={`lost-reason-chip-${r.value}-${item.id}`}
+                  >
+                    {r.label}
+                  </button>
+                );
+              })}
+            </div>
             <textarea
-              value={lostReason}
-              onChange={e => setLostReason(e.target.value)}
-              placeholder="Ex : Prix trop élevé, a trouvé moins cher, ne répond plus..."
-              rows={3}
+              value={lostReasonText}
+              onChange={e => setLostReasonText(e.target.value)}
+              placeholder="Détail facultatif..."
+              rows={2}
               className="form-textarea w-full text-sm"
-              autoFocus
-              data-testid="lost-reason-input"
+              data-testid={`lost-reason-detail-${item.id}`}
             />
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setShowLostModal(false)} className="text-xs rounded-full">
@@ -1437,7 +1646,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
               </Button>
               <Button
                 onClick={handleLostSubmit}
-                disabled={!lostReason.trim()}
+                disabled={!lostReasonCode}
                 className="bg-red-600 hover:bg-red-700 text-white text-xs rounded-full"
                 data-testid="lost-reason-confirm"
               >

@@ -1,0 +1,23 @@
+{
+  "summary": "S18 'Journal d'appel et Historique des statuts' feature tested end-to-end. Backend: 13/13 pytest tests pass covering identity requirement (400 on missing 'by' for both PATCH /status and POST /call), call-log validation (invalid outcome, custom callback missing callback_at, refus missing refus_reason), auto nouveau→contacte on first call, assigned_to never overwritten across two callers, injoignable rule server-side rejection (3 same-day pas_de_reponse insufficient), CSV /api/admin/export-all header ordering (raw internal fields status_history/call_attempts/tracking_since not exported; always-present new columns Délai/Nb tentatives/Nb messages laissés/Dernier résultat present after 'Raison perte client' and in required relative order), is_test leads excluded from export. Frontend E2E via Playwright on live preview URL: on cleared localStorage, clicking 📞 Appel button triggered blocking Identity Modal, selecting 'David' + confirm auto-resumed the pending call panel (pendingActionRef pattern works), header shows persistent '👤 David · changer' badge, full happy path Joint→RDV pris submitted (toast 'Appel enregistré' visible, dialog closed, call-count badge shows 1, status auto-flipped to 'Client contacté'). Numéro invalide 1-click flow logged immediately, expanded card shows quick-action 'Passer en perdu — numéro invalide' button and chronological call-timeline entry 'Appel — Numéro invalide … · David'. No regressions observed on Devis/Contact/Entreprise/Rachat tabs or filters. Test isolation strictly respected (only leads created via POST /admin/notifications/test-lead were used and deleted afterwards with MOUR1).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_call_journal.py",
+    "/app/test_reports/pytest/iteration_15.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AdminPage.jsx is 1770 lines — consider extracting DemandCard, lost-reason modal, and quick-action buttons into their own files (over the 700-line guideline).",
+    "CSV export: 'Premier contact le', 'Motif de perte (code)', and 'Traité par' columns are only emitted if at least one document in the current export batch has that key. If no doc has been called or lost yet, those three columns disappear from the header. The 4 annotate-always columns (Délai/Nb tentatives/Nb messages/Dernier résultat) are safe because _annotate_call_journal_export_fields always sets them (even to '' or 0). Consider always setting first_contact_at='', assigned_to='', lost_reason_code='' in _annotate to guarantee the 7 columns are always present as spec requires 'exactly 7 new columns appended'. Currently only 4 are guaranteed — verified passing today because real leads include those fields, but a fresh DB could show only 4.",
+    "In log_call the response returns call_attempts_count=len(existing)+1 but does not read back the doc — fine, but note that the frontend already increments its own optimistic counter."
+  ],
+  "updated_files": ["/app/backend/tests/test_call_journal.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "david.m@repairandco.fr / Repair2025Admin! ; DELETE_CODE=MOUR1",
+  "seed_data_creation": "Created and deleted several is_test leads via POST /api/admin/notifications/test-lead (category=devis) during backend and frontend testing. All cleaned up with DELETE using code MOUR1.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest file /app/backend/tests/test_call_journal.py covers all S18 endpoint contracts (identity requirement, call validation, auto contacte, injoignable rule, CSV columns). Frontend Playwright happy path already verified visually via preview URL. Known non-issues (per main agent): SMS_ENABLED=false expected, SMTP intermittent (pre-existing). The 'Injoignable' chip disabled test on the UI was not automated (needs 3 pas_de_reponse spread over ≥2 calendar days — impossible in a single test session); backend rejection of that combination IS tested and returns 400. The 'Client Perdu' redesigned modal with lost-reason chips was not clicked in the Playwright run but the DOM markers (lost-reason-chip-*, lost-reason-detail, lost-reason-confirm) are wired in AdminPage.jsx and the underlying PATCH endpoint is fully validated.",
+  "rca of the issue": "n/a — no failures encountered."
+}
