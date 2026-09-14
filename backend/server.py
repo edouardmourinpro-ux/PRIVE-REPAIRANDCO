@@ -121,6 +121,10 @@ STORE_EMAIL = {
     "les-ulis":         "les.ulis@repair-and-co.fr",
 }
 
+# Destinataires du MODE TEST — jamais dérangés : magasins, RPV, David.
+TEST_RECIPIENT_EMAIL = os.environ.get('TEST_RECIPIENT_EMAIL', '')
+TEST_RECIPIENT_SMS = os.environ.get('TEST_RECIPIENT_SMS', '')
+
 STORE_NAMES = {
     "lattes": "Lattes",
     "montpellier-nord": "Montpellier Nord",
@@ -131,11 +135,15 @@ STORE_NAMES = {
     "boulogne": "Boulogne",
     "plaisir": "Plaisir",
     "les-ulis": "Les Ulis",
+    "test": "Magasin TEST",
 }
 
-# Magasins qui n'acceptent pas de demande (fermés / en travaux).
+# Magasins qui n'acceptent pas de demande (fermés / en travaux) + magasin technique de test.
 # Doit rester aligné avec acceptsLeads dans frontend/src/data/stores.js.
 CLOSED_STORES = {"beziers"}
+# Magasin technique réservé au mode test admin — jamais accessible via un formulaire public.
+TEST_STORE_ID = "test"
+PUBLIC_BLOCKED_STORES = CLOSED_STORES | {TEST_STORE_ID}
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -194,17 +202,12 @@ def extra_recipients_for_store(store_id):
     email = STORE_EMAIL.get(store_id)
     return [email] if email else []
 
-def _send_smtp_email(subject: str, html_body: str, extra_recipients=None):
-    raw = NOTIFY_EMAIL or ""
-    recipients = [e.strip() for e in raw.split(',') if e.strip()]
-    if extra_recipients:
-        for addr in extra_recipients:
-            a = (addr or "").strip()
-            if a and a not in recipients:
-                recipients.append(a)
-    logger.info(f"[EMAIL] NOTIFY_EMAIL raw='{raw}' + extra={extra_recipients or []} → recipients={recipients} | subject='{subject}'")
+def _send_smtp_email_raw(subject: str, html_body: str, recipients: list):
+    """Low-level SMTP send to an EXACT, fully-resolved recipient list — no
+    implicit NOTIFY_EMAIL injection. Used by send_email_tracked() so test-mode
+    leads never leak to real staff/admin addresses."""
     if not recipients:
-        logger.error("[EMAIL] Aucun destinataire configuré dans NOTIFY_EMAIL — email non envoyé.")
+        logger.error("[EMAIL] Aucun destinataire fourni — email non envoyé.")
         return
     msg = MIMEMultipart("alternative")
     msg["From"] = SMTP_USER
@@ -217,6 +220,17 @@ def _send_smtp_email(subject: str, html_body: str, extra_recipients=None):
         server.sendmail(SMTP_USER, recipients, msg.as_string())
     logger.info(f"[EMAIL] Envoi OK → {recipients}")
 
+def _send_smtp_email(subject: str, html_body: str, extra_recipients=None):
+    raw = NOTIFY_EMAIL or ""
+    recipients = [e.strip() for e in raw.split(',') if e.strip()]
+    if extra_recipients:
+        for addr in extra_recipients:
+            a = (addr or "").strip()
+            if a and a not in recipients:
+                recipients.append(a)
+    logger.info(f"[EMAIL] NOTIFY_EMAIL raw='{raw}' + extra={extra_recipients or []} → recipients={recipients} | subject='{subject}'")
+    _send_smtp_email_raw(subject, html_body, recipients)
+
 async def send_notification(subject: str, html_body: str, extra_recipients=None):
     try:
         await asyncio.to_thread(_send_smtp_email, subject, html_body, extra_recipients)
@@ -225,7 +239,8 @@ async def send_notification(subject: str, html_body: str, extra_recipients=None)
 
 def build_email_html(*, title: str, demand_type: str, store_name: str, client: dict,
                      details: dict, submitted_at: str, demand_id: str,
-                     survey: dict = None, header_note: str = None) -> str:
+                     survey: dict = None, header_note: str = None,
+                     action_note: str = "Action requise : appeler le client dans les 15 minutes.") -> str:
     """Rich HTML email template (Repair&Co branding).
 
     Sections: header (green) → meta (type/magasin/date) → client info → details → optional survey → CTA admin.
@@ -287,7 +302,7 @@ def build_email_html(*, title: str, demand_type: str, store_name: str, client: d
         </a>
       </div>
       <p style="color:#1A1A2E;font-size:12px;text-align:center;margin:14px 0 0 0;opacity:.6">
-        Action requise : appeler le client dans les 15 minutes.
+        {action_note}
       </p>
     </div>
     <div style="background:#E8F5EE;padding:12px 16px;text-align:center">
@@ -403,7 +418,8 @@ async def send_sms(to_number: str, message: str, kind: str = "primary") -> Optio
     return entry
 
 async def send_email_tracked(to_addresses: str, subject: str, html_body: str, kind: str = "primary") -> Optional[dict]:
-    """Send one email via SMTP, retrying up to 3 times. Returns a
+    """Send one email via SMTP, retrying up to 3 times, to the EXACT recipient
+    list given (no implicit NOTIFY_EMAIL injection). Returns a
     notifications[] entry — never raises."""
     if not to_addresses:
         return None
@@ -415,7 +431,7 @@ async def send_email_tracked(to_addresses: str, subject: str, html_body: str, ki
             await asyncio.sleep(delay)
         entry["attempts"] = i + 1
         try:
-            await asyncio.to_thread(_send_smtp_email, subject, html_body, recipients[1:] if len(recipients) > 1 else None)
+            await asyncio.to_thread(_send_smtp_email_raw, subject, html_body, recipients)
             entry["status"] = "sent"
             entry["at"] = datetime.now(timezone.utc).isoformat()
             return entry
@@ -440,22 +456,27 @@ def compute_notify_status(notifications: list) -> str:
 async def _notify_lead(collection_name: str, demand_id: str, store_id: str, subject: str, html_body: str, doc: dict, category: str) -> None:
     """Background task: send email (NOTIFY_EMAIL + store manager) and primary
     SMS (store mobile), then persist the result on the lead document itself.
-    The HTTP response of the form never waits for this."""
+    The HTTP response of the form never waits for this.
+    Test leads (is_test=True) are always routed to TEST_RECIPIENT_* only —
+    never to a store, NOTIFY_EMAIL or SUPERVISION_EMAIL."""
+    is_test = bool(doc.get('is_test'))
     notifications = []
-    recipients = [e.strip() for e in (NOTIFY_EMAIL or "").split(',') if e.strip()]
-    for addr in extra_recipients_for_store(store_id):
-        if addr and addr not in recipients:
-            recipients.append(addr)
+    if is_test:
+        recipients = [TEST_RECIPIENT_EMAIL] if TEST_RECIPIENT_EMAIL else []
+    else:
+        recipients = [e.strip() for e in (NOTIFY_EMAIL or "").split(',') if e.strip()]
+        for addr in extra_recipients_for_store(store_id):
+            if addr and addr not in recipients:
+                recipients.append(addr)
     if recipients:
         email_entry = await send_email_tracked(", ".join(recipients), subject, html_body, kind="primary")
         if email_entry:
             notifications.append(email_entry)
-    if store_id:
-        primary_number = STORE_PRIMARY_SMS.get(store_id)
-        if primary_number:
-            sms_entry = await send_sms(primary_number, build_sms_text(doc, category), kind="primary")
-            if sms_entry:
-                notifications.append(sms_entry)
+    primary_number = TEST_RECIPIENT_SMS if is_test else (STORE_PRIMARY_SMS.get(store_id) if store_id else None)
+    if primary_number:
+        sms_entry = await send_sms(primary_number, build_sms_text(doc, category), kind="primary")
+        if sms_entry:
+            notifications.append(sms_entry)
     notify_status = compute_notify_status(notifications)
     try:
         await db[collection_name].update_one(
@@ -465,10 +486,15 @@ async def _notify_lead(collection_name: str, demand_id: str, store_id: str, subj
     except Exception as e:
         logger.error(f"[NOTIFY] Failed to persist notification result ({collection_name}/{demand_id}): {e}")
 
+def format_dt_fr(dt: datetime) -> str:
+    """Any datetime formatted in the French Paris timezone (DST-aware)."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(PARIS_TZ).strftime("%d/%m/%Y à %Hh%M")
+
 def format_now_fr():
-    """Current datetime formatted in French timezone-ish (UTC+2)."""
-    now = datetime.now(timezone.utc) + timedelta(hours=2)
-    return now.strftime("%d/%m/%Y à %Hh%M")
+    """Current datetime formatted in French timezone."""
+    return format_dt_fr(datetime.now(timezone.utc))
 
 
 # ==================== MODELS ====================
@@ -582,7 +608,7 @@ async def root():
 
 @api_router.post("/quote")
 async def create_quote(input: QuoteRequestCreate):
-    if input.store in CLOSED_STORES:
+    if input.store in PUBLIC_BLOCKED_STORES:
         raise HTTPException(status_code=400, detail="Ce magasin est temporairement fermé. Merci de choisir un autre magasin.")
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
@@ -617,7 +643,7 @@ async def create_quote(input: QuoteRequestCreate):
 
 @api_router.post("/contact")
 async def create_contact(input: ContactRequestCreate):
-    if input.store and input.store in CLOSED_STORES:
+    if input.store and input.store in PUBLIC_BLOCKED_STORES:
         raise HTTPException(status_code=400, detail="Ce magasin est temporairement fermé. Merci de choisir un autre magasin.")
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
@@ -660,7 +686,7 @@ async def create_contact(input: ContactRequestCreate):
 
 @api_router.post("/b2b")
 async def create_b2b(input: B2BRequestCreate):
-    if input.store and input.store in CLOSED_STORES:
+    if input.store and input.store in PUBLIC_BLOCKED_STORES:
         raise HTTPException(status_code=400, detail="Ce magasin est temporairement fermé. Merci de choisir un autre magasin.")
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
@@ -699,7 +725,7 @@ async def create_b2b(input: B2BRequestCreate):
 
 @api_router.post("/buyback")
 async def create_buyback(input: BuybackRequestCreate):
-    if input.store in CLOSED_STORES:
+    if input.store in PUBLIC_BLOCKED_STORES:
         raise HTTPException(status_code=400, detail="Ce magasin est temporairement fermé. Merci de choisir un autre magasin.")
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
@@ -821,7 +847,9 @@ async def update_quoted_price(category: str, demand_id: str, body: QuotedPriceRe
 async def get_latest_demands(store: Optional[str] = Query(None), user=Depends(get_current_admin)):
     """Return the 5 most-recent leads across all 4 collections, optionally filtered
     by store. Used by the admin UI for the "new lead" polling / alert system."""
-    query = {"store": store} if store else {}
+    query = {"is_test": {"$ne": True}}
+    if store:
+        query["store"] = store
     items = []
     for demand_type, col_name in COLLECTIONS.items():
         docs = await db[col_name].find(
@@ -914,10 +942,6 @@ def build_sms_recall_message(doc: dict, category: str) -> str:
     return build_sms_text(doc, category, prefix="RAPPEL - LEAD NON TRAITE")
 
 
-class NotificationsTestRequest(BaseModel):
-    store: str
-
-
 @api_router.post("/admin/demandes/{category}/{demand_id}/push-sms")
 async def push_sms_single(category: str, demand_id: str, body: DeleteRequest, user=Depends(get_current_admin)):
     if body.code != DELETE_CODE:
@@ -964,54 +988,76 @@ async def push_sms_rattrapage(body: DeleteRequest, user=Depends(get_current_admi
     return {"status": "sent", "count": len(sent), "details": sent}
 
 
+class NotificationsTestRequest(BaseModel):
+    store: str
+    real: bool = False
+
+
+class TestLeadCreateRequest(BaseModel):
+    category: str  # "devis" or "contact"
+    same_person: bool = False
+    accelerated: bool = False
+
+
 @api_router.post("/admin/notifications/test")
 async def test_notifications(body: NotificationsTestRequest, user=Depends(get_current_admin)):
-    """Send a real test SMS + email to a store's actual recipients — lets the
-    admin verify all 9 stores in a few minutes without creating fake leads.
-    Single attempt only (no retries) so the button responds quickly."""
+    """Send a single-attempt test SMS + email. By default (real=False) goes
+    ONLY to TEST_RECIPIENT_EMAIL/SMS — never to the store, NOTIFY_EMAIL or
+    SUPERVISION_EMAIL. real=True (explicit checkbox + confirmation on the
+    frontend) sends to the store's actual recipients."""
     store_id = body.store
     if store_id not in STORE_NAMES:
         raise HTTPException(status_code=400, detail="Magasin inconnu")
     store_name = STORE_NAMES[store_id]
-    recipients = [e.strip() for e in (NOTIFY_EMAIL or "").split(',') if e.strip()]
-    for addr in extra_recipients_for_store(store_id):
-        if addr and addr not in recipients:
-            recipients.append(addr)
+    is_real = bool(body.real)
 
+    if is_real:
+        recipients = [e.strip() for e in (NOTIFY_EMAIL or "").split(',') if e.strip()]
+        for addr in extra_recipients_for_store(store_id):
+            if addr and addr not in recipients:
+                recipients.append(addr)
+        sms_target = STORE_PRIMARY_SMS.get(store_id)
+    else:
+        recipients = [TEST_RECIPIENT_EMAIL] if TEST_RECIPIENT_EMAIL else []
+        sms_target = TEST_RECIPIENT_SMS
+
+    subject_prefix = "[TEST]" if not is_real else "[TEST — envoi réel]"
     email_entry = {"channel": "email", "kind": "primary", "to": ", ".join(recipients), "status": "failed", "attempts": 1}
-    try:
-        await asyncio.to_thread(
-            _send_smtp_email,
-            f"[TEST] Notification — {store_name}",
-            build_email_html(
-                title="TEST — ne pas traiter",
-                demand_type="Test de notification (bouton admin)",
-                store_name=store_name,
-                client={},
-                details={"Note": "Ceci est un envoi de test déclenché depuis /admin — ne correspond à aucun client réel."},
-                submitted_at=format_now_fr(),
-                demand_id="test",
-            ),
-            recipients[1:] if len(recipients) > 1 else None,
-        )
-        email_entry["status"] = "sent"
-        email_entry["at"] = datetime.now(timezone.utc).isoformat()
-    except Exception as e:
-        email_entry["error"] = str(e)[:300]
-        email_entry["at"] = datetime.now(timezone.utc).isoformat()
+    if not recipients:
+        email_entry["error"] = "aucun destinataire configuré"
+    else:
+        try:
+            await asyncio.to_thread(
+                _send_smtp_email_raw,
+                f"{subject_prefix} Notification — {store_name}",
+                build_email_html(
+                    title="TEST — ne pas traiter",
+                    demand_type="Test de notification (bouton admin)",
+                    store_name=store_name,
+                    client={},
+                    details={"Note": "Ceci est un envoi de test déclenché depuis /admin — ne correspond à aucun client réel."},
+                    submitted_at=format_now_fr(),
+                    demand_id="test",
+                ),
+                recipients,
+            )
+            email_entry["status"] = "sent"
+            email_entry["at"] = datetime.now(timezone.utc).isoformat()
+        except Exception as e:
+            email_entry["error"] = str(e)[:300]
+            email_entry["at"] = datetime.now(timezone.utc).isoformat()
 
-    primary_number = STORE_PRIMARY_SMS.get(store_id)
-    if not primary_number:
+    if not sms_target:
         sms_entry = {"channel": "sms", "status": "skipped", "error": "aucun numéro configuré"}
     elif not SMS_ENABLED:
         sms_entry = {"channel": "sms", "status": "skipped", "error": "SMS_ENABLED=false"}
-    elif not _is_french_mobile(primary_number):
-        sms_entry = {"channel": "sms", "to": primary_number, "status": "failed", "error": "numero non mobile"}
+    elif not _is_french_mobile(sms_target):
+        sms_entry = {"channel": "sms", "to": sms_target, "status": "failed", "error": "numero non mobile"}
     else:
-        sms_entry = {"channel": "sms", "kind": "primary", "to": primary_number, "status": "failed", "attempts": 1}
+        sms_entry = {"channel": "sms", "kind": "primary", "to": sms_target, "status": "failed", "attempts": 1}
         try:
             text = _strip_accents(f"TEST - ne pas traiter\nRepair&Co - Test {store_name}\nrepairandco.fr/admin")
-            result = await asyncio.to_thread(_brevo_send_sms_sync, primary_number, text)
+            result = await asyncio.to_thread(_brevo_send_sms_sync, sms_target, text)
             sms_entry["status"] = "sent"
             sms_entry["provider_id"] = result.get("messageId")
             sms_entry["at"] = datetime.now(timezone.utc).isoformat()
@@ -1019,7 +1065,67 @@ async def test_notifications(body: NotificationsTestRequest, user=Depends(get_cu
             sms_entry["error"] = str(e)[:300]
             sms_entry["at"] = datetime.now(timezone.utc).isoformat()
 
-    return {"store": store_id, "email": email_entry, "sms": sms_entry}
+    return {"store": store_id, "real": is_real, "email": email_entry, "sms": sms_entry}
+
+
+@api_router.post("/admin/notifications/test-lead")
+async def create_test_lead(body: TestLeadCreateRequest, user=Depends(get_current_admin)):
+    """Create a fake `store: 'test'` lead to exercise the full new-lead +
+    escalation flow end-to-end without ever disturbing a real store, RPV or
+    David — every send for is_test leads is routed to TEST_RECIPIENT_*."""
+    if body.category not in ("devis", "contact"):
+        raise HTTPException(status_code=400, detail="category doit être 'devis' ou 'contact'")
+    now_str = datetime.now(timezone.utc).isoformat()
+    now_fr = format_now_fr()
+    col_name = COLLECTIONS[body.category]
+    doc = {
+        "id": str(uuid.uuid4()),
+        "created_at": now_str,
+        "status": "nouveau",
+        "type": body.category,
+        "store": TEST_STORE_ID,
+        "is_test": True,
+        "test_same_person": bool(body.same_person),
+        "test_accelerated": bool(body.accelerated),
+        "first_name": "TEST",
+        "name": "TEST — ne pas traiter",
+        "phone": TEST_RECIPIENT_SMS or "0600000000",
+        "email": TEST_RECIPIENT_EMAIL or "test@example.com",
+        "escalations_sent": [],
+        "notifications": [],
+    }
+    if body.category == "devis":
+        doc.update({"device_type": "smartphone", "brand": "Apple", "model": "iPhone TEST", "issue_types": ["Test"], "other_issue": None, "preferred_time": None})
+        details = {"Type d'appareil": doc["device_type"], "Marque": doc["brand"], "Modèle": doc["model"], "Problèmes": doc["issue_types"]}
+        subject = "[TEST] Nouveau devis — Magasin TEST"
+        title = "TEST — Nouvelle demande de devis"
+        demand_type_label = "Demande de devis (TEST)"
+    else:
+        doc.update({"subject": "Test — message", "message": "Ceci est un lead de test, ne pas traiter.",
+                    "rdv_device_type": None, "rdv_brand": None, "rdv_model": None, "rdv_issue": None, "rdv_date": None, "rdv_slot": None})
+        details = {"Objet": doc["subject"], "Message": doc["message"]}
+        subject = "[TEST] Nouveau message — Magasin TEST"
+        title = "TEST — Nouveau message"
+        demand_type_label = "Message / Contact (TEST)"
+    html = build_email_html(
+        title=title, demand_type=demand_type_label, store_name="Magasin TEST",
+        client={"Nom": doc["name"], "Téléphone": doc["phone"], "Email": doc["email"]},
+        details=details, submitted_at=now_fr, demand_id=doc["id"],
+    )
+    await db[col_name].insert_one(doc)
+    asyncio.ensure_future(_notify_lead(col_name, doc["id"], TEST_STORE_ID, subject, html, doc, body.category))
+    logger.info(f"[TEST LEAD] Created {body.category}/{doc['id']} (same_person={body.same_person}, accelerated={body.accelerated})")
+    return {"status": "success", "id": doc["id"], "category": body.category}
+
+
+@api_router.post("/admin/notifications/digest-test")
+async def send_digest_test(user=Depends(get_current_admin)):
+    """Send the daily digest report to TEST_RECIPIENT_EMAIL only, prefixed
+    [TEST]. Read-only: never touches leads or escalations_sent."""
+    if not TEST_RECIPIENT_EMAIL:
+        raise HTTPException(status_code=400, detail="TEST_RECIPIENT_EMAIL non configuré")
+    await _send_daily_digest(test_mode=True)
+    return {"status": "sent", "to": TEST_RECIPIENT_EMAIL}
 
 
 @api_router.get("/admin/notifications/health")
@@ -1032,7 +1138,7 @@ async def notifications_health(user=Depends(get_current_admin)):
         leads_without_notification = 0
         for col_name in COLLECTIONS.values():
             docs = await db[col_name].find(
-                {"created_at": {"$gte": since}}, {"_id": 0, "notifications": 1}
+                {"created_at": {"$gte": since}, "is_test": {"$ne": True}}, {"_id": 0, "notifications": 1}
             ).to_list(2000)
             for d in docs:
                 leads += 1
@@ -1079,7 +1185,7 @@ async def get_admin_stats(
     date_to: Optional[str] = Query(None),
     user=Depends(get_current_admin),
 ):
-    base_query = {}
+    base_query = {"is_test": {"$ne": True}}
     if store:
         base_query["store"] = store
     if date_from or date_to:
@@ -1143,7 +1249,7 @@ async def export_all_demandes_csv(store: Optional[str] = Query(None), date_from:
         "staff_source": "Source technicien", "staff_site_opinion": "Avis site",
         "staff_dislikes": "Points négatifs", "lost_reason": "Raison perte client",
     }
-    query = {}
+    query = {"is_test": {"$ne": True}}
     if store:
         query["store"] = store
     if status and status != "all":
@@ -1216,7 +1322,9 @@ async def export_demandes_csv(category: str, store: Optional[str] = Query(None),
     col_name = COLLECTIONS.get(category)
     if not col_name:
         raise HTTPException(status_code=400, detail="Catégorie invalide")
-    query = {"store": store} if store else {}
+    query = {"is_test": {"$ne": True}}
+    if store:
+        query["store"] = store
     docs = await db[col_name].find(query, {"_id": 0}).sort("created_at", -1).to_list(5000)
 
     # French-friendly column labels
@@ -1322,32 +1430,195 @@ async def migrate_legacy_statuses():
 
 # ==================== ESCALATION & DAILY DIGEST ====================
 
-def _build_escalation_email_html(doc: dict, category: str, tier: str) -> str:
-    store_name = STORE_NAMES.get(doc.get('store'), doc.get('store') or 'Non précisé')
+# Ordre croissant — utilisé pour la détection tardive (n'envoyer que le palier le plus haut atteint).
+ESCALATION_TIERS = ["15min", "30min", "2h"]
+
+def _tier_threshold_minutes(doc: dict, tier: str) -> float:
+    if doc.get('is_test') and doc.get('test_accelerated'):
+        return {"15min": 1, "30min": 2, "2h": 4}[tier]
+    return {"15min": 15, "30min": 30, "2h": 120}[tier]
+
+def _tier_done(escalations_sent: list, tier: str) -> bool:
+    return tier in escalations_sent or f"{tier}:skipped" in escalations_sent
+
+def _is_business_hours(now_paris: datetime = None) -> bool:
+    """Lundi à samedi, 9h-20h Paris. Dimanche toujours fermé."""
+    now_paris = now_paris or datetime.now(PARIS_TZ)
+    if now_paris.weekday() == 6:  # Sunday
+        return False
+    return 9 <= now_paris.hour < 20
+
+def _business_minutes_elapsed(start_utc: datetime, end_utc: datetime) -> float:
+    """Minutes écoulées entre start et end, comptées uniquement lundi-samedi 9h-20h Paris."""
+    if end_utc <= start_utc:
+        return 0.0
+    cursor = start_utc.astimezone(PARIS_TZ)
+    end_paris = end_utc.astimezone(PARIS_TZ)
+    total_minutes = 0.0
+    guard = 0
+    while cursor < end_paris and guard < 400:
+        guard += 1
+        if cursor.weekday() == 6:  # Sunday closed entirely
+            cursor = (cursor + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+            continue
+        day_open = cursor.replace(hour=9, minute=0, second=0, microsecond=0)
+        day_close = cursor.replace(hour=20, minute=0, second=0, microsecond=0)
+        if cursor < day_open:
+            cursor = day_open
+            continue
+        if cursor >= day_close:
+            cursor = (cursor + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+            continue
+        segment_end = min(end_paris, day_close)
+        total_minutes += (segment_end - cursor).total_seconds() / 60
+        cursor = segment_end
+    return total_minutes
+
+def _lead_age_minutes(doc: dict, now_utc: datetime, created_dt: datetime) -> float:
+    if doc.get('is_test') and doc.get('test_accelerated'):
+        return (now_utc - created_dt).total_seconds() / 60
+    return _business_minutes_elapsed(created_dt, now_utc)
+
+def _format_waiting_since(created_dt: datetime, now_utc: datetime) -> str:
+    minutes = int((now_utc - created_dt).total_seconds() // 60)
+    if minutes < 60:
+        return f"{minutes} min"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours} h"
+    days = hours // 24
+    return f"{days} jour{'s' if days > 1 else ''}"
+
+def _lead_details_dict(doc: dict, category: str) -> dict:
+    if category == 'devis':
+        return {
+            "Type d'appareil": doc.get('device_type'), "Marque": doc.get('brand'), "Modèle": doc.get('model'),
+            "Problèmes": doc.get('issue_types'), "Autre problème": doc.get('other_issue'),
+        }
+    if category == 'contact':
+        return {
+            "Objet": doc.get('subject'), "Type d'appareil": doc.get('rdv_device_type'), "Marque": doc.get('rdv_brand'),
+            "Modèle": doc.get('rdv_model'), "Panne": doc.get('rdv_issue'),
+            "Date du RDV": doc.get('rdv_date'), "Créneau": doc.get('rdv_slot'), "Message": doc.get('message'),
+        }
+    if category == 'entreprise':
+        return {"Société": doc.get('company'), "Taille de flotte": doc.get('fleet_size'), "Type de besoin": doc.get('need_type')}
+    if category == 'rachat':
+        return {"Marque": doc.get('brand'), "Modèle": doc.get('model'), "État": CONDITION_LABELS.get(doc.get('condition'), doc.get('condition'))}
+    return {}
+
+def _build_escalation_email_html(doc: dict, category: str, tier: str, created_dt: datetime, now_utc: datetime) -> str:
+    store_id = doc.get('store') or ''
+    store_name = STORE_NAMES.get(store_id, store_id or 'Sans magasin')
     client_name = (
         doc.get('name')
         or " ".join(x for x in [doc.get('first_name'), doc.get('last_name')] if x).strip()
         or doc.get('company')
         or 'Client'
     )
+    tier_titles = {"15min": "⏰ Rappel — lead en attente", "2h": "⏰ Lead non traité"}
+    action_notes = {
+        "15min": "Action requise : rappeler ce client maintenant.",
+        "2h": "Action requise : faire rappeler ce client par le magasin.",
+    }
+    details = _lead_details_dict(doc, category)
+    details["En attente depuis"] = _format_waiting_since(created_dt, now_utc)
     return build_email_html(
-        title="⏰ Lead non traité — Escalade",
+        title=f"{tier_titles.get(tier, '⏰ Escalade')} — {store_name}",
         demand_type=category,
         store_name=store_name,
         client={"Nom": client_name, "Téléphone": doc.get('phone'), "Email": doc.get('email')},
-        details={"Statut": "Toujours \"nouveau\"", "Palier d'escalade": tier},
-        submitted_at=format_now_fr(),
+        details=details,
+        submitted_at=format_dt_fr(created_dt),
         demand_id=doc.get("id"),
-        header_note=f"Ce lead n'a été pris en charge par personne depuis au moins {tier}.",
+        action_note=action_notes.get(tier, "Action requise : rappeler ce client maintenant."),
     )
 
+def _build_30min_sms(doc: dict, store_name: str) -> str:
+    """Objet imposé : RELANCE - LEAD NON TRAITE - <Magasin> - <Nom> - <tel>"""
+    name = (
+        doc.get('name')
+        or " ".join(x for x in [doc.get('first_name'), doc.get('last_name')] if x).strip()
+        or doc.get('company')
+        or 'Client'
+    )
+    phone = doc.get('phone') or ''
+    return _strip_accents(f"RELANCE - LEAD NON TRAITE - {store_name} - {name} - {phone}")[:160]
+
+async def _claim_tier(col_name: str, demand_id: str, tier: str) -> bool:
+    """Atomic claim: marks `tier` as sent BEFORE sending anything — returns
+    True only if this call actually won the claim (tier not already present
+    under any process/run). Prevents any double-send at the source."""
+    r = await db[col_name].update_one(
+        {"id": demand_id, "escalations_sent": {"$nin": [tier, f"{tier}:skipped"]}},
+        {"$addToSet": {"escalations_sent": tier}},
+    )
+    return r.modified_count > 0
+
+async def _mark_tier_skipped(col_name: str, demand_id: str, tier: str):
+    await db[col_name].update_one(
+        {"id": demand_id, "escalations_sent": {"$nin": [tier, f"{tier}:skipped"]}},
+        {"$addToSet": {"escalations_sent": f"{tier}:skipped"}},
+    )
+
+async def _send_tier_notification(doc: dict, category: str, col_name: str, demand_id: str, tier: str, store_id: str, created_dt: datetime, now_utc: datetime):
+    is_test = bool(doc.get('is_test'))
+    same_person = bool(doc.get('test_same_person')) if is_test else (
+        bool(store_id) and STORE_ESCALATION_SMS.get(store_id) == STORE_PRIMARY_SMS.get(store_id)
+    )
+    store_name = STORE_NAMES.get(store_id, store_id or "Sans magasin")
+    notif_entries = []
+
+    if tier == "15min":
+        sms_target = TEST_RECIPIENT_SMS if is_test else STORE_PRIMARY_SMS.get(store_id)
+        email_target = TEST_RECIPIENT_EMAIL if is_test else STORE_EMAIL.get(store_id)
+        if sms_target:
+            text = build_sms_text(doc, category, prefix="RAPPEL - LEAD EN ATTENTE")
+            entry = await send_sms(sms_target, text, kind="escalation_15min")
+            if entry:
+                notif_entries.append(entry)
+        if email_target:
+            subject = f"⏰ RAPPEL — lead en attente — {store_name}"
+            html = _build_escalation_email_html(doc, category, "15min", created_dt, now_utc)
+            entry = await send_email_tracked(email_target, subject, html, kind="escalation_15min")
+            if entry:
+                notif_entries.append(entry)
+
+    elif tier == "30min":
+        if same_person:
+            pass  # déjà rappelé à 15 min par la même personne — rien à envoyer
+        else:
+            sms_target = TEST_RECIPIENT_SMS if is_test else STORE_ESCALATION_SMS.get(store_id)
+            if sms_target:
+                text = _build_30min_sms(doc, store_name)
+                entry = await send_sms(sms_target, text, kind="escalation_30min")
+                if entry:
+                    notif_entries.append(entry)
+
+    elif tier == "2h":
+        email_target = TEST_RECIPIENT_EMAIL if is_test else SUPERVISION_EMAIL
+        if email_target:
+            subject = f"⏰ LEAD NON TRAITÉ — {store_name}"
+            html = _build_escalation_email_html(doc, category, "2h", created_dt, now_utc)
+            entry = await send_email_tracked(email_target, subject, html, kind="supervision")
+            if entry:
+                notif_entries.append(entry)
+
+    if notif_entries:
+        await db[col_name].update_one({"id": demand_id}, {"$push": {"notifications": {"$each": notif_entries}}})
+
 async def _run_escalation_once():
-    """Runs every 5 minutes (see _background_scheduler). Only acts during
-    business hours (9h-20h Paris) — a lead created at 21h waits until 9h the
-    next day before it ever triggers an SMS or email."""
-    if not _is_business_hours():
-        return
+    """Runs every 5 minutes. Non-test leads only send between 9h-20h Paris,
+    Mon-Sat (age itself is computed in business-minutes so evening leads
+    correctly wait until the next open slot). Test-accelerated leads bypass
+    both the business-hours gate and the business-minutes age calc so they
+    can be verified in real time regardless of when the admin runs the test.
+    Late detection: if several tiers are already reached in one pass, only
+    the highest is sent; lower ones are marked `<tier>:skipped`. The tier is
+    claimed atomically (before sending) so no lead is ever notified twice for
+    the same tier, even across overlapping runs."""
     now_utc = datetime.now(timezone.utc)
+    now_is_open = _is_business_hours()
     for category, col_name in COLLECTIONS.items():
         docs = await db[col_name].find({"status": "nouveau"}, {"_id": 0}).to_list(500)
         for doc in docs:
@@ -1358,55 +1629,65 @@ async def _run_escalation_once():
                 created_dt = datetime.fromisoformat(created_at)
             except Exception:
                 continue
-            age = now_utc - created_dt
+            accelerated_test = bool(doc.get('is_test') and doc.get('test_accelerated'))
+            if not accelerated_test and not now_is_open:
+                continue
+            age_minutes = _lead_age_minutes(doc, now_utc, created_dt)
             store_id = doc.get("store") or ""
             demand_id = doc["id"]
             escalations_sent = doc.get("escalations_sent") or []
 
-            if age >= timedelta(minutes=30) and "30min" not in escalations_sent:
-                primary = STORE_PRIMARY_SMS.get(store_id)
-                escalation = STORE_ESCALATION_SMS.get(store_id)
-                notif_entries = []
-                if store_id and escalation and escalation != primary:
-                    text = build_sms_text(doc, category, prefix="RELANCE - LEAD NON TRAITE")
-                    entry = await send_sms(escalation, text, kind="escalation")
-                    if entry:
-                        notif_entries.append(entry)
-                elif SUPERVISION_EMAIL:
-                    # Même destinataire en primaire et en escalade (ou pas de magasin) :
-                    # on saute le SMS et on passe directement à la supervision.
-                    entry = await send_email_tracked(
-                        SUPERVISION_EMAIL,
-                        f"⏰ LEAD NON TRAITÉ — {STORE_NAMES.get(store_id, store_id or 'Sans magasin')}",
-                        _build_escalation_email_html(doc, category, "30 minutes"),
-                        kind="supervision",
-                    )
-                    if entry:
-                        notif_entries.append(entry)
-                await db[col_name].update_one(
-                    {"id": demand_id},
-                    {"$push": {"notifications": {"$each": notif_entries}}, "$addToSet": {"escalations_sent": "30min"}},
-                )
+            reached_undone = [
+                t for t in ESCALATION_TIERS
+                if age_minutes >= _tier_threshold_minutes(doc, t) and not _tier_done(escalations_sent, t)
+            ]
+            if not reached_undone:
+                continue
+            highest = reached_undone[-1]
+            for lower_tier in reached_undone[:-1]:
+                await _mark_tier_skipped(col_name, demand_id, lower_tier)
 
-            if age >= timedelta(hours=2) and "2h" not in escalations_sent:
-                notif_entries = []
-                if SUPERVISION_EMAIL:
-                    entry = await send_email_tracked(
-                        SUPERVISION_EMAIL,
-                        f"⏰ LEAD NON TRAITÉ — {STORE_NAMES.get(store_id, store_id or 'Sans magasin')}",
-                        _build_escalation_email_html(doc, category, "2 heures"),
-                        kind="supervision",
-                    )
-                    if entry:
-                        notif_entries.append(entry)
-                await db[col_name].update_one(
-                    {"id": demand_id},
-                    {"$push": {"notifications": {"$each": notif_entries}}, "$addToSet": {"escalations_sent": "2h"}},
-                )
+            claimed = await _claim_tier(col_name, demand_id, highest)
+            if not claimed:
+                continue  # already claimed by another pass — never double-send
+            await _send_tier_notification(doc, category, col_name, demand_id, highest, store_id, created_dt, now_utc)
 
-async def _send_daily_digest():
+async def _migrate_skip_stale_escalations():
+    """Idempotent safety net: any real (non-test) lead already >=2h business-old
+    that hasn't fully gone through the tiers gets the missing tiers marked
+    `skipped` WITHOUT sending anything — prevents a backlog (old deploy,
+    server downtime) from suddenly firing a flood of catch-up escalations."""
+    now_utc = datetime.now(timezone.utc)
+    for col_name in COLLECTIONS.values():
+        docs = await db[col_name].find({"is_test": {"$ne": True}}, {"_id": 0, "id": 1, "created_at": 1, "escalations_sent": 1}).to_list(5000)
+        for doc in docs:
+            created_at = doc.get("created_at")
+            if not created_at:
+                continue
+            try:
+                created_dt = datetime.fromisoformat(created_at)
+            except Exception:
+                continue
+            if _business_minutes_elapsed(created_dt, now_utc) < 120:
+                continue
+            escalations_sent = doc.get("escalations_sent") or []
+            missing = [t for t in ESCALATION_TIERS if not _tier_done(escalations_sent, t)]
+            if not missing:
+                continue
+            await db[col_name].update_one(
+                {"id": doc["id"]},
+                {"$addToSet": {"escalations_sent": {"$each": [f"{t}:skipped" for t in missing]}}},
+            )
+
+async def _cleanup_old_test_leads():
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+    for col_name in COLLECTIONS.values():
+        await db[col_name].delete_many({"is_test": True, "created_at": {"$lt": cutoff}})
+
+async def _send_daily_digest(test_mode: bool = False):
     """Sent every day at 8h Paris — even when everything is fine, so a
-    digest that stops arriving is itself a signal."""
+    digest that stops arriving is itself a signal. test_mode=True sends only
+    to TEST_RECIPIENT_EMAIL, objet [TEST], and never touches any lead."""
     since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     leads = 0
     sms_sent = sms_failed = 0
@@ -1414,7 +1695,7 @@ async def _send_daily_digest():
     escalated = 0
     failed_leads = []
     for category, col_name in COLLECTIONS.items():
-        docs = await db[col_name].find({"created_at": {"$gte": since}}, {"_id": 0}).to_list(2000)
+        docs = await db[col_name].find({"created_at": {"$gte": since}, "is_test": {"$ne": True}}, {"_id": 0}).to_list(2000)
         for d in docs:
             leads += 1
             if d.get("escalations_sent"):
@@ -1444,7 +1725,8 @@ async def _send_daily_digest():
         elif SMS_ENABLED and sms_total and (sms_failed / sms_total) > 0.2 and status == "ok":
             status = "degraded"
 
-    subject = f"{'🚨 ALERTE — ' if status in ('down', 'degraded') else ''}Digest quotidien notifications — {leads} leads (24h)"
+    subject_prefix = "[TEST] " if test_mode else ("🚨 ALERTE — " if status in ('down', 'degraded') else "")
+    subject = f"{subject_prefix}Digest quotidien notifications — {leads} leads (24h)"
     report_lines = [
         f"Leads (24h) : {leads}",
         (f"SMS envoyés : {sms_sent} / échoués : {sms_failed}" if SMS_ENABLED else "SMS : désactivé (SMS_ENABLED=false)"),
@@ -1455,7 +1737,7 @@ async def _send_daily_digest():
         report_lines.append("Leads en échec de notification :")
         report_lines.extend(f"- {x}" for x in failed_leads)
     html = build_email_html(
-        title="Digest quotidien — Notifications",
+        title="Digest quotidien — Notifications" + (" (TEST)" if test_mode else ""),
         demand_type="Rapport de supervision (24h)",
         store_name="Tous magasins",
         client={},
@@ -1464,19 +1746,22 @@ async def _send_daily_digest():
         demand_id="digest",
         header_note="\n".join(report_lines),
     )
-    if SUPERVISION_EMAIL:
-        await send_email_tracked(SUPERVISION_EMAIL, subject, html, kind="supervision")
+    target = TEST_RECIPIENT_EMAIL if test_mode else SUPERVISION_EMAIL
+    if target:
+        await send_email_tracked(target, subject, html, kind="supervision" if not test_mode else "primary")
     else:
-        logger.warning("[DIGEST] SUPERVISION_EMAIL non configuré — digest non envoyé")
+        logger.warning(f"[DIGEST] {'TEST_RECIPIENT_EMAIL' if test_mode else 'SUPERVISION_EMAIL'} non configuré — digest non envoyé")
 
 _last_digest_date = None
 
 async def _background_scheduler():
-    """Runs every 5 minutes: escalation checks + (once/day at 8h Paris) the digest."""
+    """Runs every 5 minutes: escalation checks + test-lead cleanup + (once/day
+    at 8h Paris) the digest."""
     global _last_digest_date
     while True:
         try:
             await _run_escalation_once()
+            await _cleanup_old_test_leads()
             now_paris = datetime.now(PARIS_TZ)
             today_str = now_paris.strftime('%Y-%m-%d')
             if now_paris.hour == 8 and _last_digest_date != today_str:
@@ -1491,6 +1776,7 @@ async def startup():
     await seed_admin()
     await db.admin_users.create_index("email", unique=True)
     await migrate_legacy_statuses()
+    await _migrate_skip_stale_escalations()
     asyncio.create_task(_background_scheduler())
 
 @app.on_event("shutdown")

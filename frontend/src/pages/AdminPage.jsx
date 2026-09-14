@@ -869,24 +869,66 @@ const NotifBadge = ({ item }) => {
 };
 
 // Admin panel to manually test the SMS + email flow against a store's real
-// recipients, without creating a fake lead.
+// recipients, without creating a fake lead — and to create real is_test
+// leads that exercise the full escalation flow safely (TEST_RECIPIENT_* only).
 const NotifTestPanel = ({ authHeaders }) => {
   const [store, setStore] = useState(STORES[0]?.id || '');
+  const [sendReal, setSendReal] = useState(false);
+  const [confirmReal, setConfirmReal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+
+  const [leadCategory, setLeadCategory] = useState('devis');
+  const [samePerson, setSamePerson] = useState(false);
+  const [accelerated, setAccelerated] = useState(false);
+  const [leadLoading, setLeadLoading] = useState(false);
+  const [leadResult, setLeadResult] = useState(null);
+  const [leadError, setLeadError] = useState('');
+
+  const [digestLoading, setDigestLoading] = useState(false);
+  const [digestResult, setDigestResult] = useState(null);
+  const [digestError, setDigestError] = useState('');
 
   const runTest = async () => {
     setLoading(true);
     setError('');
     setResult(null);
     try {
-      const r = await axios.post(`${API_URL}/api/admin/notifications/test`, { store }, { headers: authHeaders });
+      const r = await axios.post(`${API_URL}/api/admin/notifications/test`, { store, real: sendReal && confirmReal }, { headers: authHeaders });
       setResult(r.data);
     } catch (err) {
       setError(err.response?.data?.detail || 'Erreur lors du test');
     }
     setLoading(false);
+  };
+
+  const createTestLead = async () => {
+    setLeadLoading(true);
+    setLeadError('');
+    setLeadResult(null);
+    try {
+      const r = await axios.post(`${API_URL}/api/admin/notifications/test-lead`, {
+        category: leadCategory, same_person: samePerson, accelerated,
+      }, { headers: authHeaders });
+      setLeadResult(r.data);
+    } catch (err) {
+      setLeadError(err.response?.data?.detail || 'Erreur lors de la création du lead de test');
+    }
+    setLeadLoading(false);
+  };
+
+  const runDigestTest = async () => {
+    setDigestLoading(true);
+    setDigestError('');
+    setDigestResult(null);
+    try {
+      const r = await axios.post(`${API_URL}/api/admin/notifications/digest-test`, {}, { headers: authHeaders });
+      setDigestResult(r.data);
+    } catch (err) {
+      setDigestError(err.response?.data?.detail || 'Erreur lors de l\'envoi du digest de test');
+    }
+    setDigestLoading(false);
   };
 
   const renderEntry = (label, entry) => {
@@ -897,32 +939,91 @@ const NotifTestPanel = ({ authHeaders }) => {
   };
 
   return (
-    <Card className="bg-white border border-[#E8F5EE] mb-6" data-testid="admin-notif-test-panel">
-      <CardContent className="p-4">
-        <p className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2"><MessageCircle size={15} className="text-[#1A5C3A]" /> Tester les notifications</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={store}
-            onChange={e => setStore(e.target.value)}
-            className="px-2 py-1.5 border border-[#E8F5EE] rounded-lg text-xs text-[#1A1A2E] bg-white focus:outline-none"
-            data-testid="notif-test-store-select"
-          >
-            {STORES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <Button onClick={runTest} disabled={loading} className="bg-[#1A5C3A] hover:bg-[#2ECC71] text-white text-xs rounded-full" data-testid="notif-test-run-button">
-            {loading ? <Loader2 className="animate-spin mr-1" size={14} /> : <MessageCircle size={14} className="mr-1" />}
-            Envoyer un test
-          </Button>
-        </div>
-        {error && <p className="text-red-600 text-xs mt-2">{error}</p>}
-        {result && (
-          <div className="mt-3 space-y-1" data-testid="notif-test-results">
-            {renderEntry('Email', result.email)}
-            {renderEntry('SMS', result.sms)}
+    <div className="space-y-4 mb-6">
+      <Card className="bg-white border border-[#E8F5EE]" data-testid="admin-notif-test-panel">
+        <CardContent className="p-4">
+          <p className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2"><MessageCircle size={15} className="text-[#1A5C3A]" /> Tester les notifications</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={store}
+              onChange={e => setStore(e.target.value)}
+              className="px-2 py-1.5 border border-[#E8F5EE] rounded-lg text-xs text-[#1A1A2E] bg-white focus:outline-none"
+              data-testid="notif-test-store-select"
+            >
+              {STORES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <Button onClick={runTest} disabled={loading || (sendReal && !confirmReal)} className="bg-[#1A5C3A] hover:bg-[#2ECC71] text-white text-xs rounded-full" data-testid="notif-test-run-button">
+              {loading ? <Loader2 className="animate-spin mr-1" size={14} /> : <MessageCircle size={14} className="mr-1" />}
+              Envoyer un test
+            </Button>
           </div>
-        )}
-      </CardContent>
-    </Card>
+          <div className="mt-3 space-y-1.5">
+            <label className="flex items-center gap-2 text-xs text-[#1A1A2E] cursor-pointer">
+              <input type="checkbox" checked={sendReal} onChange={e => { setSendReal(e.target.checked); if (!e.target.checked) setConfirmReal(false); }} data-testid="notif-test-real-checkbox" />
+              Envoyer vraiment au magasin (au lieu de {' '}
+              <span className="font-mono">TEST_RECIPIENT_EMAIL</span>)
+            </label>
+            {sendReal && (
+              <label className="flex items-center gap-2 text-xs text-orange-600 cursor-pointer pl-5" data-testid="notif-test-real-confirm-row">
+                <input type="checkbox" checked={confirmReal} onChange={e => setConfirmReal(e.target.checked)} data-testid="notif-test-real-confirm-checkbox" />
+                Je confirme vouloir déranger le vrai magasin "{STORES.find(s => s.id === store)?.name || store}"
+              </label>
+            )}
+          </div>
+          {error && <p className="text-red-600 text-xs mt-2">{error}</p>}
+          {result && (
+            <div className="mt-3 space-y-1" data-testid="notif-test-results">
+              <p className="text-xs text-gray-400">{result.real ? 'Envoi RÉEL au magasin' : 'Envoi de test (TEST_RECIPIENT_*)'}</p>
+              {renderEntry('Email', result.email)}
+              {renderEntry('SMS', result.sms)}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-white border border-[#E8F5EE]" data-testid="admin-test-lead-panel">
+        <CardContent className="p-4">
+          <p className="text-sm font-semibold text-[#1A1A2E] mb-3 flex items-center gap-2"><Bell size={15} className="text-[#1A5C3A]" /> Créer un lead de test (magasin TEST)</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={leadCategory} onChange={e => setLeadCategory(e.target.value)}
+              className="px-2 py-1.5 border border-[#E8F5EE] rounded-lg text-xs text-[#1A1A2E] bg-white focus:outline-none" data-testid="test-lead-category-select">
+              <option value="devis">Devis</option>
+              <option value="contact">Contact</option>
+            </select>
+            <label className="flex items-center gap-1.5 text-xs text-[#1A1A2E] cursor-pointer">
+              <input type="checkbox" checked={samePerson} onChange={e => setSamePerson(e.target.checked)} data-testid="test-lead-same-person-checkbox" />
+              Mobile magasin = RPV
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-[#1A1A2E] cursor-pointer">
+              <input type="checkbox" checked={accelerated} onChange={e => setAccelerated(e.target.checked)} data-testid="test-lead-accelerated-checkbox" />
+              Délais accélérés (1/2/4 min)
+            </label>
+            <Button onClick={createTestLead} disabled={leadLoading} className="bg-[#1A5C3A] hover:bg-[#2ECC71] text-white text-xs rounded-full" data-testid="test-lead-create-button">
+              {leadLoading ? <Loader2 className="animate-spin mr-1" size={14} /> : <Bell size={14} className="mr-1" />}
+              Créer un lead de test
+            </Button>
+          </div>
+          {leadError && <p className="text-red-600 text-xs mt-2">{leadError}</p>}
+          {leadResult && (
+            <p className="text-xs text-[#1A5C3A] mt-2" data-testid="test-lead-result">
+              ✅ Lead {leadResult.category} créé (id {leadResult.id.slice(0, 8)}…) — notifications envoyées à TEST_RECIPIENT_EMAIL, visible dans l'onglet {leadResult.category === 'devis' ? 'Devis' : 'Contact / RDV'} (magasin TEST). Supprimé automatiquement après 48h.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-white border border-[#E8F5EE]" data-testid="admin-digest-test-panel">
+        <CardContent className="p-4 flex items-center justify-between flex-wrap gap-2">
+          <p className="text-sm font-semibold text-[#1A1A2E] flex items-center gap-2"><RefreshCw size={15} className="text-[#1A5C3A]" /> Digest quotidien</p>
+          <Button onClick={runDigestTest} disabled={digestLoading} variant="outline" className="border-[#1A5C3A] text-[#1A5C3A] text-xs rounded-full" data-testid="digest-test-button">
+            {digestLoading ? <Loader2 className="animate-spin mr-1" size={14} /> : <RefreshCw size={14} className="mr-1" />}
+            Envoyer le digest de test
+          </Button>
+          {digestError && <p className="text-red-600 text-xs w-full">{digestError}</p>}
+          {digestResult && <p className="text-xs text-[#1A5C3A] w-full" data-testid="digest-test-result">✅ Digest [TEST] envoyé à {digestResult.to}</p>}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

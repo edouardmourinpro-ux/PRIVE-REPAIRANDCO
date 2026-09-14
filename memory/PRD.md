@@ -158,7 +158,22 @@ Convertit anciens statuts → simplifiés :
 - **P3** : Notification push admin temps-réel quand nouvelle demande arrive (toast sonore navigateur)
 - **P3** : Permettre de vider un champ `staff_*` (actuellement le PATCH ne traite pas les chaînes vides comme reset)
 
-## S16 (09/09/2026) — Remplacement WhatsApp (UltraMsg, compte banni) par SMS (Brevo) + tracking complet
+## S17 (14/09/2026) — Escalade 3 paliers (15/30/2h) + mode test isolé + fix duplication
+- Contexte : 1er passage escalade (14/09 10h32) a envoyé 19 emails pour 9 leads (doublons + tous paliers en rafale sur leads anciens).
+- `backend/server.py` : réécriture complète `_run_escalation_once` — 3 paliers (`ESCALATION_TIERS = ["15min","30min","2h"]`), calcul d'âge en **minutes ouvrées** (lun-sam 9h-20h Paris, dimanche fermé) via `_business_minutes_elapsed` (testé unitairement, conforme au spec vendredi/samedi soir).
+- **Fix duplication (cause racine)** : `escalations_sent` est désormais réclamé de façon **atomique AVANT l'envoi** (`_claim_tier`, update Mongo conditionnel `$nin`) — élimine tout double-envoi même en cas d'exécutions concurrentes (prouvé via `asyncio.gather` de 2 passages simultanés → un seul email).
+- **Détection tardive** : si plusieurs paliers sont atteints d'un coup, seul le plus haut est envoyé, les autres marqués `<palier>:skipped` (pas de rafale).
+- **Règle "même personne"** (Plaisir, temporairement Mtp Sud/Nîmes Étoile) : rien envoyé au palier 30min (déjà rappelé à 15min).
+- **Migration de grandfathering** (`_migrate_skip_stale_escalations`, idempotente à chaque démarrage) : tout lead réel déjà >2h ouvrées au déploiement voit ses paliers manquants marqués `:skipped` sans envoi — les 9 leads du 14/09 ne re-reçoivent rien.
+- **Mode test complet** (`is_test`, magasin technique `"test"` bloqué côté API publique) : tous les envois (nouveau lead + les 3 paliers) routés exclusivement vers `TEST_RECIPIENT_EMAIL`/`TEST_RECIPIENT_SMS` (jamais magasin/RPV/NOTIFY_EMAIL/SUPERVISION_EMAIL). Leads test exclus stats/CSV/digest/health, auto-supprimés après 48h.
+- Nouveaux endpoints admin : `POST /admin/notifications/test-lead` (crée un lead is_test, options `same_person`/`accelerated` 1/2/4min), `POST /admin/notifications/digest-test` (digest → TEST_RECIPIENT_EMAIL, `[TEST]`, ne touche aucun lead), `POST /admin/notifications/test` modifié (défaut `real:false` → TEST_RECIPIENT_*, case "Envoyer vraiment au magasin" + confirmation pour le vrai envoi).
+- **Fix bug structurel annexe** : `send_email_tracked`/`_notify_lead` utilisaient `_send_smtp_email` qui réinjectait TOUJOURS `NOTIFY_EMAIL` (donc David) même pour un envoi censé être 100% isolé — introduction de `_send_smtp_email_raw(subject, html, recipients)` à liste explicite, sans injection implicite.
+- Emails d'escalade corrigés : "Soumis le" = vraie date de création (pas l'heure de l'alerte), ligne "En attente depuis", détails de la demande, "Action requise" différencié par palier (15min: "rappeler maintenant" / 2h: "faire rappeler par le magasin").
+- Frontend `/admin` : panneau "Créer un lead de test" (catégorie/same_person/accéléré) + "Digest quotidien" (bouton test) ajoutés à côté de "Tester les notifications" (désormais test-mode par défaut, case double confirmation pour un vrai envoi).
+- **SMTP réparé entre-temps** (probablement par l'utilisateur côté o2switch) : les emails partent à nouveau normalement — l'ancien P0 "emails production non reçus" semble résolu.
+- Testé (self + testing_agent) : logique d'escalade validée en profondeur via appels Python directs (paliers 1/2/4min accélérés, détection tardive, dédup concurrente, règle même-personne, migration grandfathering) ; UI/API validées via testing_agent, 100% pass, aucun régression sur Béziers/stores/stats/CSV.
+
+ — Remplacement WhatsApp (UltraMsg, compte banni) par SMS (Brevo) + tracking complet
 - `backend/server.py` : suppression totale UltraMsg (`ULTRAMSG_*`, `send_whatsapp`, endpoints `push-whatsapp*`). Ajout `BREVO_API_KEY`/`SMS_SENDER`/`SMS_ENABLED` (false par défaut, expéditeur "RepairCo" pas encore validé opérateurs)/`SUPERVISION_EMAIL`.
 - `STORE_PRIMARY_SMS` (mobile magasin) + `STORE_ESCALATION_SMS` (RPV) — tables figées fournies par l'utilisateur, aucun numéro ajouté.
 - Chaque lead (devis/contact/b2b/rachat) déclenche en tâche de fond `_notify_lead()` : email (NOTIFY_EMAIL + magasin) + SMS primaire, avec 3 tentatives (0/5/15s), résultat persisté dans `notifications[]` + `notify_status` (ok/partial/failed) sur le document.
