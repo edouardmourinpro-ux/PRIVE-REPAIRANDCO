@@ -118,6 +118,72 @@ class TestCallLogValidation:
             _delete_test_lead(headers, "devis", lead_id)
 
 
+# ---------- S20 : le résultat d'appel pilote le statut ----------
+
+class TestCallOutcomeDrivesStatus:
+    def _call(self, headers, lead_id, payload):
+        r = requests.post(f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/call",
+                          headers=headers, json={"by": "David", **payload}, timeout=15)
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    def _found(self, headers, lead_id):
+        r = requests.get(f"{BASE_URL}/api/admin/demandes-devis", headers=headers, timeout=15)
+        return next((d for d in r.json() if d["id"] == lead_id), None)
+
+    def test_rdv_pris_goes_to_pris_en_charge(self, headers):
+        lead_id = _create_test_lead(headers)
+        try:
+            body = self._call(headers, lead_id, {"outcome": "joint", "detail": "rdv_pris"})
+            assert body["new_status"] == "pris_en_charge"
+            found = self._found(headers, lead_id)
+            assert found["status"] == "pris_en_charge"
+            assert found["status_history"][-1]["status"] == "pris_en_charge"
+            assert found["status_history"][-1]["by"] == "David"
+        finally:
+            _delete_test_lead(headers, "devis", lead_id)
+
+    def test_refus_goes_to_refus_devis_with_reason(self, headers):
+        lead_id = _create_test_lead(headers)
+        try:
+            body = self._call(headers, lead_id, {"outcome": "joint", "detail": "refus", "refus_reason": "prix"})
+            assert body["new_status"] == "refus_devis"
+            assert body["lost_reason_code"] == "prix"
+            assert self._found(headers, lead_id)["lost_reason_code"] == "prix"
+        finally:
+            _delete_test_lead(headers, "devis", lead_id)
+
+    def test_numero_invalide_goes_to_client_perdu(self, headers):
+        lead_id = _create_test_lead(headers)
+        try:
+            body = self._call(headers, lead_id, {"outcome": "numero_invalide"})
+            assert body["new_status"] == "client_perdu"
+            assert self._found(headers, lead_id)["lost_reason_code"] == "numero_invalide"
+        finally:
+            _delete_test_lead(headers, "devis", lead_id)
+
+    def test_callback_returns_resolved_time_and_stays_contacte(self, headers):
+        lead_id = _create_test_lead(headers)
+        try:
+            body = self._call(headers, lead_id, {"outcome": "joint", "detail": "rappeler", "callback_choice": "18h"})
+            assert body["new_status"] == "contacte"
+            assert body["callback_at"]
+        finally:
+            _delete_test_lead(headers, "devis", lead_id)
+
+    def test_facture_is_never_changed_by_a_call(self, headers):
+        lead_id = _create_test_lead(headers)
+        try:
+            r = requests.patch(f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/status",
+                               headers=headers, json={"status": "facture", "by": "David"}, timeout=15)
+            assert r.status_code == 200, r.text
+            body = self._call(headers, lead_id, {"outcome": "numero_invalide"})
+            assert body["new_status"] == "facture"
+            assert self._found(headers, lead_id)["status"] == "facture"
+        finally:
+            _delete_test_lead(headers, "devis", lead_id)
+
+
 # ---------- Auto nouveau -> contacte + persistence ----------
 
 class TestCallLogFlow:
@@ -126,7 +192,7 @@ class TestCallLogFlow:
         try:
             r = requests.post(f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/call",
                               headers=headers,
-                              json={"by": "David", "outcome": "joint", "detail": "rdv_pris"}, timeout=15)
+                              json={"by": "David", "outcome": "pas_de_reponse", "message_laisse": True}, timeout=15)
             assert r.status_code == 200, r.text
             body = r.json()
             assert body["new_status"] == "contacte"
@@ -140,7 +206,7 @@ class TestCallLogFlow:
             assert found["status"] == "contacte"
             assert len(found.get("call_attempts") or []) == 1
             assert found["call_attempts"][0]["by"] == "David"
-            assert found["call_attempts"][0]["detail"] == "rdv_pris"
+            assert found["call_attempts"][0]["outcome"] == "pas_de_reponse"
             assert found.get("first_contact_at")
             assert found.get("assigned_to") == "David"
             # status_history must have the auto contacte push in addition to system entry

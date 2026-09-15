@@ -246,8 +246,10 @@ const AdminPage = () => {
       if (extra.lostReasonCode) payload.lost_reason_code = extra.lostReasonCode;
       if (extra.lostReasonText) payload.lost_reason = extra.lostReasonText;
       await axios.patch(`${API_URL}/api/admin/demandes/${category}/${id}/status`, payload, { headers: authHeaders });
+      const nowIso = new Date().toISOString();
       setData(prev => prev.map(d => d.id === id ? {
         ...d, status: newStatus,
+        status_history: [...(d.status_history || []), { status: newStatus, at: nowIso, by: payload.by }],
         ...(extra.lostReasonCode ? { lost_reason_code: extra.lostReasonCode } : {}),
         ...(extra.lostReasonText ? { lost_reason: extra.lostReasonText } : {}),
       } : d));
@@ -263,7 +265,7 @@ const AdminPage = () => {
     const nowIso = new Date().toISOString();
     setData(prev => prev.map(d => {
       if (d.id !== id) return d;
-      const entry = { at: nowIso, by: payload.by, outcome: payload.outcome, detail: payload.detail, refus_reason: payload.refus_reason, message_laisse: payload.message_laisse, note: payload.note, callback_at: payload.callback_at };
+      const entry = { at: nowIso, by: payload.by, outcome: payload.outcome, detail: payload.detail, refus_reason: payload.refus_reason, message_laisse: payload.message_laisse, note: payload.note, callback_at: res.data.callback_at || payload.callback_at };
       const statusChanged = res.data.new_status && res.data.new_status !== d.status;
       return {
         ...d,
@@ -272,6 +274,7 @@ const AdminPage = () => {
         status_history: statusChanged
           ? [...(d.status_history || []), { status: res.data.new_status, at: nowIso, by: payload.by }]
           : (d.status_history || []),
+        ...(res.data.lost_reason_code ? { lost_reason_code: res.data.lost_reason_code } : {}),
         first_contact_at: d.first_contact_at || nowIso,
         assigned_to: d.assigned_to || payload.by,
       };
@@ -1250,8 +1253,10 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
 
   const callAttempts = item.call_attempts || [];
   const lastCall = callAttempts.length ? callAttempts[callAttempts.length - 1] : null;
-  const showRefusAction = lastCall?.outcome === 'joint' && lastCall?.detail === 'refus' && !['refus_devis', 'client_perdu', 'facture'].includes(item.status);
-  const showInvalidAction = lastCall?.outcome === 'numero_invalide' && !['client_perdu', 'facture'].includes(item.status);
+  const pendingCallback = lastCall?.outcome === 'joint' && lastCall?.detail === 'rappeler' && lastCall?.callback_at
+    && !['pris_en_charge', 'facture', 'refus_devis', 'client_perdu'].includes(item.status)
+    ? new Date(lastCall.callback_at).toLocaleString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+    : null;
   const unreachableAllowed = canMarkUnreachable(item);
   const timeline = [
     ...(item.status_history || []).map(h => ({ at: h.at, by: h.by, note: null, label: `Statut → ${STATUS_OPTIONS.find(s => s.value === h.status)?.label || h.status}` })),
@@ -1362,6 +1367,11 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
                 <Phone size={12} /> {callAttempts.length}
               </span>
             )}
+            {pendingCallback && (
+              <span className="text-xs px-2 py-1 rounded-full font-medium bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap" data-testid={`callback-badge-${item.id}`}>
+                ⏰ Rappel {pendingCallback}
+              </span>
+            )}
             <button
               onClick={e => { e.stopPropagation(); requireIdentity(() => setShowCallPanel(true)); }}
               className="flex items-center gap-1 px-2.5 py-1.5 bg-[#1A5C3A] rounded-full text-xs text-white font-medium hover:bg-[#2ECC71] transition-colors min-h-[30px]"
@@ -1463,30 +1473,6 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
                 </button>
               )}
             </div>
-
-            {/* Actions rapides suggérées après un appel */}
-            {(showRefusAction || showInvalidAction) && (
-              <div className="flex flex-wrap gap-2">
-                {showRefusAction && (
-                  <button
-                    onClick={() => requireIdentity(() => onStatusChange(item.id, 'refus_devis', { lostReasonCode: lastCall.refus_reason }))}
-                    className="px-3 py-2 rounded-full text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 min-h-[36px]"
-                    data-testid={`quick-action-refus-devis-${item.id}`}
-                  >
-                    Passer en Refus devis
-                  </button>
-                )}
-                {showInvalidAction && (
-                  <button
-                    onClick={() => requireIdentity(() => onStatusChange(item.id, 'client_perdu', { lostReasonCode: 'numero_invalide' }))}
-                    className="px-3 py-2 rounded-full text-xs font-medium bg-gray-200 text-gray-900 hover:bg-gray-300 min-h-[36px]"
-                    data-testid={`quick-action-perdu-invalide-${item.id}`}
-                  >
-                    Passer en perdu — numéro invalide
-                  </button>
-                )}
-              </div>
-            )}
 
             {/* Chronologie des appels et changements de statut */}
             {timeline.length > 0 && (

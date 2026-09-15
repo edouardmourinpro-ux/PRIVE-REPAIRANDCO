@@ -629,6 +629,24 @@ CALL_DETAIL_LABELS = {
 # Statuts pour lesquels un lead n'a plus besoin d'être appelé (onglet "À appeler" — S19).
 NON_CALLABLE_STATUSES = {"pris_en_charge", "facture", "refus_devis", "client_perdu"}
 
+# Le résultat d'appel pilote le statut (S20) : les équipes n'utilisent que le
+# bouton « 📞 Appel », le menu de statut ne sert plus qu'à « Client Facturé » et
+# aux corrections. Un lead déjà facturé n'est jamais modifié par un appel.
+CALL_DETAILS_TAKEN_IN = {"rdv_pris", "vient_magasin", "devis_accepte"}
+
+def _status_after_call(current: str, outcome: str, detail: Optional[str]) -> str:
+    if current == "facture":
+        return current
+    if outcome == "numero_invalide":
+        return "client_perdu"
+    if outcome == "joint" and detail in CALL_DETAILS_TAKEN_IN:
+        return "pris_en_charge"
+    if outcome == "joint" and detail == "refus":
+        return "refus_devis"
+    if current == "nouveau":
+        return "contacte"
+    return current
+
 def _format_paris_hhmm(dt: datetime) -> str:
     p = dt.astimezone(PARIS_TZ)
     return f"{p.hour:02d}h{p.minute:02d}"
@@ -1009,9 +1027,15 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
     if not doc.get("assigned_to"):
         set_fields["assigned_to"] = by
     push_fields = {"call_attempts": entry}
-    if (doc.get("status") or "nouveau") == "nouveau":
-        set_fields["status"] = "contacte"
-        push_fields["status_history"] = {"status": "contacte", "at": now_iso, "by": by}
+    current_status = doc.get("status") or "nouveau"
+    new_status = _status_after_call(current_status, body.outcome, body.detail)
+    if new_status != current_status:
+        set_fields["status"] = new_status
+        push_fields["status_history"] = {"status": new_status, "at": now_iso, "by": by}
+        if new_status == "refus_devis":
+            set_fields["lost_reason_code"] = body.refus_reason
+        elif new_status == "client_perdu":
+            set_fields["lost_reason_code"] = "numero_invalide"
 
     update_op = {"$push": push_fields}
     if set_fields:
@@ -1020,7 +1044,9 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
     return {
         "status": "logged",
         "call_attempts_count": len(doc.get("call_attempts") or []) + 1,
-        "new_status": set_fields.get("status", doc.get("status") or "nouveau"),
+        "new_status": set_fields.get("status", current_status),
+        "callback_at": entry.get("callback_at"),
+        "lost_reason_code": set_fields.get("lost_reason_code"),
     }
 
 @api_router.delete("/admin/demandes/{category}/{demand_id}")
