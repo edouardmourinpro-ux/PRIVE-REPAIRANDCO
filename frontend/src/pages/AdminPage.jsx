@@ -17,7 +17,10 @@ import SEO from '../components/SEO';
 import { ALERT_SOUND_PRESETS, DEFAULT_ALERT_SOUND, playAlertSound } from '../lib/alertSounds';
 import { IdentityModal } from '../components/admin/IdentityModal';
 import { CallLogPanel } from '../components/admin/CallLogPanel';
+import { ToCallTab } from '../components/admin/ToCallTab';
 import { LOST_REASON_OPTIONS, LOST_REASON_LABELS } from '../data/lostReasons';
+import { STAFF_IDENTITY_STORE_MAP } from '../data/staffIdentities';
+import { DEVICE_TYPE_LABELS, parseRdvMessage, formatLeadTitle } from '../lib/leadFormat';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -79,43 +82,6 @@ const CONDITION_LABELS = {
   abime: 'Abîmé',
 };
 
-const DEVICE_TYPE_LABELS = {
-  smartphone: 'Smartphone',
-  tablette: 'Tablette',
-  pc: 'PC',
-  electromenager: 'Électroménager',
-  'velo-trottinette': 'Vélo / Trottinette',
-  autre: 'Autre',
-};
-
-// Parse legacy RDV message blob (created by AppointmentPage before structured fields existed)
-// Format example:
-//   Type: smartphone
-//   Marque: Apple
-//   Modèle: iPhone 14
-//   Panne: Écran cassé
-//   Date: 2026-05-15
-//   Créneau: Matin
-//   <free text>
-const parseRdvMessage = (msg) => {
-  if (!msg || typeof msg !== 'string') return {};
-  const lines = msg.split('\n');
-  const out = {};
-  const free = [];
-  const map = { 'Type': 'device_type', 'Marque': 'brand', 'Modèle': 'model', 'Panne': 'issue', 'Date': 'date', 'Créneau': 'slot' };
-  for (const line of lines) {
-    const m = line.match(/^([^:]+):\s*(.*)$/);
-    if (m && map[m[1].trim()]) {
-      const v = m[2].trim();
-      if (v && v !== '-') out[map[m[1].trim()]] = v;
-    } else if (line.trim()) {
-      free.push(line);
-    }
-  }
-  out.free = free.join('\n').trim();
-  return out;
-};
-
 const STORE_NAME_MAP = STORES.reduce((acc, s) => { acc[s.id] = s.name; return acc; }, {});
 
 const AdminPage = () => {
@@ -127,7 +93,7 @@ const AdminPage = () => {
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
 
-  const [activeTab, setActiveTab] = useState('devis');
+  const [activeTab, setActiveTab] = useState('a_appeler');
   const [storeFilter, setStoreFilter] = useState(
     () => (typeof window !== 'undefined' && localStorage.getItem('admin_store_filter')) || ''
   );
@@ -144,6 +110,8 @@ const AdminPage = () => {
   const [rattrapageLoading, setRattrapageLoading] = useState(false);
   const [data, setData] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
+  const [toCallData, setToCallData] = useState([]);
+  const [toCallLoading, setToCallLoading] = useState(false);
 
   // ---- "Qui êtes-vous ?" identity (compte admin partagé — S18 Journal d'appel) ----
   const [currentIdentity, setCurrentIdentity] = useState(() => (typeof window !== 'undefined' && localStorage.getItem('admin_identity')) || '');
@@ -161,6 +129,11 @@ const AdminPage = () => {
     localStorage.setItem('admin_identity', name);
     setCurrentIdentity(name);
     setShowIdentityModal(false);
+    const mappedStore = STAFF_IDENTITY_STORE_MAP[name];
+    if (mappedStore) {
+      localStorage.setItem('admin_store_filter', mappedStore);
+      setStoreFilter(mappedStore);
+    }
     const action = pendingActionRef.current;
     pendingActionRef.current = null;
     if (action) action();
@@ -219,12 +192,27 @@ const AdminPage = () => {
     setDataLoading(false);
   }, [activeTab, storeFilter, dateFrom, dateTo, statusFilter, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const loadToCall = useCallback(async () => {
+    setToCallLoading(true);
+    try {
+      const params = {};
+      if (storeFilter) params.store = storeFilter;
+      const r = await axios.get(`${API_URL}/api/admin/to-call`, { headers: authHeaders, params });
+      setToCallData(r.data);
+    } catch { setToCallData([]); }
+    setToCallLoading(false);
+  }, [storeFilter, token]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (isLoggedIn) {
       loadStats();
-      loadData(activeTab);
+      if (activeTab === 'a_appeler') {
+        loadToCall();
+      } else {
+        loadData(activeTab);
+      }
     }
-  }, [isLoggedIn, activeTab, storeFilter, dateFrom, dateTo, statusFilter, loadStats, loadData]);
+  }, [isLoggedIn, activeTab, storeFilter, dateFrom, dateTo, statusFilter, loadStats, loadData, loadToCall]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -248,25 +236,26 @@ const AdminPage = () => {
     setIsLoggedIn(false);
   };
 
-  const updateStatus = async (id, newStatus, extra = {}) => {
+  const updateStatus = async (id, newStatus, extra = {}, category = activeTab) => {
     try {
       const payload = { status: newStatus, by: localStorage.getItem('admin_identity') || '' };
       if (extra.lostReasonCode) payload.lost_reason_code = extra.lostReasonCode;
       if (extra.lostReasonText) payload.lost_reason = extra.lostReasonText;
-      await axios.patch(`${API_URL}/api/admin/demandes/${activeTab}/${id}/status`, payload, { headers: authHeaders });
+      await axios.patch(`${API_URL}/api/admin/demandes/${category}/${id}/status`, payload, { headers: authHeaders });
       setData(prev => prev.map(d => d.id === id ? {
         ...d, status: newStatus,
         ...(extra.lostReasonCode ? { lost_reason_code: extra.lostReasonCode } : {}),
         ...(extra.lostReasonText ? { lost_reason: extra.lostReasonText } : {}),
       } : d));
+      if (activeTab === 'a_appeler') loadToCall();
       loadStats();
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Erreur lors de la mise à jour du statut');
     }
   };
 
-  const logCall = async (id, payload) => {
-    const res = await axios.post(`${API_URL}/api/admin/demandes/${activeTab}/${id}/call`, payload, { headers: authHeaders });
+  const logCall = async (id, payload, category = activeTab) => {
+    const res = await axios.post(`${API_URL}/api/admin/demandes/${category}/${id}/call`, payload, { headers: authHeaders });
     const nowIso = new Date().toISOString();
     setData(prev => prev.map(d => {
       if (d.id !== id) return d;
@@ -283,6 +272,7 @@ const AdminPage = () => {
         assigned_to: d.assigned_to || payload.by,
       };
     }));
+    if (activeTab === 'a_appeler') loadToCall();
     loadStats();
     toast.success('Appel enregistré');
   };
@@ -557,6 +547,7 @@ const AdminPage = () => {
   }
 
   const tabs = [
+    { id: 'a_appeler', label: '📞 À appeler', icon: Phone, count: toCallData.length },
     { id: 'devis', label: 'Devis', icon: FileText, count: stats?.devis },
     { id: 'contact', label: 'Contact / RDV', icon: MessageSquare, count: stats?.contact },
     { id: 'entreprise', label: 'Entreprise', icon: Building2, count: stats?.entreprise },
@@ -627,6 +618,7 @@ const AdminPage = () => {
             {STORES.map(s => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
+            <option value="test">Magasin TEST</option>
           </select>
 
           <DateRangePicker
@@ -687,6 +679,17 @@ const AdminPage = () => {
           ))}
         </div>
 
+        {activeTab === 'a_appeler' ? (
+          <ToCallTab
+            items={toCallData}
+            loading={toCallLoading}
+            requireIdentity={requireIdentity}
+            onLogCall={logCall}
+            onStatusChange={updateStatus}
+            onRefresh={loadToCall}
+          />
+        ) : (
+        <>
         {/* Status filter bar */}
         <div className="flex flex-wrap gap-2 mb-6" data-testid="admin-status-filter-bar">
           {(() => {
@@ -764,6 +767,8 @@ const AdminPage = () => {
               />
             ))}
           </div>
+        )}
+        </>
         )}
       </div>
 
@@ -1249,35 +1254,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
     ...callAttempts.map(c => ({ at: c.at, by: c.by, note: c.note, label: `Appel — ${callResultLabel(c)}` })),
   ].sort((a, b) => new Date(a.at) - new Date(b.at));
 
-  const getTitle = () => {
-    // Affichage admin : priorité au NOM (name / last_name). Prénom réservé aux relances.
-    const nom = item.name || item.last_name || item.first_name || '';
-
-    if (type === 'devis') {
-      const appareil = [item.brand, item.model].filter(Boolean).join(' ') || DEVICE_TYPE_LABELS[item.device_type] || item.device_type || '';
-      return [nom, appareil].filter(Boolean).join(' / ');
-    }
-    if (type === 'contact') {
-      const isRdv = (item.subject || '').startsWith('RDV') || item.rdv_device_type || item.rdv_brand;
-      if (isRdv) {
-        const legacy = parseRdvMessage(item.message);
-        const appareil = [item.rdv_brand || legacy.brand, item.rdv_model || legacy.model].filter(Boolean).join(' ')
-          || DEVICE_TYPE_LABELS[item.rdv_device_type || legacy.device_type] || '';
-        const rdvDate = item.rdv_date || legacy.date || '';
-        return [nom, appareil, rdvDate].filter(Boolean).join(' / ');
-      }
-      return [nom, item.subject || ''].filter(Boolean).join(' / ');
-    }
-    if (type === 'entreprise') {
-      const nomEntreprise = item.last_name || item.first_name || '';
-      return [nomEntreprise, item.company].filter(Boolean).join(' / ');
-    }
-    if (type === 'rachat') {
-      const appareil = [item.brand, item.model].filter(Boolean).join(' ') || '';
-      return [nom, appareil].filter(Boolean).join(' / ');
-    }
-    return nom || item.id;
-  };
+  const getTitle = () => formatLeadTitle(item, type);
 
   const getDetails = () => {
     // Prénom/Nom adapté selon le type de formulaire
@@ -1614,21 +1591,28 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
               {LOST_REASON_OPTIONS.map(r => {
                 const disabled = r.value === 'injoignable' && !unreachableAllowed;
                 const selected = lostReasonCode === r.value;
+                const passDeReponseCount = callAttempts.filter(c => c.outcome === 'pas_de_reponse').length;
                 return (
-                  <button
-                    key={r.value}
-                    disabled={disabled}
-                    onClick={() => setLostReasonCode(r.value)}
-                    title={disabled ? 'Nécessite 3 appels « Pas de réponse » sur 2 jours différents' : ''}
-                    className={`min-h-[44px] px-3 rounded-lg text-sm border text-left transition-colors ${
-                      selected ? 'bg-red-600 text-white border-red-600'
-                        : disabled ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
-                        : 'bg-white border-gray-200 text-[#1A1A2E] hover:bg-red-50'
-                    }`}
-                    data-testid={`lost-reason-chip-${r.value}-${item.id}`}
-                  >
-                    {r.label}
-                  </button>
+                  <div key={r.value}>
+                    <button
+                      disabled={disabled}
+                      onClick={() => setLostReasonCode(r.value)}
+                      title={disabled ? 'Nécessite 3 appels « Pas de réponse » sur 2 jours différents' : ''}
+                      className={`w-full min-h-[44px] px-3 rounded-lg text-sm border text-left transition-colors ${
+                        selected ? 'bg-red-600 text-white border-red-600'
+                          : disabled ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
+                          : 'bg-white border-gray-200 text-[#1A1A2E] hover:bg-red-50'
+                      }`}
+                      data-testid={`lost-reason-chip-${r.value}-${item.id}`}
+                    >
+                      {r.label}
+                    </button>
+                    {r.value === 'injoignable' && disabled && (
+                      <p className="text-[11px] text-gray-400 mt-1 px-1" data-testid={`lost-reason-injoignable-hint-${item.id}`}>
+                        {passDeReponseCount}/3 appels — il faut 3 appels sans réponse sur 2 jours différents
+                      </p>
+                    )}
+                  </div>
                 );
               })}
             </div>

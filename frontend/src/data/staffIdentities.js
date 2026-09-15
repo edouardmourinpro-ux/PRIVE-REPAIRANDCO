@@ -20,3 +20,17 @@ export const STAFF_IDENTITIES = [
   'David',
   'Edouard',
 ];
+
+// « Équipe X » → id du magasin correspondant (data/stores.js) — utilisé pour
+// présélectionner le filtre Magasin quand une équipe se connecte (S19).
+export const STAFF_IDENTITY_STORE_MAP = {
+  'Équipe Lattes': 'lattes',
+  'Équipe Montpellier Nord': 'montpellier-nord',
+  'Équipe Montpellier Sud': 'montpellier-sud',
+  'Équipe Nîmes Costières': 'nimes-costieres',
+  'Équipe Nîmes Étoile': 'nimes-etoile',
+  'Équipe Béziers': 'beziers',
+  'Équipe Boulogne': 'boulogne',
+  'Équipe Plaisir': 'plaisir',
+  'Équipe Les Ulis': 'les-ulis',
+};

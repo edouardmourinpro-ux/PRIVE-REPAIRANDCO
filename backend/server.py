@@ -626,6 +626,13 @@ CALL_DETAIL_LABELS = {
     "devis_accepte": "Devis accepté", "rappeler": "À rappeler", "refus": "Refus",
 }
 
+# Statuts pour lesquels un lead n'a plus besoin d'être appelé (onglet "À appeler" — S19).
+NON_CALLABLE_STATUSES = {"pris_en_charge", "facture", "refus_devis", "client_perdu"}
+
+def _format_paris_hhmm(dt: datetime) -> str:
+    p = dt.astimezone(PARIS_TZ)
+    return f"{p.hour:02d}h{p.minute:02d}"
+
 def _unreachable_rule_satisfied(doc: dict) -> bool:
     """« Injoignable » exige >= 3 appels "pas de réponse" répartis sur >= 2
     jours calendaires distincts (heure de Paris) — mais SEULEMENT pour les
@@ -1087,6 +1094,78 @@ async def get_latest_demands(store: Optional[str] = Query(None), user=Depends(ge
     items.sort(key=lambda it: it.get("created_at") or "", reverse=True)
     return items[:5]
 
+@api_router.get("/admin/to-call")
+async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_current_admin)):
+    """Qui appeler maintenant — agrège les 4 catégories, applique la règle
+    métier (S19) et renvoie une liste triée prête à afficher dans l'onglet
+    "📞 À appeler". Ne modifie jamais de données — lecture seule."""
+    now_utc = datetime.now(timezone.utc)
+    query = {"status": {"$nin": list(NON_CALLABLE_STATUSES)}}
+    if store == TEST_STORE_ID:
+        query["is_test"] = True
+        query["store"] = TEST_STORE_ID
+    else:
+        query["is_test"] = {"$ne": True}
+        query["store"] = {"$ne": TEST_STORE_ID}
+        if store:
+            query["store"] = store
+
+    items = []
+    for category, col_name in COLLECTIONS.items():
+        docs = await db[col_name].find(query, {"_id": 0}).to_list(2000)
+        for d in docs:
+            created_at = d.get("created_at")
+            tracking_since = d.get("tracking_since")
+            # Seulement les leads créés après le début du suivi complet.
+            if not created_at or not tracking_since or created_at < tracking_since:
+                continue
+            try:
+                created_dt = datetime.fromisoformat(created_at)
+            except Exception:
+                continue
+
+            call_attempts = d.get("call_attempts") or []
+            last_call = call_attempts[-1] if call_attempts else None
+            status = d.get("status") or "nouveau"
+            group, label = None, None
+
+            if last_call and last_call.get("outcome") == "joint" and last_call.get("detail") == "rappeler" and last_call.get("callback_at"):
+                try:
+                    cb_dt = datetime.fromisoformat(last_call["callback_at"])
+                    if cb_dt <= now_utc:
+                        group, label = 1, f"Rappel prévu à {_format_paris_hhmm(cb_dt)}"
+                except Exception:
+                    pass
+
+            if group is None and status == "nouveau":
+                group = 2
+                label = f"Nouvelle demande — attend depuis {_format_waiting_since(created_dt, now_utc)}"
+
+            if group is None and last_call and last_call.get("outcome") == "pas_de_reponse":
+                if _unreachable_rule_satisfied(d):
+                    group, label = 4, "3 appels sans réponse — classer Injoignable ?"
+                else:
+                    try:
+                        last_call_dt = datetime.fromisoformat(last_call["at"])
+                        if _business_minutes_elapsed(last_call_dt, now_utc) > 180:
+                            group, label = 3, f"Relance — {len(call_attempts) + 1}e appel"
+                    except Exception:
+                        pass
+
+            if group is None:
+                continue
+
+            item = dict(d)
+            item["category"] = category
+            item["group"] = group
+            item["label"] = label
+            item["call_attempts_count"] = len(call_attempts)
+            item["store_name"] = STORE_NAMES.get(d.get("store"), d.get("store") or "")
+            items.append(item)
+
+    items.sort(key=lambda it: (it["group"], it.get("created_at") or ""))
+    return items
+
 @api_router.post("/demandes/{category}/{demand_id}/survey")
 async def submit_customer_survey(category: str, demand_id: str, body: CustomerSurveyRequest):
     """Public endpoint — customer fills mini-survey right after submitting their demand.
@@ -1306,6 +1385,9 @@ async def create_test_lead(body: TestLeadCreateRequest, user=Depends(get_current
         "email": TEST_RECIPIENT_EMAIL or "test@example.com",
         "escalations_sent": [],
         "notifications": [],
+        "status_history": [{"status": "nouveau", "at": now_str, "by": "system"}],
+        "call_attempts": [], "assigned_to": None, "first_contact_at": None,
+        "lost_reason_code": None, "tracking_since": now_str,
     }
     if body.category == "devis":
         doc.update({"device_type": "smartphone", "brand": "Apple", "model": "iPhone TEST", "issue_types": ["Test"], "other_issue": None, "preferred_time": None})
