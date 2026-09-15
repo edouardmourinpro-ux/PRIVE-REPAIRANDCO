@@ -199,7 +199,11 @@ const AdminPage = () => {
       if (storeFilter) params.store = storeFilter;
       const r = await axios.get(`${API_URL}/api/admin/to-call`, { headers: authHeaders, params });
       setToCallData(r.data);
-    } catch { setToCallData([]); }
+    } catch (e) {
+      setToCallData([]);
+      toast.error('Impossible de charger la liste « À appeler ». Rechargez la page.');
+      console.error('loadToCall failed', e);
+    }
     setToCallLoading(false);
   }, [storeFilter, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
