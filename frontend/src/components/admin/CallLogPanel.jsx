@@ -79,6 +79,7 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit }) => {
               <Chip onClick={() => submit({ outcome: 'joint', detail: 'rdv_pris' })} testId={`call-detail-rdv-pris-${itemId}`}>RDV pris</Chip>
               <Chip onClick={() => submit({ outcome: 'joint', detail: 'vient_magasin' })} testId={`call-detail-vient-magasin-${itemId}`}>Vient en magasin</Chip>
               <Chip onClick={() => submit({ outcome: 'joint', detail: 'devis_accepte' })} testId={`call-detail-devis-accepte-${itemId}`}>Devis accepté</Chip>
+              <Chip onClick={() => submit({ outcome: 'joint', detail: 'reflechit' })} testId={`call-detail-reflechit-${itemId}`}>Réfléchit (relance dans 2 jours)</Chip>
               <Chip onClick={() => setStep('rappeler')} testId={`call-detail-rappeler-${itemId}`}>À rappeler</Chip>
               <Chip onClick={() => setStep('refus')} testId={`call-detail-refus-${itemId}`} variant="danger">Refus</Chip>
             </div>

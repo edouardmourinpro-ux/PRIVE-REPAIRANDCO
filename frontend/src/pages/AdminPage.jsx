@@ -26,7 +26,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const CALL_DETAIL_LABELS = {
   rdv_pris: 'RDV pris', vient_magasin: 'Vient en magasin',
-  devis_accepte: 'Devis accepté', rappeler: 'À rappeler', refus: 'Refus',
+  devis_accepte: 'Devis accepté', reflechit: 'Réfléchit', rappeler: 'À rappeler', refus: 'Refus',
 };
 
 const callResultLabel = (c) => {
@@ -34,12 +34,12 @@ const callResultLabel = (c) => {
   if (c.outcome === 'joint') {
     let l = CALL_DETAIL_LABELS[c.detail] || c.detail || '';
     if (c.detail === 'refus' && c.refus_reason) l += ` (${LOST_REASON_LABELS[c.refus_reason] || c.refus_reason})`;
-    if (c.detail === 'rappeler' && c.callback_at) {
-      try { l += ` — ${new Date(c.callback_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`; } catch { /* ignore */ }
+    if (['rappeler', 'reflechit'].includes(c.detail) && c.callback_at) {
+      try { l += `, ${new Date(c.callback_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`; } catch { /* ignore */ }
     }
     return l;
   }
-  if (c.outcome === 'pas_de_reponse') return c.message_laisse ? 'Pas de réponse — message laissé' : 'Pas de réponse — sans message';
+  if (c.outcome === 'pas_de_reponse') return c.message_laisse ? 'Pas de réponse, message laissé' : 'Pas de réponse, sans message';
   if (c.outcome === 'numero_invalide') return 'Numéro invalide';
   return c.outcome || '';
 };
@@ -250,6 +250,7 @@ const AdminPage = () => {
       setData(prev => prev.map(d => d.id === id ? {
         ...d, status: newStatus,
         status_history: [...(d.status_history || []), { status: newStatus, at: nowIso, by: payload.by }],
+        ...(['client_perdu', 'refus_devis'].includes(newStatus) ? {} : { lost_reason_code: null, lost_reason: null }),
         ...(extra.lostReasonCode ? { lost_reason_code: extra.lostReasonCode } : {}),
         ...(extra.lostReasonText ? { lost_reason: extra.lostReasonText } : {}),
       } : d));
@@ -274,7 +275,8 @@ const AdminPage = () => {
         status_history: statusChanged
           ? [...(d.status_history || []), { status: res.data.new_status, at: nowIso, by: payload.by }]
           : (d.status_history || []),
-        ...(res.data.lost_reason_code ? { lost_reason_code: res.data.lost_reason_code } : {}),
+        lost_reason_code: res.data.lost_reason_code ?? null,
+        lost_reason: res.data.lost_reason ?? null,
         first_contact_at: d.first_contact_at || nowIso,
         assigned_to: d.assigned_to || payload.by,
       };
@@ -284,28 +286,32 @@ const AdminPage = () => {
     toast.success('Appel enregistré');
   };
 
-  const saveStaffFeedback = async (id, payload) => {
-    await axios.patch(`${API_URL}/api/admin/demandes/${activeTab}/${id}/feedback`, payload, { headers: authHeaders });
+  const saveStaffFeedback = async (id, payload, category = activeTab) => {
+    await axios.patch(`${API_URL}/api/admin/demandes/${category}/${id}/feedback`, payload, { headers: authHeaders });
     setData(prev => prev.map(d => d.id === id ? { ...d, ...payload } : d));
+    if (activeTab === 'a_appeler') loadToCall();
   };
 
-  const saveQuotedPrice = async (id, price) => {
+  const saveQuotedPrice = async (id, price, category = activeTab) => {
     await axios.patch(
-      `${API_URL}/api/admin/demandes/${activeTab}/${id}/quoted-price`,
+      `${API_URL}/api/admin/demandes/${category}/${id}/quoted-price`,
       { quoted_price: price },
       { headers: authHeaders },
     );
     setData(prev => prev.map(d => d.id === id ? { ...d, quoted_price: price } : d));
+    if (activeTab === 'a_appeler') loadToCall();
   };
 
-  const handleDeleteDemand = async (id, code) => {
-    await axios.delete(`${API_URL}/api/admin/demandes/${activeTab}/${id}`, { headers: authHeaders, data: { code } });
+  const handleDeleteDemand = async (id, code, category = activeTab) => {
+    await axios.delete(`${API_URL}/api/admin/demandes/${category}/${id}`, { headers: authHeaders, data: { code } });
     setData(prev => prev.filter(d => d.id !== id));
     loadStats();
+    if (activeTab === 'a_appeler') loadToCall();
   };
 
-  const handlePushSMSDemand = async (id, code) => {
-    await axios.post(`${API_URL}/api/admin/demandes/${activeTab}/${id}/push-sms`, { code }, { headers: authHeaders });
+  const handlePushSMSDemand = async (id, code, category = activeTab) => {
+    await axios.post(`${API_URL}/api/admin/demandes/${category}/${id}/push-sms`, { code }, { headers: authHeaders });
+    if (activeTab === 'a_appeler') loadToCall();
   };
 
   const handleRattrapage = async () => {
@@ -465,14 +471,14 @@ const AdminPage = () => {
           if (fresh.length === 1) {
             const it = fresh[0];
             const typeLabel = { devis: 'Devis', contact: 'Contact/RDV', rachat: 'Rachat', entreprise: 'Entreprise' }[it.type] || it.type;
-            const n = new Notification(`Nouveau lead — ${storeLabel}`, {
+            const n = new Notification(`Nouveau lead · ${storeLabel}`, {
               body: `${typeLabel} · ${it.label || 'Client'}`,
               tag: 'repairco-lead',
               renotify: true,
             });
             n.onclick = () => { window.focus(); n.close(); };
           } else {
-            const n = new Notification(`${fresh.length} nouveaux leads — ${storeLabel}`, {
+            const n = new Notification(`${fresh.length} nouveaux leads · ${storeLabel}`, {
               body: 'Ouvrez l’admin pour les consulter.',
               tag: 'repairco-lead',
               renotify: true,
@@ -535,7 +541,7 @@ const AdminPage = () => {
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-[#E8F5EE] flex items-center justify-center px-4" data-testid="admin-login">
-        <SEO title="Admin — Repair & Co" path="/admin" noindex />
+        <SEO title="Admin · Repair & Co" path="/admin" noindex />
         <Card className="w-full max-w-sm">
           <CardContent className="p-8">
             <h1 className="text-2xl font-bold text-center mb-6 text-[#1A5C3A]">Admin Repair&Co</h1>
@@ -554,7 +560,7 @@ const AdminPage = () => {
   }
 
   const tabs = [
-    { id: 'a_appeler', label: 'À appeler', icon: Phone, count: toCallData.length },
+    { id: 'a_appeler', label: 'À appeler', icon: Phone, count: toCallData.filter(i => i.section !== 'plus_tard').length },
     { id: 'devis', label: 'Devis', icon: FileText, count: stats?.devis },
     { id: 'contact', label: 'Contact / RDV', icon: MessageSquare, count: stats?.contact },
     { id: 'entreprise', label: 'Entreprise', icon: Building2, count: stats?.entreprise },
@@ -567,11 +573,11 @@ const AdminPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50" data-testid="admin-dashboard">
-      <SEO title="Admin — Repair & Co" path="/admin" noindex />
+      <SEO title="Admin · Repair & Co" path="/admin" noindex />
       {/* Header */}
       <div className="bg-[#1A5C3A] text-white px-4 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <h1 className="text-lg font-bold">Admin — Repair&Co</h1>
+          <h1 className="text-lg font-bold">Admin · Repair&Co</h1>
           <div className="flex items-center gap-3">
             <span className="text-white/80 text-sm hidden sm:inline" data-testid="admin-total-count">
               {stats?.total || 0} demandes · <span className="text-red-300 font-semibold">{stats?.nouveau || 0} à traiter</span>
@@ -694,6 +700,19 @@ const AdminPage = () => {
             onLogCall={logCall}
             onStatusChange={updateStatus}
             onRefresh={loadToCall}
+            renderCard={(item) => (
+              <DemandCard
+                item={item}
+                type={item.category}
+                onStatusChange={(id, status, extra) => updateStatus(id, status, extra, item.category)}
+                onSaveStaffFeedback={(id, payload) => saveStaffFeedback(id, payload, item.category)}
+                onSaveQuotedPrice={(id, price) => saveQuotedPrice(id, price, item.category)}
+                onDelete={(id, code) => handleDeleteDemand(id, code, item.category)}
+                onPushSMS={(id, code) => handlePushSMSDemand(id, code, item.category)}
+                requireIdentity={requireIdentity}
+                onLogCall={(id, payload) => logCall(id, payload, item.category)}
+              />
+            )}
           />
         ) : (
         <>
@@ -959,7 +978,7 @@ const QuotedPriceInput = ({ itemId, initialValue, onSave }) => {
 const NotifBadge = ({ item }) => {
   const status = item.notify_status;
   if (!status) {
-    return <span className="text-xs text-gray-300" data-testid={`notif-badge-${item.id}`} title="Pas de suivi (lead antérieur)">—</span>;
+    return <span className="text-xs text-gray-300" data-testid={`notif-badge-${item.id}`} title="Pas de suivi (lead antérieur)">·</span>;
   }
   const cfg = {
     ok: { color: 'bg-green-500', label: 'Notification envoyée' },
@@ -971,7 +990,7 @@ const NotifBadge = ({ item }) => {
     const when = n.at ? new Date(n.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
     return n.status === 'sent'
       ? `${chan} → ${n.to} (${when})`
-      : `${chan} → ${n.to} : ÉCHEC — ${n.error || 'inconnu'}`;
+      : `${chan} → ${n.to} : ÉCHEC (${n.error || 'inconnu'})`;
   }).join('\n') || 'Aucune tentative enregistrée';
   return (
     <span
@@ -1049,7 +1068,7 @@ const NotifTestPanel = ({ authHeaders }) => {
     if (!entry) return <p className="text-xs text-gray-400">{label} : aucune tentative</p>;
     if (entry.status === 'sent') return <p className="text-xs text-[#1A5C3A]" data-testid={`notif-test-${label.toLowerCase()}-result`}>{label} : ✅ envoyé à {entry.to}</p>;
     if (entry.status === 'skipped') return <p className="text-xs text-gray-500" data-testid={`notif-test-${label.toLowerCase()}-result`}>{label} : ⏭ ignoré ({entry.error})</p>;
-    return <p className="text-xs text-red-600" data-testid={`notif-test-${label.toLowerCase()}-result`}>{label} : ❌ échec — {entry.error}</p>;
+    return <p className="text-xs text-red-600" data-testid={`notif-test-${label.toLowerCase()}-result`}>{label} : ❌ échec : {entry.error}</p>;
   };
 
   return (
@@ -1120,7 +1139,7 @@ const NotifTestPanel = ({ authHeaders }) => {
           {leadError && <p className="text-red-600 text-xs mt-2">{leadError}</p>}
           {leadResult && (
             <p className="text-xs text-[#1A5C3A] mt-2" data-testid="test-lead-result">
-              ✅ Lead {leadResult.category} créé (id {leadResult.id.slice(0, 8)}…) — notifications envoyées à TEST_RECIPIENT_EMAIL, visible dans l'onglet {leadResult.category === 'devis' ? 'Devis' : 'Contact / RDV'} (magasin TEST). Supprimé automatiquement après 48h.
+              ✅ Lead {leadResult.category} créé (id {leadResult.id.slice(0, 8)}…). Notifications envoyées à TEST_RECIPIENT_EMAIL, visible dans l'onglet {leadResult.category === 'devis' ? 'Devis' : 'Contact / RDV'} (magasin TEST). Supprimé automatiquement après 48h.
             </p>
           )}
         </CardContent>
@@ -1253,14 +1272,14 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
 
   const callAttempts = item.call_attempts || [];
   const lastCall = callAttempts.length ? callAttempts[callAttempts.length - 1] : null;
-  const pendingCallback = lastCall?.outcome === 'joint' && lastCall?.detail === 'rappeler' && lastCall?.callback_at
+  const pendingCallback = lastCall?.outcome === 'joint' && ['rappeler', 'reflechit'].includes(lastCall?.detail) && lastCall?.callback_at
     && !['pris_en_charge', 'facture', 'refus_devis', 'client_perdu'].includes(item.status)
     ? new Date(lastCall.callback_at).toLocaleString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
     : null;
   const unreachableAllowed = canMarkUnreachable(item);
   const timeline = [
     ...(item.status_history || []).map(h => ({ at: h.at, by: h.by, note: null, label: `Statut → ${STATUS_OPTIONS.find(s => s.value === h.status)?.label || h.status}` })),
-    ...callAttempts.map(c => ({ at: c.at, by: c.by, note: c.note, label: `Appel — ${callResultLabel(c)}` })),
+    ...callAttempts.map(c => ({ at: c.at, by: c.by, note: c.note, label: `Appel : ${callResultLabel(c)}` })),
   ].sort((a, b) => new Date(a.at) - new Date(b.at));
 
   const getTitle = () => formatLeadTitle(item, type);
@@ -1369,7 +1388,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             )}
             {pendingCallback && (
               <span className="text-xs px-2 py-1 rounded-full font-medium bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap" data-testid={`callback-badge-${item.id}`}>
-                ⏰ Rappel {pendingCallback}
+                ⏰ {lastCall?.detail === 'reflechit' ? 'Relance devis' : 'Rappel'} {pendingCallback}
               </span>
             )}
             <button
@@ -1463,7 +1482,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
                     const id = String(item.hiboutik_customer_id);
                     try { navigator.clipboard.writeText(id); } catch { /* clipboard blocked */ }
                     window.open('https://repairandco3475.hiboutik.com/', '_blank');
-                    toast.success(`ID #${id} copié — colle-le dans la barre de recherche Hiboutik (Cmd+V)`);
+                    toast.success(`ID #${id} copié, colle-le dans la barre de recherche Hiboutik (Cmd+V)`);
                   }}
                   title={`Client Hiboutik #${item.hiboutik_customer_id}`}
                   className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#1A5C3A] rounded-full text-xs text-white font-medium hover:bg-[#154a30] transition-colors"
@@ -1481,7 +1500,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
                 <ul className="space-y-1.5">
                   {timeline.map((t, i) => (
                     <li key={i} className="text-xs text-[#1A1A2E]/80 flex flex-col sm:flex-row sm:justify-between gap-1">
-                      <span>{t.label}{t.note ? ` — « ${t.note} »` : ''}</span>
+                      <span>{t.label}{t.note ? ` : « ${t.note} »` : ''}</span>
                       <span className="text-[#1A1A2E]/40 whitespace-nowrap">
                         {new Date(t.at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · {t.by}
                       </span>
@@ -1492,7 +1511,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             )}
 
             {/* Raison perte client */}
-            {(item.lost_reason || item.lost_reason_code) && (
+            {['client_perdu', 'refus_devis'].includes(item.status) && (item.lost_reason || item.lost_reason_code) && (
               <div className="p-3 bg-red-50 rounded-xl border border-red-100">
                 <p className="text-xs font-semibold text-red-600 mb-1 flex items-center gap-1"><UserX size={12} /> Raison perte client</p>
                 {item.lost_reason_code && <p className="text-sm text-red-700 font-medium">{LOST_REASON_LABELS[item.lost_reason_code] || item.lost_reason_code}</p>}
@@ -1591,7 +1610,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
                     </button>
                     {r.value === 'injoignable' && disabled && (
                       <p className="text-[11px] text-gray-400 mt-1 px-1" data-testid={`lost-reason-injoignable-hint-${item.id}`}>
-                        {passDeReponseCount}/3 appels — il faut 3 appels sans réponse sur 2 jours différents
+                        {passDeReponseCount}/3 appels : il faut 3 appels sans réponse sur 2 jours différents
                       </p>
                     )}
                   </div>

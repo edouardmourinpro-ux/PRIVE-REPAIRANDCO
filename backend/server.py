@@ -618,12 +618,12 @@ LOST_REASON_CODES = set(LOST_REASON_LABELS.keys())
 REFUS_REASON_CODES = {"prix", "delai", "deja_repare_ailleurs", "plus_besoin", "piece_indisponible", "autre"}
 
 CALL_OUTCOMES = {"joint", "pas_de_reponse", "numero_invalide"}
-CALL_JOINT_DETAILS = {"rdv_pris", "vient_magasin", "devis_accepte", "rappeler", "refus"}
+CALL_JOINT_DETAILS = {"rdv_pris", "vient_magasin", "devis_accepte", "reflechit", "rappeler", "refus"}
 CALLBACK_CHOICES = {"1h", "18h", "demain_10h", "custom"}
 
 CALL_DETAIL_LABELS = {
     "rdv_pris": "RDV pris", "vient_magasin": "Vient en magasin",
-    "devis_accepte": "Devis accepté", "rappeler": "À rappeler", "refus": "Refus",
+    "devis_accepte": "Devis accepté", "reflechit": "Réfléchit", "rappeler": "À rappeler", "refus": "Refus",
 }
 
 # Statuts pour lesquels un lead n'a plus besoin d'être appelé (onglet "À appeler" — S19).
@@ -643,9 +643,8 @@ def _status_after_call(current: str, outcome: str, detail: Optional[str]) -> str
         return "pris_en_charge"
     if outcome == "joint" and detail == "refus":
         return "refus_devis"
-    if current == "nouveau":
-        return "contacte"
-    return current
+    # Pas de réponse, À rappeler, Réfléchit : le client est en cours de suivi.
+    return "contacte"
 
 def _format_paris_hhmm(dt: datetime) -> str:
     p = dt.astimezone(PARIS_TZ)
@@ -688,6 +687,15 @@ def _resolve_callback_at(choice: Optional[str], custom_at: Optional[str]) -> Opt
         return None
     return dt.astimezone(timezone.utc).isoformat()
 
+def _business_days_later_10h(days: int) -> str:
+    dt = datetime.now(PARIS_TZ)
+    added = 0
+    while added < days:
+        dt += timedelta(days=1)
+        if dt.weekday() != 6:
+            added += 1
+    return dt.replace(hour=10, minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()
+
 def _call_result_label(entry: Optional[dict]) -> str:
     if not entry:
         return ""
@@ -698,7 +706,7 @@ def _call_result_label(entry: Optional[dict]) -> str:
             label += f" ({LOST_REASON_LABELS.get(entry['refus_reason'], entry['refus_reason'])})"
         return label
     if outcome == "pas_de_reponse":
-        return "Pas de réponse — message laissé" if entry.get("message_laisse") else "Pas de réponse — sans message"
+        return "Pas de réponse, message laissé" if entry.get("message_laisse") else "Pas de réponse, sans message"
     if outcome == "numero_invalide":
         return "Numéro invalide"
     return outcome or ""
@@ -973,6 +981,9 @@ async def update_demand_status(category: str, demand_id: str, body: UpdateStatus
         update_fields["lost_reason_code"] = body.lost_reason_code
     if body.lost_reason:
         update_fields["lost_reason"] = body.lost_reason
+    if new_status not in ("client_perdu", "refus_devis"):
+        update_fields["lost_reason_code"] = None
+        update_fields["lost_reason"] = None
     if not doc.get("assigned_to"):
         update_fields["assigned_to"] = by
     if (doc.get("status") or "nouveau") == "nouveau" and not doc.get("first_contact_at"):
@@ -1020,6 +1031,8 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
     }
     if body.detail == "rappeler":
         entry["callback_at"] = _resolve_callback_at(body.callback_choice, body.callback_at)
+    elif body.detail == "reflechit":
+        entry["callback_at"] = _business_days_later_10h(2)
 
     set_fields = {}
     if not doc.get("first_contact_at"):
@@ -1032,10 +1045,14 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
     if new_status != current_status:
         set_fields["status"] = new_status
         push_fields["status_history"] = {"status": new_status, "at": now_iso, "by": by}
-        if new_status == "refus_devis":
-            set_fields["lost_reason_code"] = body.refus_reason
-        elif new_status == "client_perdu":
-            set_fields["lost_reason_code"] = "numero_invalide"
+    # La raison de perte n'existe que pour un client perdu ou un refus.
+    if new_status == "refus_devis":
+        set_fields["lost_reason_code"] = body.refus_reason
+    elif new_status == "client_perdu":
+        set_fields["lost_reason_code"] = "numero_invalide"
+    elif doc.get("lost_reason_code") or doc.get("lost_reason"):
+        set_fields["lost_reason_code"] = None
+        set_fields["lost_reason"] = None
 
     update_op = {"$push": push_fields}
     if set_fields:
@@ -1046,7 +1063,8 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
         "call_attempts_count": len(doc.get("call_attempts") or []) + 1,
         "new_status": set_fields.get("status", current_status),
         "callback_at": entry.get("callback_at"),
-        "lost_reason_code": set_fields.get("lost_reason_code"),
+        "lost_reason_code": set_fields.get("lost_reason_code", doc.get("lost_reason_code")),
+        "lost_reason": set_fields.get("lost_reason", doc.get("lost_reason")),
     }
 
 @api_router.delete("/admin/demandes/{category}/{demand_id}")
@@ -1153,43 +1171,56 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
             call_attempts = d.get("call_attempts") or []
             last_call = call_attempts[-1] if call_attempts else None
             status = d.get("status") or "nouveau"
-            group, label = None, None
+            section, group, label, sort_at = None, None, None, created_at
+            today_paris = now_utc.astimezone(PARIS_TZ).date()
 
-            if last_call and last_call.get("outcome") == "joint" and last_call.get("detail") == "rappeler" and last_call.get("callback_at"):
+            if last_call and last_call.get("outcome") == "joint" and last_call.get("detail") in ("rappeler", "reflechit") and last_call.get("callback_at"):
                 try:
                     cb_dt = datetime.fromisoformat(last_call["callback_at"])
+                    kind = "Relance du devis prévue" if last_call.get("detail") == "reflechit" else "Rappel prévu"
                     if cb_dt <= now_utc:
-                        group, label = 1, f"Rappel prévu à {_format_paris_hhmm(cb_dt)}"
+                        late = " (en retard)" if (now_utc - cb_dt) > timedelta(minutes=15) else ""
+                        section, group, sort_at = "maintenant", 1, last_call["callback_at"]
+                        label = f"{kind} à {_format_paris_hhmm(cb_dt)}{late}"
+                    elif cb_dt.astimezone(PARIS_TZ).date() == today_paris:
+                        section, group, sort_at = "plus_tard", 5, last_call["callback_at"]
+                        label = f"{kind} à {_format_paris_hhmm(cb_dt)}"
                 except Exception:
                     pass
 
-            if group is None and status == "nouveau":
-                group = 2
-                label = f"Nouvelle demande — attend depuis {_format_waiting_since(created_dt, now_utc)}"
+            if section is None and status == "nouveau":
+                section, group = "maintenant", 2
+                label = f"Nouvelle demande, attend depuis {_format_waiting_since(created_dt, now_utc)}"
 
-            if group is None and last_call and last_call.get("outcome") == "pas_de_reponse":
+            if section is None and last_call and last_call.get("outcome") == "pas_de_reponse":
                 if _unreachable_rule_satisfied(d):
-                    group, label = 4, "3 appels sans réponse — classer Injoignable ?"
+                    section, group = "a_classer", 4
+                    label = "3 appels sans réponse sur 2 jours"
                 else:
                     try:
                         last_call_dt = datetime.fromisoformat(last_call["at"])
                         if _business_minutes_elapsed(last_call_dt, now_utc) > 180:
-                            group, label = 3, f"Relance — {len(call_attempts) + 1}e appel"
+                            day = last_call_dt.astimezone(PARIS_TZ).strftime("%d/%m")
+                            section, group, sort_at = "maintenant", 3, last_call["at"]
+                            label = f"{len(call_attempts) + 1}e appel (pas de réponse le {day} à {_format_paris_hhmm(last_call_dt)})"
                     except Exception:
                         pass
 
-            if group is None:
+            if section is None:
                 continue
 
             item = dict(d)
             item["category"] = category
             item["group"] = group
             item["label"] = label
+            item["section"] = section
             item["call_attempts_count"] = len(call_attempts)
+            item["sort_at"] = sort_at
             item["store_name"] = STORE_NAMES.get(d.get("store"), d.get("store") or "")
             items.append(item)
 
-    items.sort(key=lambda it: (it["group"], it.get("created_at") or ""))
+    section_order = {"maintenant": 0, "plus_tard": 1, "a_classer": 2}
+    items.sort(key=lambda it: (section_order[it["section"]], it["group"], it.get("sort_at") or it.get("created_at") or ""))
     return items
 
 @api_router.post("/demandes/{category}/{demand_id}/survey")

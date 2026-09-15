@@ -171,6 +171,28 @@ class TestCallOutcomeDrivesStatus:
         finally:
             _delete_test_lead(headers, "devis", lead_id)
 
+    def test_last_call_wins_and_clears_lost_reason(self, headers):
+        lead_id = _create_test_lead(headers)
+        try:
+            assert self._call(headers, lead_id, {"outcome": "numero_invalide"})["new_status"] == "client_perdu"
+            body = self._call(headers, lead_id, {"outcome": "joint", "detail": "rappeler", "callback_choice": "18h"})
+            assert body["new_status"] == "contacte"
+            assert body["lost_reason_code"] is None
+            found = self._found(headers, lead_id)
+            assert found["status"] == "contacte"
+            assert not found.get("lost_reason_code")
+        finally:
+            _delete_test_lead(headers, "devis", lead_id)
+
+    def test_reflechit_schedules_follow_up(self, headers):
+        lead_id = _create_test_lead(headers)
+        try:
+            body = self._call(headers, lead_id, {"outcome": "joint", "detail": "reflechit"})
+            assert body["new_status"] == "contacte"
+            assert body["callback_at"]
+        finally:
+            _delete_test_lead(headers, "devis", lead_id)
+
     def test_facture_is_never_changed_by_a_call(self, headers):
         lead_id = _create_test_lead(headers)
         try:
