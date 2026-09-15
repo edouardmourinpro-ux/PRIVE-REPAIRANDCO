@@ -49,11 +49,15 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit }) => {
             <Phone size={16} className="text-[#1A5C3A]" /> Journal d'appel
           </DialogTitle>
           <DialogDescription>
-            {phone ? (
-              <a href={`tel:${phone}`} className="text-[#1A5C3A] font-medium underline" data-testid={`call-panel-tel-${itemId}`}>{phone}</a>
-            ) : 'Numéro non renseigné'}
+            À composer sur le téléphone du magasin.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="text-center py-3 bg-[#E8F5EE] rounded-xl">
+          <p className="text-2xl font-bold text-[#1A5C3A] tracking-wide select-all" data-testid={`call-panel-phone-${itemId}`}>
+            {phone || 'Numéro non renseigné'}
+          </p>
+        </div>
 
         <div className="space-y-2 mt-2">
           {step !== 'root' && (

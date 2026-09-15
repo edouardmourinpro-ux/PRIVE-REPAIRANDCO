@@ -102,14 +102,13 @@ export const ToCallTab = ({ items, loading, requireIdentity, onLogCall, onStatus
                   </button>
                 )
               )}
-              <a
-                href={`tel:${item.phone || ''}`}
+              <button
                 onClick={() => openCallPanel(item)}
                 className="min-h-[44px] flex items-center gap-1.5 px-4 rounded-full text-xs font-semibold bg-[#1A5C3A] text-white hover:bg-[#2ECC71] transition-colors"
                 data-testid={`to-call-call-btn-${item.id}`}
               >
-                <Phone size={13} /> Appeler
-              </a>
+                <Phone size={13} /> Appel
+              </button>
             </div>
           </div>
         );

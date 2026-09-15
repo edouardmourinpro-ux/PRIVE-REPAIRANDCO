@@ -551,7 +551,7 @@ const AdminPage = () => {
   }
 
   const tabs = [
-    { id: 'a_appeler', label: '📞 À appeler', icon: Phone, count: toCallData.length },
+    { id: 'a_appeler', label: 'À appeler', icon: Phone, count: toCallData.length },
     { id: 'devis', label: 'Devis', icon: FileText, count: stats?.devis },
     { id: 'contact', label: 'Contact / RDV', icon: MessageSquare, count: stats?.contact },
     { id: 'entreprise', label: 'Entreprise', icon: Building2, count: stats?.entreprise },
@@ -1429,14 +1429,6 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             )}
 
             <div className="flex flex-wrap gap-2">
-              {item.phone && (
-                <a
-                  href={`tel:${item.phone}`}
-                  onClick={() => requireIdentity(() => setShowCallPanel(true))}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#E8F5EE] rounded-full text-xs text-[#1A5C3A] font-medium hover:bg-[#2ECC71]/20"
-                  data-testid={`demand-call-${item.id}`}
-                ><Phone size={12} />Appeler</a>
-              )}
               {item.email && (
                 <button
                   onClick={handleRelanceEmail}
