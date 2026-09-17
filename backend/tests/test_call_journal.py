@@ -193,6 +193,30 @@ class TestCallOutcomeDrivesStatus:
         finally:
             _delete_test_lead(headers, "devis", lead_id)
 
+    def test_quoted_price_saved_from_call(self, headers):
+        lead_id = _create_test_lead(headers)
+        try:
+            body = self._call(headers, lead_id, {"outcome": "joint", "detail": "reflechit", "quoted_price": "89 €"})
+            assert body["quoted_price"] == "89 €"
+            found = self._found(headers, lead_id)
+            assert found["quoted_price"] == "89 €"
+            assert found["call_attempts"][-1]["quoted_price"] == "89 €"
+        finally:
+            _delete_test_lead(headers, "devis", lead_id)
+
+    def test_relance_whatsapp_is_logged(self, headers):
+        lead_id = _create_test_lead(headers)
+        try:
+            r = requests.post(f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/relance",
+                              headers=headers, json={"by": "David", "channel": "whatsapp"}, timeout=15)
+            assert r.status_code == 200, r.text
+            assert r.json()["new_status"] == "contacte"
+            found = self._found(headers, lead_id)
+            assert found["relances"][-1]["channel"] == "whatsapp"
+            assert found["relances"][-1]["by"] == "David"
+        finally:
+            _delete_test_lead(headers, "devis", lead_id)
+
     def test_facture_is_never_changed_by_a_call(self, headers):
         lead_id = _create_test_lead(headers)
         try:

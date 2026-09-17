@@ -23,18 +23,19 @@ const Chip = ({ children, onClick, testId, variant = 'default' }) => (
 export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit }) => {
   const [step, setStep] = useState('root');
   const [note, setNote] = useState('');
+  const [price, setPrice] = useState('');
   const [showNote, setShowNote] = useState(false);
   const [customDate, setCustomDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (open) { setStep('root'); setNote(''); setShowNote(false); setCustomDate(''); setSubmitting(false); }
+    if (open) { setStep('root'); setNote(''); setPrice(''); setShowNote(false); setCustomDate(''); setSubmitting(false); }
   }, [open]);
 
   const submit = async (payload) => {
     setSubmitting(true);
     try {
-      await onSubmit({ ...payload, note: note.trim() || undefined });
+      await onSubmit({ ...payload, note: note.trim() || undefined, ...(payload.outcome === 'joint' && price.trim() ? { quoted_price: price.trim() } : {}) });
       onClose();
     } finally {
       setSubmitting(false);
@@ -76,6 +77,14 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit }) => {
 
           {step === 'joint' && (
             <div className="grid gap-2">
+              <input
+                type="text"
+                value={price}
+                onChange={e => setPrice(e.target.value)}
+                placeholder="Prix annoncé (facultatif), ex. 89 €"
+                className="px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm min-h-[44px]"
+                data-testid={`call-price-input-${itemId}`}
+              />
               <Chip onClick={() => submit({ outcome: 'joint', detail: 'rdv_pris' })} testId={`call-detail-rdv-pris-${itemId}`}>RDV pris</Chip>
               <Chip onClick={() => submit({ outcome: 'joint', detail: 'vient_magasin' })} testId={`call-detail-vient-magasin-${itemId}`}>Vient en magasin</Chip>
               <Chip onClick={() => submit({ outcome: 'joint', detail: 'devis_accepte' })} testId={`call-detail-devis-accepte-${itemId}`}>Devis accepté</Chip>

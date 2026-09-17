@@ -582,6 +582,11 @@ class CallLogRequest(BaseModel):
     refus_reason: Optional[str] = None
     message_laisse: Optional[bool] = None
     note: Optional[str] = None
+    quoted_price: Optional[str] = None
+
+class RelanceLogRequest(BaseModel):
+    by: str
+    channel: str  # email | whatsapp
 
 # Allowed status values (Phase 2 — pipeline 6 statuts)
 ALLOWED_STATUSES = {"nouveau", "contacte", "pris_en_charge", "facture", "refus_devis", "client_perdu"}
@@ -1035,6 +1040,10 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
         entry["callback_at"] = _business_days_later_10h(2)
 
     set_fields = {}
+    quoted_price = (body.quoted_price or "").strip()
+    if quoted_price:
+        entry["quoted_price"] = quoted_price
+        set_fields["quoted_price"] = quoted_price
     if not doc.get("first_contact_at"):
         set_fields["first_contact_at"] = now_iso
     if not doc.get("assigned_to"):
@@ -1065,7 +1074,38 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
         "callback_at": entry.get("callback_at"),
         "lost_reason_code": set_fields.get("lost_reason_code", doc.get("lost_reason_code")),
         "lost_reason": set_fields.get("lost_reason", doc.get("lost_reason")),
+        "quoted_price": set_fields.get("quoted_price", doc.get("quoted_price")),
     }
+
+@api_router.post("/admin/demandes/{category}/{demand_id}/relance")
+async def log_relance(category: str, demand_id: str, body: RelanceLogRequest, user=Depends(get_current_admin)):
+    """Trace dans l'historique un clic sur « Relance Email » ou « Relance WhatsApp »."""
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    by = (body.by or "").strip()
+    if not by:
+        raise HTTPException(status_code=400, detail="Identité manquante, merci de préciser qui relance")
+    if body.channel not in ("email", "whatsapp"):
+        raise HTTPException(status_code=400, detail="Canal de relance invalide")
+    doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    set_fields = {}
+    push_fields = {"relances": {"at": now_iso, "by": by, "channel": body.channel}}
+    if (doc.get("status") or "nouveau") == "nouveau":
+        set_fields["status"] = "contacte"
+        push_fields["status_history"] = {"status": "contacte", "at": now_iso, "by": by}
+    if not doc.get("first_contact_at"):
+        set_fields["first_contact_at"] = now_iso
+    if not doc.get("assigned_to"):
+        set_fields["assigned_to"] = by
+    update_op = {"$push": push_fields}
+    if set_fields:
+        update_op["$set"] = set_fields
+    await db[col_name].update_one({"id": demand_id}, update_op)
+    return {"status": "logged", "new_status": set_fields.get("status", doc.get("status") or "nouveau")}
 
 @api_router.delete("/admin/demandes/{category}/{demand_id}")
 async def delete_demand(category: str, demand_id: str, body: DeleteRequest, user=Depends(get_current_admin)):
@@ -1174,7 +1214,12 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
             section, group, label, sort_at = None, None, None, created_at
             today_paris = now_utc.astimezone(PARIS_TZ).date()
 
-            if last_call and last_call.get("outcome") == "joint" and last_call.get("detail") in ("rappeler", "reflechit") and last_call.get("callback_at"):
+            reflechit_count = sum(1 for c in call_attempts if c.get("outcome") == "joint" and c.get("detail") == "reflechit")
+            if last_call and last_call.get("detail") == "reflechit" and reflechit_count >= 3:
+                section, group = "a_classer", 6
+                label = f"Réfléchit toujours après {reflechit_count - 1} relances"
+
+            if section is None and last_call and last_call.get("outcome") == "joint" and last_call.get("detail") in ("rappeler", "reflechit") and last_call.get("callback_at"):
                 try:
                     cb_dt = datetime.fromisoformat(last_call["callback_at"])
                     kind = "Relance du devis prévue" if last_call.get("detail") == "reflechit" else "Rappel prévu"
@@ -1341,6 +1386,58 @@ class NotificationsTestRequest(BaseModel):
     store: str
     real: bool = False
 
+
+def _demo_call(at: datetime, by: str, outcome: str, detail: Optional[str] = None, **kw) -> dict:
+    entry = {"at": at.isoformat(), "by": by, "outcome": outcome, "detail": detail,
+             "refus_reason": None, "message_laisse": kw.get("message_laisse"), "note": None}
+    if kw.get("callback_at"):
+        entry["callback_at"] = kw["callback_at"].isoformat()
+    return entry
+
+@api_router.post("/admin/notifications/demo-set")
+async def create_demo_set(user=Depends(get_current_admin)):
+    """Crée 6 demandes de démo sur le Magasin TEST pour essayer l'onglet « À appeler ».
+    Aucune notification, aucune escalade ; supprimées automatiquement après 48 h."""
+    now = datetime.now(timezone.utc)
+    by = "Équipe TEST"
+    await db.demandes_devis.delete_many({"is_test": True, "demo": True})
+
+    def demo(first: str, model: str, issue: str, created: datetime, status: str = "nouveau", calls=()):
+        c = created.isoformat()
+        history = [{"status": "nouveau", "at": c, "by": "system"}]
+        if status != "nouveau" and calls:
+            history.append({"status": status, "at": calls[0]["at"], "by": by})
+        brand, _, short_model = model.partition(" ")
+        return {
+            "id": str(uuid.uuid4()), "type": "devis", "store": TEST_STORE_ID, "is_test": True, "demo": True,
+            "first_name": first, "name": "Démo", "phone": "0600000000", "email": "demo@example.com",
+            "device_type": "smartphone", "brand": brand, "model": short_model, "issue_types": [issue],
+            "created_at": c, "tracking_since": c, "status": status, "status_history": history,
+            "call_attempts": list(calls), "assigned_to": by if calls else None,
+            "first_contact_at": calls[0]["at"] if calls else None, "lost_reason_code": None,
+            "notifications": [], "escalations_sent": ["15min:skipped", "30min:skipped", "2h:skipped"],
+        }
+
+    h = lambda n: timedelta(hours=n)
+    docs = [
+        demo("Lucas", "Apple iPhone 14", "Écran", now - timedelta(minutes=12)),
+        demo("Emma", "Samsung Galaxy S23", "Batterie", now - h(5), "contacte",
+             [_demo_call(now - h(2), by, "joint", "rappeler", callback_at=now - timedelta(minutes=30))]),
+        demo("Léa", "Apple iPhone 12", "Face ID", now - h(4), "contacte",
+             [_demo_call(now - h(1), by, "joint", "rappeler", callback_at=now + h(2))]),
+        demo("Hugo", "Apple iPhone 13", "Connecteur de charge", now - h(24), "contacte",
+             [_demo_call(now - h(22), by, "pas_de_reponse", message_laisse=True)]),
+        demo("Chloé", "Xiaomi Redmi Note 12", "Écran", now - h(30), "contacte",
+             [_demo_call(now - h(29), by, "pas_de_reponse", message_laisse=False),
+              _demo_call(now - h(28), by, "pas_de_reponse", message_laisse=True),
+              _demo_call(now - h(2), by, "pas_de_reponse", message_laisse=False)]),
+        demo("Sarah", "Apple iPhone 15", "Écran", now - h(40), "contacte",
+             [_demo_call(now - h(39), by, "joint", "reflechit", callback_at=now - h(30)),
+              _demo_call(now - h(20), by, "joint", "reflechit", callback_at=now - h(10)),
+              _demo_call(now - h(1), by, "joint", "reflechit", callback_at=now - timedelta(minutes=5))]),
+    ]
+    await db.demandes_devis.insert_many([dict(d) for d in docs])
+    return {"created": len(docs)}
 
 class TestLeadCreateRequest(BaseModel):
     category: str  # "devis" or "contact"
@@ -1645,7 +1742,7 @@ async def export_all_demandes_csv(store: Optional[str] = Query(None), date_from:
             if k in d and k not in seen:
                 cols_raw.append(k); seen.add(k); break
     # Colonnes internes jamais exportées telles quelles (remplacées par les colonnes calculées ci-dessus)
-    seen.update({"status_history", "call_attempts", "tracking_since"})
+    seen.update({"status_history", "call_attempts", "tracking_since", "relances"})
     for d in all_docs:
         for k in d.keys():
             if k not in seen and k != "id":

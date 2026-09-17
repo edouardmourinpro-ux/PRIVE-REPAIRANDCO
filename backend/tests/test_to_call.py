@@ -208,3 +208,18 @@ def test_test_lead_excluded_when_no_store_filter(headers):
         assert lead_id not in [i["id"] for i in r2.json()]
     finally:
         _delete(headers, "devis", lead_id)
+
+
+def test_demo_set_covers_every_section(headers):
+    r = requests.post(f"{BASE_URL}/api/admin/notifications/demo-set", headers=headers, timeout=15)
+    assert r.status_code == 200, r.text
+    assert r.json()["created"] == 6
+    items = requests.get(f"{BASE_URL}/api/admin/to-call", params={"store": "test"}, headers=headers, timeout=15).json()
+    demo = [i for i in items if i.get("demo")]
+    sections = {i["section"] for i in demo}
+    assert {"maintenant", "a_classer"} <= sections
+    assert any(i["group"] == 6 for i in demo)  # réfléchit toujours après 2 relances
+    assert any(i["group"] == 4 for i in demo)  # 3 appels sans réponse
+    # Jamais visibles sans le filtre Magasin TEST
+    all_items = requests.get(f"{BASE_URL}/api/admin/to-call", headers=headers, timeout=15).json()
+    assert not any(i.get("store") == "test" for i in all_items)

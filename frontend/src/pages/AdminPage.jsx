@@ -37,6 +37,7 @@ const callResultLabel = (c) => {
     if (['rappeler', 'reflechit'].includes(c.detail) && c.callback_at) {
       try { l += `, ${new Date(c.callback_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`; } catch { /* ignore */ }
     }
+    if (c.quoted_price) l += ` (prix annoncé : ${c.quoted_price})`;
     return l;
   }
   if (c.outcome === 'pas_de_reponse') return c.message_laisse ? 'Pas de réponse, message laissé' : 'Pas de réponse, sans message';
@@ -266,7 +267,7 @@ const AdminPage = () => {
     const nowIso = new Date().toISOString();
     setData(prev => prev.map(d => {
       if (d.id !== id) return d;
-      const entry = { at: nowIso, by: payload.by, outcome: payload.outcome, detail: payload.detail, refus_reason: payload.refus_reason, message_laisse: payload.message_laisse, note: payload.note, callback_at: res.data.callback_at || payload.callback_at };
+      const entry = { at: nowIso, by: payload.by, outcome: payload.outcome, detail: payload.detail, refus_reason: payload.refus_reason, message_laisse: payload.message_laisse, note: payload.note, callback_at: res.data.callback_at || payload.callback_at, quoted_price: payload.quoted_price };
       const statusChanged = res.data.new_status && res.data.new_status !== d.status;
       return {
         ...d,
@@ -277,6 +278,7 @@ const AdminPage = () => {
           : (d.status_history || []),
         lost_reason_code: res.data.lost_reason_code ?? null,
         lost_reason: res.data.lost_reason ?? null,
+        quoted_price: res.data.quoted_price ?? d.quoted_price,
         first_contact_at: d.first_contact_at || nowIso,
         assigned_to: d.assigned_to || payload.by,
       };
@@ -284,6 +286,29 @@ const AdminPage = () => {
     if (activeTab === 'a_appeler') loadToCall();
     loadStats();
     toast.success('Appel enregistré');
+  };
+
+  const logRelance = async (id, payload, category = activeTab) => {
+    try {
+      const res = await axios.post(`${API_URL}/api/admin/demandes/${category}/${id}/relance`, payload, { headers: authHeaders });
+      const nowIso = new Date().toISOString();
+      setData(prev => prev.map(d => {
+        if (d.id !== id) return d;
+        const statusChanged = res.data.new_status && res.data.new_status !== d.status;
+        return {
+          ...d,
+          relances: [...(d.relances || []), { at: nowIso, by: payload.by, channel: payload.channel }],
+          status: res.data.new_status || d.status,
+          status_history: statusChanged
+            ? [...(d.status_history || []), { status: res.data.new_status, at: nowIso, by: payload.by }]
+            : (d.status_history || []),
+        };
+      }));
+      if (activeTab === 'a_appeler') loadToCall();
+      loadStats();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Erreur lors de l'enregistrement de la relance");
+    }
   };
 
   const saveStaffFeedback = async (id, payload, category = activeTab) => {
@@ -711,6 +736,7 @@ const AdminPage = () => {
                 onPushSMS={(id, code) => handlePushSMSDemand(id, code, item.category)}
                 requireIdentity={requireIdentity}
                 onLogCall={(id, payload) => logCall(id, payload, item.category)}
+                onLogRelance={(id, payload) => logRelance(id, payload, item.category)}
               />
             )}
           />
@@ -790,6 +816,7 @@ const AdminPage = () => {
                 onPushSMS={handlePushSMSDemand}
                 requireIdentity={requireIdentity}
                 onLogCall={logCall}
+                onLogRelance={logRelance}
               />
             ))}
           </div>
@@ -1051,6 +1078,20 @@ const NotifTestPanel = ({ authHeaders }) => {
     setLeadLoading(false);
   };
 
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [demoResult, setDemoResult] = useState(null);
+  const createDemoSet = async () => {
+    setDemoLoading(true);
+    setDemoResult(null);
+    try {
+      const r = await axios.post(`${API_URL}/api/admin/notifications/demo-set`, {}, { headers: authHeaders });
+      setDemoResult(r.data);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Erreur lors de la création des demandes de démo');
+    }
+    setDemoLoading(false);
+  };
+
   const runDigestTest = async () => {
     setDigestLoading(true);
     setDigestError('');
@@ -1136,6 +1177,18 @@ const NotifTestPanel = ({ authHeaders }) => {
               Créer un lead de test
             </Button>
           </div>
+          <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[#E8F5EE]">
+            <Button onClick={createDemoSet} disabled={demoLoading} variant="outline" className="border-[#1A5C3A] text-[#1A5C3A] text-xs rounded-full" data-testid="demo-set-create-button">
+              {demoLoading && <Loader2 className="animate-spin mr-1" size={14} />}
+              Créer des demandes de démo
+            </Button>
+            <span className="text-xs text-[#1A1A2E]/60">6 demandes sur le Magasin TEST pour essayer l'onglet « À appeler ». Aucun envoi, supprimées après 48 h.</span>
+          </div>
+          {demoResult && (
+            <p className="text-xs text-[#1A5C3A] mt-2" data-testid="demo-set-result">
+              ✅ {demoResult.created} demandes de démo créées. Dans « Magasin », choisissez « Magasin TEST », puis ouvrez l'onglet « À appeler ».
+            </p>
+          )}
           {leadError && <p className="text-red-600 text-xs mt-2">{leadError}</p>}
           {leadResult && (
             <p className="text-xs text-[#1A5C3A] mt-2" data-testid="test-lead-result">
@@ -1160,8 +1213,9 @@ const NotifTestPanel = ({ authHeaders }) => {
   );
 };
 
-const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onPushSMS, requireIdentity, onLogCall }) => {
+const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onPushSMS, requireIdentity, onLogCall, onLogRelance }) => {
   const [open, setOpen] = useState(false);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
   const feedbackRef = useRef(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteCode, setDeleteCode] = useState('');
@@ -1236,16 +1290,20 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
     );
   };
 
+  const logRelance = (channel) => requireIdentity(() => onLogRelance?.(item.id, { channel, by: localStorage.getItem('admin_identity') || '' }));
+
   const handleRelanceEmail = () => {
     const subject = encodeURIComponent('Votre demande de réparation chez Repair & Co');
     const body = encodeURIComponent(buildRelanceText());
     window.open(`mailto:${item.email}?subject=${subject}&body=${body}`);
+    logRelance('email');
   };
 
   const handleRelanceWA = () => {
     const phone = (item.phone || '').replace(/[\s\-().]/g, '').replace(/^0/, '33');
     const text = encodeURIComponent(buildRelanceText());
     window.open(`https://wa.me/${phone}?text=${text}`);
+    logRelance('whatsapp');
   };
 
   const date = item.created_at ? new Date(item.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
@@ -1280,6 +1338,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   const timeline = [
     ...(item.status_history || []).map(h => ({ at: h.at, by: h.by, note: null, label: `Statut → ${STATUS_OPTIONS.find(s => s.value === h.status)?.label || h.status}` })),
     ...callAttempts.map(c => ({ at: c.at, by: c.by, note: c.note, label: `Appel : ${callResultLabel(c)}` })),
+    ...(item.relances || []).map(r => ({ at: r.at, by: r.by, note: null, label: r.channel === 'whatsapp' ? 'Relance WhatsApp' : 'Relance Email' })),
   ].sort((a, b) => new Date(a.at) - new Date(b.at));
 
   const getTitle = () => formatLeadTitle(item, type);
@@ -1398,15 +1457,36 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             >
               <Phone size={12} /> Appel
             </button>
-            <select
-              value={item.status || 'nouveau'}
-              onChange={e => handleStatusChange(e.target.value)}
-              onClick={e => e.stopPropagation()}
-              className="px-2 py-1.5 border border-[#E8F5EE] rounded-lg text-xs text-[#1A1A2E] bg-white focus:outline-none focus:border-[#2ECC71]"
-              data-testid={`demand-status-select-${item.id}`}
-            >
-              {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+            {(item.status || 'nouveau') !== 'facture' && (
+              <button
+                onClick={e => { e.stopPropagation(); handleStatusChange('facture'); }}
+                className="flex items-center gap-1 px-2.5 py-1.5 border border-[#1A5C3A] rounded-full text-xs text-[#1A5C3A] font-medium hover:bg-[#E8F5EE] transition-colors min-h-[30px]"
+                data-testid={`demand-facture-btn-${item.id}`}
+              >
+                ✓ Facturé
+              </button>
+            )}
+            {showStatusMenu ? (
+              <select
+                autoFocus
+                value={item.status || 'nouveau'}
+                onChange={e => { handleStatusChange(e.target.value); setShowStatusMenu(false); }}
+                onBlur={() => setShowStatusMenu(false)}
+                onClick={e => e.stopPropagation()}
+                className="px-2 py-1.5 border border-[#E8F5EE] rounded-lg text-xs text-[#1A1A2E] bg-white focus:outline-none focus:border-[#2ECC71]"
+                data-testid={`demand-status-select-${item.id}`}
+              >
+                {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            ) : (
+              <button
+                onClick={e => { e.stopPropagation(); setShowStatusMenu(true); }}
+                className="text-xs text-[#1A1A2E]/50 underline hover:text-[#1A5C3A]"
+                data-testid={`demand-status-edit-${item.id}`}
+              >
+                Corriger le statut
+              </button>
+            )}
             <button
               onClick={e => { e.stopPropagation(); setPushCode(''); setPushError(''); setPushSuccess(false); setShowPushModal(true); }}
               className="p-1.5 rounded text-gray-300 hover:text-[#2ECC71] hover:bg-[#E8F5EE] transition-colors"
