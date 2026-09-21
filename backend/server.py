@@ -8,6 +8,7 @@ from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, Query
 from fastapi.responses import StreamingResponse
 from starlette.middleware.cors import CORSMiddleware
 import csv
+import re
 import io
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
@@ -499,7 +500,12 @@ STORE_INFO = {
         "phone": "07 49 95 24 72"
     }
 }
-RDV_SLOTS = {"9h-12h": (9, 12), "12h-14h": (12, 14), "14h-17h": (14, 17), "17h-20h": (17, 20)}
+# Mêmes plages que le formulaire de RDV du site : mêmes mots pour le client et l'équipe.
+RDV_SLOTS = {
+    "Matin (9h30-12h30)": ((9, 30), (12, 30)),
+    "Après-midi (14h-17h)": ((14, 0), (17, 0)),
+    "Fin de journée (17h-19h30)": ((17, 0), (19, 30)),
+}
 WEEKDAYS_FR = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
 
 def _format_paris_day(dt: datetime) -> str:
@@ -507,10 +513,15 @@ def _format_paris_day(dt: datetime) -> str:
     return f"{WEEKDAYS_FR[d.weekday()]} {d.strftime('%d/%m')}"
 
 def _rdv_bounds(rdv_date: str, slot: str):
-    start_h, end_h = RDV_SLOTS[slot]
+    (start_h, start_m), (end_h, end_m) = RDV_SLOTS[slot]
     day = datetime.strptime(rdv_date, "%Y-%m-%d")
-    return (day.replace(hour=start_h, tzinfo=PARIS_TZ).astimezone(timezone.utc),
-            day.replace(hour=end_h, tzinfo=PARIS_TZ).astimezone(timezone.utc))
+    return (day.replace(hour=start_h, minute=start_m, tzinfo=PARIS_TZ).astimezone(timezone.utc),
+            day.replace(hour=end_h, minute=end_m, tzinfo=PARIS_TZ).astimezone(timezone.utc))
+
+def _slot_hours(slot: Optional[str]) -> str:
+    """« Après-midi (14h-17h) » -> « 14h-17h »."""
+    m = re.search(r"\(([^)]+)\)", slot or "")
+    return m.group(1) if m else (slot or "")
 
 def _to_e164_fr(phone: str) -> str:
     digits = "".join(ch for ch in (phone or "") if ch.isdigit())
@@ -526,7 +537,8 @@ def _client_sms_text(doc: dict, kind: str) -> str:
     if kind == "rdv":
         where = (STORE_INFO.get(store_id) or {}).get("location") or (STORE_INFO.get(store_id) or {}).get("address") or ""
         day = _format_paris_day(datetime.fromisoformat(doc["appt_start_at"]))
-        text = f"Repair&Co : votre RDV est confirme le {day} ({doc.get('appt_slot')}) au magasin de {store}" + (f", {where}" if where else "") + ". A bientot !"
+        start, _, end = _slot_hours(doc.get("appt_slot")).partition("-")
+        text = f"Repair&Co : votre RDV est confirme le {day} entre {start} et {end} au magasin de {store}" + (f", {where}" if where else "") + ". A bientot !"
     else:
         now_p = datetime.now(PARIS_TZ)
         when = "aujourd'hui" if (now_p.weekday() < 6 and 9 <= now_p.hour < 18) else "des l'ouverture a 9h"
@@ -704,7 +716,7 @@ class CallLogRequest(BaseModel):
     note: Optional[str] = None
     quoted_price: Optional[str] = None
     rdv_date: Optional[str] = None  # AAAA-MM-JJ
-    rdv_slot: Optional[str] = None  # 9h-12h | 12h-14h | 14h-17h | 17h-20h
+    rdv_slot: Optional[str] = None  # une clé de RDV_SLOTS
 
 class RelanceLogRequest(BaseModel):
     by: str
@@ -1364,10 +1376,10 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
                     start_dt, end_dt = datetime.fromisoformat(d["appt_start_at"]), datetime.fromisoformat(d["appt_end_at"])
                     if now_utc >= end_dt + timedelta(hours=1):
                         section, group, sort_at = "maintenant", 8, d["appt_end_at"]
-                        label = f"RDV du {_format_paris_day(start_dt)} ({d.get('appt_slot')}) passé : le client est-il venu ?"
+                        label = f"RDV du {_format_paris_day(start_dt)} ({_slot_hours(d.get('appt_slot'))}) passé : le client est-il venu ?"
                     elif start_dt.astimezone(PARIS_TZ).date() == today_paris:
                         section, group, sort_at = "plus_tard", 9, d["appt_start_at"]
-                        label = f"RDV aujourd'hui, {d.get('appt_slot')}"
+                        label = f"RDV aujourd'hui, {_slot_hours(d.get('appt_slot'))}"
                 elif status == "devis_accepte" and last_call:
                     accepted_dt = datetime.fromisoformat(last_call["at"])
                     if now_utc >= accepted_dt + timedelta(hours=24):
@@ -1615,7 +1627,9 @@ def _demo_leads(now: datetime, by: str) -> list:
 
     tomorrow = open_day(1)
     cb_due, cb_later = now - timedelta(minutes=30), now + h(2)
-    rdv_past, rdv_today, rdv_old = appt(-1, "14h-17h"), appt(0, "17h-20h"), appt(-3, "9h-12h")
+    rdv_past = appt(-1, "Après-midi (14h-17h)")
+    rdv_today = appt(0, "Fin de journée (17h-19h30)")
+    rdv_old = appt(-3, "Matin (9h30-12h30)")
     no_answer_6 = [call(n, "pas_de_reponse", message_laisse=False) for n in (29, 27, 25, 6, 4, 2)]
     return [
         # Devis : un exemple de chaque statut
@@ -1645,7 +1659,7 @@ def _demo_leads(now: datetime, by: str) -> list:
               lost_reason_code="injoignable"),
         # Contact / RDV
         rdv_form("Camille", "Garcia", "Apple iPhone 14 Pro", "Écran", 0.4, tomorrow, "Après-midi (14h-17h)"),
-        rdv_form("Thomas", "Roux", "Samsung Galaxy S22", "Batterie", 6, tomorrow, "Matin (9h30-12h30)", "rdv_pris",
+        rdv_form("Thomas", "Roux", "Samsung Galaxy S22", "Batterie", 6, rdv_today["appt_date"], rdv_today["appt_slot"], "rdv_pris",
                  [call(5, "joint", "rdv_pris", quoted_price="89", **rdv_today)], quoted_price="89", **rdv_today),
         contact("Alice", "Fournier", "Question sur une réparation",
                 "Bonjour, mon téléphone ne charge plus. Est-ce réparable, et en combien de temps ?", 7, "pas_de_reponse",

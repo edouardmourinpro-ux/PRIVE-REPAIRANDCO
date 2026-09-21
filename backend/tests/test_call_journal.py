@@ -135,9 +135,9 @@ class TestCallOutcomeDrivesStatus:
         lead_id = _create_test_lead(headers)
         try:
             body = self._call(headers, lead_id, {"outcome": "joint", "detail": "rdv_pris", "quoted_price": "89",
-                                                 "rdv_date": "2030-01-15", "rdv_slot": "14h-17h"})
+                                                 "rdv_date": "2030-01-15", "rdv_slot": "Après-midi (14h-17h)"})
             assert body["new_status"] == "rdv_pris"
-            assert body["appt_slot"] == "14h-17h"
+            assert body["appt_slot"] == "Après-midi (14h-17h)"
             found = self._found(headers, lead_id)
             assert found["status"] == "rdv_pris"
             assert found["appt_date"] == "2030-01-15"

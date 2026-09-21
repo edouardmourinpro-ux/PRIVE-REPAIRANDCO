@@ -21,7 +21,10 @@ const Chip = ({ children, onClick, testId, variant = 'default', disabled = false
   </button>
 );
 
-export const RDV_SLOTS = ['9h-12h', '12h-14h', '14h-17h', '17h-20h'];
+// Mêmes plages que le formulaire de RDV du site.
+export const RDV_SLOTS = ['Matin (9h30-12h30)', 'Après-midi (14h-17h)', 'Fin de journée (17h-19h30)'];
+// « Après-midi (14h-17h) » -> « 14h-17h »
+export const slotHours = slot => ((slot || '').match(/\(([^)]+)\)/) || [])[1] || slot || '';
 
 const todayIso = () => {
   const d = new Date();
@@ -33,7 +36,7 @@ const Question = ({ children }) => <p className="text-sm font-semibold text-[#1A
 
 // Panneau « Journal d'appel » : le résultat de l'appel fixe le statut et la prochaine action.
 // Aucun texte obligatoire : des boutons, plus le prix et la date quand il le faut.
-export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEmail, onOpenWhatsApp }) => {
+export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEmail, onOpenWhatsApp, clientRdv }) => {
   const [step, setStep] = useState('root');
   const [detail, setDetail] = useState(null);
   const [price, setPrice] = useState('');
@@ -46,10 +49,12 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEma
 
   useEffect(() => {
     if (open) {
-      setStep('root'); setDetail(null); setPrice(''); setRdvDate(todayIso()); setAnswers({});
+      // RDV demandé sur le site : on part de la date choisie par le client
+      const clientDate = clientRdv?.date && clientRdv.date >= todayIso() ? clientRdv.date : todayIso();
+      setStep('root'); setDetail(null); setPrice(''); setRdvDate(clientDate); setAnswers({});
       setNote(''); setShowNote(false); setCustomDate(''); setSubmitting(false);
     }
-  }, [open]);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = async (payload) => {
     setSubmitting(true);
@@ -165,9 +170,12 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEma
                 className="w-full px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm min-h-[44px] mb-2"
                 data-testid={`call-rdv-date-${itemId}`}
               />
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid gap-2">
                 {RDV_SLOTS.map(slot => (
-                  <Chip key={slot} onClick={() => rdvDate && submit(joint({ rdv_date: rdvDate, rdv_slot: slot }))} disabled={!rdvDate || submitting} testId={`call-rdv-slot-${slot}-${itemId}`}>{slot}</Chip>
+                  <Chip key={slot} onClick={() => rdvDate && submit(joint({ rdv_date: rdvDate, rdv_slot: slot }))} disabled={!rdvDate || submitting} testId={`call-rdv-slot-${slotHours(slot)}-${itemId}`}>
+                    {slot}
+                    {clientRdv?.slot === slot && rdvDate === clientRdv.date && <span className="ml-2 text-xs text-[#1A5C3A]">choisi par le client sur le site</span>}
+                  </Chip>
                 ))}
               </div>
             </div>

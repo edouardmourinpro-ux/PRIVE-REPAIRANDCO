@@ -16,7 +16,7 @@ import { STORES } from '../data/stores';
 import SEO from '../components/SEO';
 import { ALERT_SOUND_PRESETS, DEFAULT_ALERT_SOUND, playAlertSound } from '../lib/alertSounds';
 import { IdentityModal } from '../components/admin/IdentityModal';
-import { CallLogPanel } from '../components/admin/CallLogPanel';
+import { CallLogPanel, slotHours } from '../components/admin/CallLogPanel';
 import { ToCallTab } from '../components/admin/ToCallTab';
 import { LOST_REASON_OPTIONS, LOST_REASON_LABELS } from '../data/lostReasons';
 import { STAFF_IDENTITY_STORE_MAP } from '../data/staffIdentities';
@@ -37,7 +37,7 @@ const callResultLabel = (c) => {
     if (['rappeler', 'reflechit'].includes(c.detail) && c.callback_at) {
       try { l += `, ${new Date(c.callback_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`; } catch { /* ignore */ }
     }
-    if (c.detail === 'rdv_pris' && c.appt_start_at) l += `, ${formatDay(c.appt_start_at)} ${c.appt_slot}`;
+    if (c.detail === 'rdv_pris' && c.appt_start_at) l += `, ${formatDay(c.appt_start_at)} ${slotHours(c.appt_slot)}`;
     if (c.quoted_price) l += ` (prix annoncé : ${c.quoted_price})`;
     return l;
   }
@@ -79,7 +79,7 @@ const formatDay = iso => new Date(iso).toLocaleDateString('fr-FR', { weekday: 's
 const statusText = (item) => {
   const st = item.status || 'nouveau';
   const base = (STATUS_OPTIONS.find(s => s.value === st) || STATUS_OPTIONS[0]).label;
-  if (st === 'rdv_pris' && item.appt_start_at) return `RDV ${formatDay(item.appt_start_at)}, ${item.appt_slot}`;
+  if (st === 'rdv_pris' && item.appt_start_at) return `RDV ${formatDay(item.appt_start_at)}, ${slotHours(item.appt_slot)}`;
   if (['a_rappeler', 'reflechit'].includes(st) && item.callback_at) return `${base} · ${formatDayTime(item.callback_at)}`;
   return base;
 };
@@ -353,11 +353,6 @@ const AdminPage = () => {
     if (activeTab === 'a_appeler') loadToCall();
   };
 
-  const handlePushSMSDemand = async (id, code, category = activeTab) => {
-    await axios.post(`${API_URL}/api/admin/demandes/${category}/${id}/push-sms`, { code }, { headers: authHeaders });
-    if (activeTab === 'a_appeler') loadToCall();
-  };
-
   const handleRattrapage = async () => {
     setRattrapageLoading(true);
     setRattrapageError('');
@@ -603,8 +598,10 @@ const AdminPage = () => {
     );
   }
 
+  // « Maintenant » + « À classer » : ce que les équipes ont à faire tout de suite
+  const toCallNowCount = toCallData.filter(i => i.section !== 'plus_tard').length;
   const tabs = [
-    { id: 'a_appeler', label: 'À appeler', icon: Phone, count: toCallData.filter(i => i.section !== 'plus_tard').length },
+    { id: 'a_appeler', label: 'À appeler', icon: Phone, count: toCallNowCount },
     { id: 'devis', label: 'Devis', icon: FileText, count: stats?.devis },
     { id: 'contact', label: 'Contact / RDV', icon: MessageSquare, count: stats?.contact },
     { id: 'rachat', label: 'Rachat', icon: Recycle, count: stats?.rachat },
@@ -623,7 +620,7 @@ const AdminPage = () => {
           <h1 className="text-lg font-bold">Admin · Repair&Co</h1>
           <div className="flex items-center gap-3">
             <span className="text-white/80 text-sm hidden sm:inline" data-testid="admin-total-count">
-              {stats?.total || 0} demandes · <span className="text-red-300 font-semibold">{stats?.nouveau || 0} à traiter</span>
+              {stats?.total || 0} demandes · <span className="text-red-300 font-semibold">{toCallNowCount} à appeler</span>
             </span>
             <button
               onClick={() => { pendingActionRef.current = null; setShowIdentityModal(true); }}
@@ -631,13 +628,6 @@ const AdminPage = () => {
               data-testid="admin-identity-change-link"
             >
               👤 {currentIdentity || 'Non défini'} · changer
-            </button>
-            <button
-              onClick={() => { setRattrapageCode(''); setRattrapageError(''); setRattrapageResult(null); setShowRattrapageModal(true); }}
-              className="hidden sm:flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/30 rounded-full text-xs text-white font-medium transition-colors"
-              data-testid="admin-rattrapage-btn"
-            >
-              <RefreshCw size={13} /> Rattrapage
             </button>
             <Button onClick={handleLogout} variant="outline" size="sm" className="border-white text-white hover:bg-white/10 rounded-full text-xs" data-testid="admin-logout">
               <LogOut size={14} className="mr-1" /> Déconnexion
@@ -767,7 +757,6 @@ const AdminPage = () => {
                 onSaveStaffFeedback={(id, payload) => saveStaffFeedback(id, payload, item.category)}
                 onSaveQuotedPrice={(id, price) => saveQuotedPrice(id, price, item.category)}
                 onDelete={(id, code) => handleDeleteDemand(id, code, item.category)}
-                onPushSMS={(id, code) => handlePushSMSDemand(id, code, item.category)}
                 requireIdentity={requireIdentity}
                 onLogCall={(id, payload) => logCall(id, payload, item.category)}
                 onLogRelance={(id, payload) => logRelance(id, payload, item.category)}
@@ -836,7 +825,12 @@ const AdminPage = () => {
           </button>
         </div>
 
-        {showNotifTestPanel && <NotifTestPanel authHeaders={authHeaders} />}
+        {showNotifTestPanel && (
+          <NotifTestPanel
+            authHeaders={authHeaders}
+            onOpenRattrapage={() => { setRattrapageCode(''); setRattrapageError(''); setRattrapageResult(null); setShowRattrapageModal(true); }}
+          />
+        )}
 
         {/* Content */}
         {dataLoading ? (
@@ -854,7 +848,6 @@ const AdminPage = () => {
                 onSaveStaffFeedback={saveStaffFeedback}
                 onSaveQuotedPrice={saveQuotedPrice}
                 onDelete={handleDeleteDemand}
-                onPushSMS={handlePushSMSDemand}
                 requireIdentity={requireIdentity}
                 onLogCall={logCall}
                 onLogRelance={logRelance}
@@ -1072,7 +1065,7 @@ const NotifBadge = ({ item }) => {
 // Admin panel to manually test the SMS + email flow against a store's real
 // recipients, without creating a fake lead — and to create real is_test
 // leads that exercise the full escalation flow safely (TEST_RECIPIENT_* only).
-const NotifTestPanel = ({ authHeaders }) => {
+const NotifTestPanel = ({ authHeaders, onOpenRattrapage }) => {
   const [store, setStore] = useState(STORES[0]?.id || '');
   const [sendReal, setSendReal] = useState(false);
   const [confirmReal, setConfirmReal] = useState(false);
@@ -1250,11 +1243,20 @@ const NotifTestPanel = ({ authHeaders }) => {
           {digestResult && <p className="text-xs text-[#1A5C3A] w-full" data-testid="digest-test-result">✅ Digest [TEST] envoyé à {digestResult.to}</p>}
         </CardContent>
       </Card>
+
+      <Card className="bg-white border border-[#E8F5EE]" data-testid="admin-rattrapage-panel">
+        <CardContent className="p-4 flex items-center justify-between flex-wrap gap-2">
+          <p className="text-sm font-semibold text-[#1A1A2E] flex items-center gap-2"><RefreshCw size={15} className="text-[#1A5C3A]" /> Rattrapage des alertes</p>
+          <Button onClick={onOpenRattrapage} variant="outline" className="border-[#1A5C3A] text-[#1A5C3A] text-xs rounded-full" data-testid="admin-rattrapage-btn">
+            <RefreshCw size={14} className="mr-1" /> Rattrapage
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 };
 
-const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onPushSMS, requireIdentity, onLogCall, onLogRelance }) => {
+const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, requireIdentity, onLogCall, onLogRelance }) => {
   const [open, setOpen] = useState(false);
   const feedbackRef = useRef(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -1264,11 +1266,6 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   const [showLostModal, setShowLostModal] = useState(false);
   const [lostReasonCode, setLostReasonCode] = useState('');
   const [lostReasonText, setLostReasonText] = useState('');
-  const [showPushModal, setShowPushModal] = useState(false);
-  const [pushCode, setPushCode] = useState('');
-  const [pushError, setPushError] = useState('');
-  const [pushLoading, setPushLoading] = useState(false);
-  const [pushSuccess, setPushSuccess] = useState(false);
   const [showCallPanel, setShowCallPanel] = useState(false);
 
   const handleDeleteSubmit = async () => {
@@ -1292,18 +1289,6 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   };
 
   const handleCallSubmit = (payload) => onLogCall(item.id, { ...payload, by: localStorage.getItem('admin_identity') || '' });
-
-  const handlePushSubmit = async () => {
-    setPushLoading(true);
-    setPushError('');
-    try {
-      await onPushSMS(item.id, pushCode);
-      setPushSuccess(true);
-    } catch (err) {
-      setPushError(err.response?.data?.detail || 'Code incorrect');
-    }
-    setPushLoading(false);
-  };
 
   const getPrenom = () => item.first_name || (item.name || '').split(' ')[0] || '';
   const getNom = () => item.name || item.last_name || '';
@@ -1486,35 +1471,28 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             {open ? <ChevronUp size={20} className="text-[#1A5C3A] flex-shrink-0 ml-2" /> : <ChevronDown size={20} className="text-[#1A1A2E]/40 flex-shrink-0 ml-2" />}
           </button>
 
-          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+          {/* Colonnes de largeur fixe (écran large) : prix, statut et Appel alignés d'une ligne à l'autre */}
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end sm:flex-nowrap">
             <QuotedPriceInput
               itemId={item.id}
               initialValue={item.quoted_price || ''}
               onSave={onSaveQuotedPrice}
             />
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${currentStatus.color}`} data-testid={`demand-status-badge-${item.id}`}>
-              {statusText(item)}
-            </span>
-            <NotifBadge item={item} />
-            {callAttempts.length > 0 && (
-              <span className="flex items-center gap-1 text-xs text-[#1A5C3A] font-semibold" data-testid={`call-count-${item.id}`}>
-                <Phone size={12} /> {callAttempts.length}
+            <div className="sm:w-52 flex">
+              <span className={`text-xs px-2 py-1 rounded-full font-medium ${currentStatus.color}`} data-testid={`demand-status-badge-${item.id}`}>
+                {statusText(item)}
               </span>
-            )}
+            </div>
+            <span className="sm:w-3 flex justify-center"><NotifBadge item={item} /></span>
+            <span className="sm:w-8 flex items-center gap-1 text-xs text-[#1A5C3A] font-semibold" data-testid={callAttempts.length > 0 ? `call-count-${item.id}` : undefined}>
+              {callAttempts.length > 0 && <><Phone size={12} /> {callAttempts.length}</>}
+            </span>
             <button
               onClick={e => { e.stopPropagation(); requireIdentity(() => setShowCallPanel(true)); }}
               className="flex items-center gap-1 px-2.5 py-1.5 bg-[#1A5C3A] rounded-full text-xs text-white font-medium hover:bg-[#2ECC71] transition-colors min-h-[30px]"
               data-testid={`call-log-open-${item.id}`}
             >
               <Phone size={12} /> Appel
-            </button>
-            <button
-              onClick={e => { e.stopPropagation(); setPushCode(''); setPushError(''); setPushSuccess(false); setShowPushModal(true); }}
-              className="p-1.5 rounded text-gray-300 hover:text-[#2ECC71] hover:bg-[#E8F5EE] transition-colors"
-              title="Push SMS magasin"
-              data-testid={`demand-push-${item.id}`}
-            >
-              <RefreshCw size={13} />
             </button>
             <button
               onClick={e => { e.stopPropagation(); setDeleteCode(''); setDeleteError(''); setShowDeleteModal(true); }}
@@ -1630,44 +1608,6 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
         )}
       </CardContent>
 
-      {/* Push WhatsApp dialog */}
-      <Dialog open={showPushModal} onOpenChange={o => { setShowPushModal(o); if (!o) { setPushCode(''); setPushSuccess(false); } }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-[#1A1A2E] flex items-center gap-2">
-              <RefreshCw size={16} className="text-[#1A5C3A]" /> Push SMS magasin
-            </DialogTitle>
-            <DialogDescription>
-              Renvoie l'alerte SMS au magasin pour cette demande. Entrez le code de sécurité.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 mt-2">
-            {!pushSuccess ? (
-              <>
-                <Input type="password" placeholder="Code de sécurité" value={pushCode}
-                  onChange={e => setPushCode(e.target.value)}
-                  onKeyDown={async e => { if (e.key === 'Enter' && pushCode) await handlePushSubmit(); }}
-                  autoFocus data-testid={`push-code-input-${item.id}`} />
-                {pushError && <p className="text-red-600 text-sm">{pushError}</p>}
-                <div className="flex gap-2 justify-end">
-                  <Button variant="outline" onClick={() => setShowPushModal(false)} className="text-xs rounded-full">Annuler</Button>
-                  <Button onClick={handlePushSubmit} disabled={pushLoading || !pushCode}
-                    className="bg-[#1A5C3A] hover:bg-[#2ECC71] text-white text-xs rounded-full" data-testid={`push-confirm-${item.id}`}>
-                    {pushLoading ? <Loader2 className="animate-spin mr-1" size={14} /> : <RefreshCw size={14} className="mr-1" />}
-                    Envoyer
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-4">
-                <p className="text-[#1A5C3A] font-semibold">SMS envoyé !</p>
-                <Button onClick={() => setShowPushModal(false)} className="mt-3 bg-[#1A5C3A] text-white rounded-full text-xs">Fermer</Button>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Journal d'appel */}
       <CallLogPanel
         open={showCallPanel}
@@ -1677,6 +1617,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
         onSubmit={handleCallSubmit}
         onOpenEmail={item.email ? openRelanceEmail : undefined}
         onOpenWhatsApp={item.phone ? openRelanceWA : undefined}
+        clientRdv={item.rdv_date ? { date: item.rdv_date, slot: item.rdv_slot } : null}
       />
 
       {/* Client perdu — motif fixe en un clic */}
