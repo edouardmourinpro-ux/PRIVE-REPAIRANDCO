@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { Component, useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
 import {
@@ -1861,4 +1861,36 @@ const StaffFeedbackForm = ({ item, onSave }) => {
   );
 };
 
-export default AdminPage;
+// Filet de sécurité : jamais d'écran blanc. En cas d'erreur, on affiche le message et un bouton pour recharger.
+class AdminErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6" data-testid="admin-error">
+        <div className="max-w-md bg-white border border-red-200 rounded-xl p-6 text-center">
+          <p className="text-lg font-semibold text-[#1A1A2E] mb-2">L'admin a rencontré une erreur</p>
+          <p className="text-sm text-[#1A1A2E]/70 mb-4">Rechargez la page. Si le problème revient, faites une capture de ce message.</p>
+          <p className="text-xs text-red-700 bg-red-50 rounded p-2 mb-4 break-words">{String(this.state.error?.message || this.state.error)}</p>
+          <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-full bg-[#1A5C3A] text-white text-sm font-medium">Recharger</button>
+        </div>
+      </div>
+    );
+  }
+}
+
+const AdminPageWithBoundary = () => (
+  <AdminErrorBoundary>
+    <AdminPage />
+  </AdminErrorBoundary>
+);
+
+export default AdminPageWithBoundary;
