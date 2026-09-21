@@ -5,9 +5,9 @@ import { REFUS_REASON_OPTIONS } from '../../data/lostReasons';
 // Onglet « 📞 À appeler » : qui appeler, et quand. Calculé côté serveur.
 // Chaque demande s'ouvre comme dans les autres onglets (renderCard = DemandCard).
 const SECTIONS = [
-  { id: 'maintenant', title: 'À appeler maintenant', hint: 'Rappels dont l\'heure est passée, nouvelles demandes, relances.' },
-  { id: 'plus_tard', title: 'Plus tard aujourd\'hui', hint: 'Rappels prévus, avec l\'heure.' },
-  { id: 'a_classer', title: 'À classer', hint: '3 appels sans réponse sur 2 jours, ou client qui réfléchit toujours après 2 relances.' },
+  { id: 'maintenant', title: 'À appeler maintenant', hint: 'Rappels dont l\'heure est passée, nouvelles demandes, relances, clients attendus à vérifier.' },
+  { id: 'plus_tard', title: 'Plus tard aujourd\'hui', hint: 'Rappels et RDV prévus, avec l\'heure.' },
+  { id: 'a_classer', title: 'À classer', hint: '6 appels sans réponse, ou client qui réfléchit toujours après 2 relances.' },
 ];
 
 // Couleur du bandeau selon la raison de l'appel.
@@ -18,6 +18,9 @@ const GROUP_STYLE = {
   4: 'bg-gray-100 text-gray-800 border-gray-200',
   5: 'bg-blue-50 text-blue-800 border-blue-200',
   6: 'bg-gray-100 text-gray-800 border-gray-200',
+  7: 'bg-cyan-50 text-cyan-800 border-cyan-200',
+  8: 'bg-cyan-50 text-cyan-800 border-cyan-200',
+  9: 'bg-blue-50 text-blue-800 border-blue-200',
 };
 
 export const ToCallTab = ({ items, loading, requireIdentity, onStatusChange, onRefresh, renderCard }) => {

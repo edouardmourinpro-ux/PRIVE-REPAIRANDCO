@@ -441,6 +441,124 @@ async def send_email_tracked(to_addresses: str, subject: str, html_body: str, ki
     entry["at"] = datetime.now(timezone.utc).isoformat()
     return entry
 
+B2B_EMAIL = os.environ.get('B2B_EMAIL', 'david.m@repairandco.fr')
+CLIENT_SMS_ENABLED = os.environ.get('CLIENT_SMS_ENABLED', 'false').lower() == 'true'
+STORE_INFO = {
+    "lattes": {
+        "location": "CC Carrefour Grand Sud (Entrée 2)",
+        "address": "Av. Georges Frêche",
+        "city": "Lattes",
+        "phone": "07 88 80 93 86"
+    },
+    "montpellier-nord": {
+        "location": "CC Carrefour Trifontaine",
+        "address": "Route de Ganges",
+        "city": "Saint Clément de Rivière",
+        "phone": "09 87 13 68 93"
+    },
+    "montpellier-sud": {
+        "location": "CC Intermarché près d'Arènes",
+        "address": "Av. Mas d'Argelliers",
+        "city": "Montpellier",
+        "phone": "04 67 58 81 39"
+    },
+    "nimes-costieres": {
+        "location": "Shop Park Nîmes Costières",
+        "address": "400 Av. Dr Baillet",
+        "city": "Nîmes",
+        "phone": "07 57 53 23 89"
+    },
+    "nimes-etoile": {
+        "location": "CC Carrefour Nîmes Étoile",
+        "address": "116 Rue André Dupont",
+        "city": "Nîmes",
+        "phone": "04 66 84 80 79"
+    },
+    "beziers": {
+        "location": "",
+        "address": "12 Allées Paul Riquet",
+        "city": "Béziers",
+        "phone": "04 67 94 30 34"
+    },
+    "boulogne": {
+        "location": "CC Les Passages",
+        "address": "5 Rue Tony Garnier",
+        "city": "Boulogne-Billancourt",
+        "phone": "07 67 11 88 96"
+    },
+    "plaisir": {
+        "location": "CC Aushopping Grand Plaisir",
+        "address": "CD 161",
+        "city": "Plaisir",
+        "phone": "01 30 43 89 07"
+    },
+    "les-ulis": {
+        "location": "CC Ulis 2",
+        "address": "Av. de l'Aubrac",
+        "city": "Les Ulis",
+        "phone": "07 49 95 24 72"
+    }
+}
+RDV_SLOTS = {"9h-12h": (9, 12), "12h-14h": (12, 14), "14h-17h": (14, 17), "17h-20h": (17, 20)}
+WEEKDAYS_FR = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
+
+def _format_paris_day(dt: datetime) -> str:
+    d = dt.astimezone(PARIS_TZ)
+    return f"{WEEKDAYS_FR[d.weekday()]} {d.strftime('%d/%m')}"
+
+def _rdv_bounds(rdv_date: str, slot: str):
+    start_h, end_h = RDV_SLOTS[slot]
+    day = datetime.strptime(rdv_date, "%Y-%m-%d")
+    return (day.replace(hour=start_h, tzinfo=PARIS_TZ).astimezone(timezone.utc),
+            day.replace(hour=end_h, tzinfo=PARIS_TZ).astimezone(timezone.utc))
+
+def _to_e164_fr(phone: str) -> str:
+    digits = "".join(ch for ch in (phone or "") if ch.isdigit())
+    if digits.startswith("0033"):
+        digits = digits[2:]
+    if digits.startswith("0") and len(digits) == 10:
+        return "33" + digits[1:]
+    return digits
+
+def _client_sms_text(doc: dict, kind: str) -> str:
+    store_id = doc.get("store")
+    store = STORE_NAMES.get(store_id, "")
+    if kind == "rdv":
+        where = (STORE_INFO.get(store_id) or {}).get("location") or (STORE_INFO.get(store_id) or {}).get("address") or ""
+        day = _format_paris_day(datetime.fromisoformat(doc["appt_start_at"]))
+        text = f"Repair&Co : votre RDV est confirme le {day} ({doc.get('appt_slot')}) au magasin de {store}" + (f", {where}" if where else "") + ". A bientot !"
+    else:
+        now_p = datetime.now(PARIS_TZ)
+        when = "aujourd'hui" if (now_p.weekday() < 6 and 9 <= now_p.hour < 18) else "des l'ouverture a 9h"
+        text = f"Repair&Co : demande bien recue. Le magasin de {store} vous rappelle {when}. Merci de garder votre telephone a portee."
+    text = _strip_accents(text)
+    return text[:157] + "..." if len(text) > 160 else text
+
+async def _send_client_sms(collection_name: str, demand_id: str, doc: dict, kind: str) -> None:
+    """SMS au client : confirmation de la demande, ou du RDV. Rangé à part
+    (client_sms) : n'entre jamais dans la pastille d'alerte du magasin."""
+    if not (SMS_ENABLED and CLIENT_SMS_ENABLED) or doc.get("type") == "entreprise":
+        return
+    to = TEST_RECIPIENT_SMS if doc.get("is_test") else _to_e164_fr(doc.get("phone"))
+    if not to or not _is_french_mobile(to):
+        return
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if kind == "confirmation":
+        since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        if await db.client_sms_log.find_one({"phone": to, "kind": kind, "at": {"$gte": since}}):
+            return
+    await db.client_sms_log.insert_one({"phone": to, "kind": kind, "at": now_iso, "demand_id": demand_id})
+    entry = await send_sms(to, _client_sms_text(doc, kind), kind=f"client_{kind}")
+    if entry:
+        await db[collection_name].update_one({"id": demand_id}, {"$push": {"client_sms": entry}})
+
+async def _notify_b2b(collection_name: str, demand_id: str, store_id: str, subject: str, html_body: str, doc: dict, category: str) -> None:
+    """Demande Entreprise : un seul email, à David (B2B_EMAIL). Aucun magasin, aucun SMS."""
+    entry = await send_email_tracked(B2B_EMAIL, subject, html_body, kind="primary")
+    notifications = [entry] if entry else []
+    status = "ok" if entry and entry.get("status") == "sent" else "failed"
+    await db[collection_name].update_one({"id": demand_id}, {"$set": {"notifications": notifications, "notify_status": status}})
+
 def compute_notify_status(notifications: list) -> str:
     email_ok = any(n['channel'] == 'email' and n['status'] == 'sent' for n in notifications)
     if not SMS_ENABLED:
@@ -581,15 +699,20 @@ class CallLogRequest(BaseModel):
     callback_at: Optional[str] = None
     refus_reason: Optional[str] = None
     message_laisse: Optional[bool] = None
+    mail_envoye: Optional[bool] = None
+    message_envoye: Optional[bool] = None
     note: Optional[str] = None
     quoted_price: Optional[str] = None
+    rdv_date: Optional[str] = None  # AAAA-MM-JJ
+    rdv_slot: Optional[str] = None  # 9h-12h | 12h-14h | 14h-17h | 17h-20h
 
 class RelanceLogRequest(BaseModel):
     by: str
     channel: str  # email | whatsapp
 
 # Allowed status values (Phase 2 — pipeline 6 statuts)
-ALLOWED_STATUSES = {"nouveau", "contacte", "pris_en_charge", "facture", "refus_devis", "client_perdu"}
+ALLOWED_STATUSES = {"nouveau", "pas_de_reponse", "a_rappeler", "reflechit", "devis_accepte", "rdv_pris",
+                    "facture", "refus_devis", "client_perdu", "contacte", "pris_en_charge"}  # 2 derniers : anciens statuts
 # Map legacy → new
 LEGACY_STATUS_MAP = {
     "en_attente": "contacte",
@@ -627,8 +750,8 @@ CALL_JOINT_DETAILS = {"rdv_pris", "vient_magasin", "devis_accepte", "reflechit",
 CALLBACK_CHOICES = {"1h", "18h", "demain_10h", "custom"}
 
 CALL_DETAIL_LABELS = {
-    "rdv_pris": "RDV pris", "vient_magasin": "Vient en magasin",
-    "devis_accepte": "Devis accepté", "reflechit": "Réfléchit", "rappeler": "À rappeler", "refus": "Refus",
+    "rdv_pris": "Devis accepté + RDV pris", "vient_magasin": "Vient en magasin",
+    "devis_accepte": "Devis accepté, va venir", "reflechit": "Réfléchit", "rappeler": "À rappeler", "refus": "Refus",
 }
 
 # Statuts pour lesquels un lead n'a plus besoin d'être appelé (onglet "À appeler" — S19).
@@ -639,42 +762,33 @@ NON_CALLABLE_STATUSES = {"pris_en_charge", "facture", "refus_devis", "client_per
 # aux corrections. Un lead déjà facturé n'est jamais modifié par un appel.
 CALL_DETAILS_TAKEN_IN = {"rdv_pris", "vient_magasin", "devis_accepte"}
 
+STATUS_BY_CALL_DETAIL = {
+    "rdv_pris": "rdv_pris", "devis_accepte": "devis_accepte", "vient_magasin": "devis_accepte",
+    "reflechit": "reflechit", "rappeler": "a_rappeler", "refus": "refus_devis",
+}
+
 def _status_after_call(current: str, outcome: str, detail: Optional[str]) -> str:
+    """Le dernier appel décide du statut. Un lead facturé n'est jamais modifié par un appel."""
     if current == "facture":
         return current
     if outcome == "numero_invalide":
         return "client_perdu"
-    if outcome == "joint" and detail in CALL_DETAILS_TAKEN_IN:
-        return "pris_en_charge"
-    if outcome == "joint" and detail == "refus":
-        return "refus_devis"
-    # Pas de réponse, À rappeler, Réfléchit : le client est en cours de suivi.
-    return "contacte"
+    if outcome == "pas_de_reponse":
+        return "pas_de_reponse"
+    return STATUS_BY_CALL_DETAIL.get(detail, current)
 
 def _format_paris_hhmm(dt: datetime) -> str:
     p = dt.astimezone(PARIS_TZ)
     return f"{p.hour:02d}h{p.minute:02d}"
 
 def _unreachable_rule_satisfied(doc: dict) -> bool:
-    """« Injoignable » exige >= 3 appels "pas de réponse" répartis sur >= 2
-    jours calendaires distincts (heure de Paris) — mais SEULEMENT pour les
-    leads créés après le début du suivi complet (tracking_since). Un lead
-    plus ancien (créé avant tracking_since) a pu recevoir de vrais appels
-    jamais journalisés avant le déploiement : la règle ne s'applique pas."""
+    """« Injoignable » exige au moins 6 appels « pas de réponse », seulement pour
+    les leads créés après le début du suivi (tracking_since)."""
     created_at = doc.get("created_at")
     tracking_since = doc.get("tracking_since")
     if created_at and tracking_since and created_at < tracking_since:
         return True
-    days = set()
-    count = 0
-    for c in doc.get("call_attempts") or []:
-        if c.get("outcome") == "pas_de_reponse":
-            count += 1
-            try:
-                days.add(datetime.fromisoformat(c["at"]).astimezone(PARIS_TZ).date())
-            except Exception:
-                pass
-    return count >= 3 and len(days) >= 2
+    return sum(1 for c in doc.get("call_attempts") or [] if c.get("outcome") == "pas_de_reponse") >= 6
 
 def _resolve_callback_at(choice: Optional[str], custom_at: Optional[str]) -> Optional[str]:
     now_paris = datetime.now(PARIS_TZ)
@@ -711,7 +825,12 @@ def _call_result_label(entry: Optional[dict]) -> str:
             label += f" ({LOST_REASON_LABELS.get(entry['refus_reason'], entry['refus_reason'])})"
         return label
     if outcome == "pas_de_reponse":
-        return "Pas de réponse, message laissé" if entry.get("message_laisse") else "Pas de réponse, sans message"
+        parts = ["Pas de réponse", "message laissé" if entry.get("message_laisse") else "sans message"]
+        if entry.get("mail_envoye"):
+            parts.append("email envoyé")
+        if entry.get("message_envoye"):
+            parts.append("WhatsApp/SMS envoyé")
+        return ", ".join(parts)
     if outcome == "numero_invalide":
         return "Numéro invalide"
     return outcome or ""
@@ -774,6 +893,7 @@ async def create_quote(input: QuoteRequestCreate):
         "lost_reason_code": None, "tracking_since": now_str,
     })
     await db.demandes_devis.insert_one(doc)
+    asyncio.ensure_future(_send_client_sms("demandes_devis", doc["id"], doc, "confirmation"))
     asyncio.ensure_future(_sync_and_persist(
         "demandes_devis", doc["id"],
         first_name=doc.get('first_name'), last_name=doc['name'],
@@ -814,6 +934,7 @@ async def create_contact(input: ContactRequestCreate):
         "lost_reason_code": None, "tracking_since": now_str,
     })
     await db.demandes_contact.insert_one(doc)
+    asyncio.ensure_future(_send_client_sms("demandes_contact", doc["id"], doc, "confirmation"))
     asyncio.ensure_future(_sync_and_persist(
         "demandes_contact", doc["id"],
         first_name=doc.get('first_name'), last_name=doc['name'],
@@ -868,7 +989,7 @@ async def create_b2b(input: B2BRequestCreate):
         phone=doc['phone'], email=doc['email'],
     ))
     full_name = f"{doc['first_name']} {doc['last_name']}".strip()
-    asyncio.ensure_future(_notify_lead(
+    asyncio.ensure_future(_notify_b2b(
         "demandes_entreprise", doc["id"], doc.get("store"),
         f"[Repair&Co] Nouveau B2B — {full_name} — {doc['company']}",
         build_email_html(
@@ -906,6 +1027,7 @@ async def create_buyback(input: BuybackRequestCreate):
         "lost_reason_code": None, "tracking_since": now_str,
     })
     await db.demandes_rachat.insert_one(doc)
+    asyncio.ensure_future(_send_client_sms("demandes_rachat", doc["id"], doc, "confirmation"))
     asyncio.ensure_future(_sync_and_persist(
         "demandes_rachat", doc["id"],
         first_name=doc.get('first_name'), last_name=doc['name'],
@@ -989,6 +1111,8 @@ async def update_demand_status(category: str, demand_id: str, body: UpdateStatus
     if new_status not in ("client_perdu", "refus_devis"):
         update_fields["lost_reason_code"] = None
         update_fields["lost_reason"] = None
+    if new_status in ("facture", "refus_devis", "client_perdu"):
+        update_fields["callback_at"] = None
     if not doc.get("assigned_to"):
         update_fields["assigned_to"] = by
     if (doc.get("status") or "nouveau") == "nouveau" and not doc.get("first_contact_at"):
@@ -1015,7 +1139,9 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
     if body.outcome == "joint":
         if body.detail not in CALL_JOINT_DETAILS:
             raise HTTPException(status_code=400, detail="Détail d'appel invalide")
-        if body.detail == "rappeler":
+        if body.detail == "rdv_pris" and (not body.rdv_date or body.rdv_slot not in RDV_SLOTS):
+            raise HTTPException(status_code=400, detail="Date et plage horaire du RDV requises")
+        if body.detail == "rappeler" or (body.detail == "reflechit" and body.callback_choice):
             if body.callback_choice not in CALLBACK_CHOICES:
                 raise HTTPException(status_code=400, detail="Choix de rappel invalide")
             if body.callback_choice == "custom" and not body.callback_at:
@@ -1032,12 +1158,18 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
         "at": now_iso, "by": by, "outcome": body.outcome, "detail": body.detail,
         "refus_reason": body.refus_reason if body.detail == "refus" else None,
         "message_laisse": body.message_laisse if body.outcome == "pas_de_reponse" else None,
+        "mail_envoye": body.mail_envoye if body.outcome == "pas_de_reponse" else None,
+        "message_envoye": body.message_envoye if body.outcome == "pas_de_reponse" else None,
         "note": (body.note or "").strip() or None,
     }
-    if body.detail == "rappeler":
+    if body.detail == "rappeler" or (body.detail == "reflechit" and body.callback_choice):
         entry["callback_at"] = _resolve_callback_at(body.callback_choice, body.callback_at)
     elif body.detail == "reflechit":
         entry["callback_at"] = _business_days_later_10h(2)
+    if body.detail == "rdv_pris":
+        start_utc, end_utc = _rdv_bounds(body.rdv_date, body.rdv_slot)
+        entry.update({"appt_date": body.rdv_date, "appt_slot": body.rdv_slot,
+                      "appt_start_at": start_utc.isoformat(), "appt_end_at": end_utc.isoformat()})
 
     set_fields = {}
     quoted_price = (body.quoted_price or "").strip()
@@ -1062,11 +1194,17 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
     elif doc.get("lost_reason_code") or doc.get("lost_reason"):
         set_fields["lost_reason_code"] = None
         set_fields["lost_reason"] = None
+    # Prochaine action : heure de rappel, ou créneau du RDV.
+    set_fields["callback_at"] = entry.get("callback_at") if new_status in ("a_rappeler", "reflechit") else None
+    for k in ("appt_date", "appt_slot", "appt_start_at", "appt_end_at"):
+        set_fields[k] = entry.get(k) if new_status == "rdv_pris" else None
 
     update_op = {"$push": push_fields}
     if set_fields:
         update_op["$set"] = set_fields
     await db[col_name].update_one({"id": demand_id}, update_op)
+    if new_status == "rdv_pris" and current_status != "facture":
+        asyncio.ensure_future(_send_client_sms(col_name, demand_id, {**doc, **set_fields}, "rdv"))
     return {
         "status": "logged",
         "call_attempts_count": len(doc.get("call_attempts") or []) + 1,
@@ -1075,6 +1213,8 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
         "lost_reason_code": set_fields.get("lost_reason_code", doc.get("lost_reason_code")),
         "lost_reason": set_fields.get("lost_reason", doc.get("lost_reason")),
         "quoted_price": set_fields.get("quoted_price", doc.get("quoted_price")),
+        "appt_date": set_fields.get("appt_date"), "appt_slot": set_fields.get("appt_slot"),
+        "appt_start_at": set_fields.get("appt_start_at"), "appt_end_at": set_fields.get("appt_end_at"),
     }
 
 @api_router.post("/admin/demandes/{category}/{demand_id}/relance")
@@ -1094,9 +1234,6 @@ async def log_relance(category: str, demand_id: str, body: RelanceLogRequest, us
     now_iso = datetime.now(timezone.utc).isoformat()
     set_fields = {}
     push_fields = {"relances": {"at": now_iso, "by": by, "channel": body.channel}}
-    if (doc.get("status") or "nouveau") == "nouveau":
-        set_fields["status"] = "contacte"
-        push_fields["status_history"] = {"status": "contacte", "at": now_iso, "by": by}
     if not doc.get("first_contact_at"):
         set_fields["first_contact_at"] = now_iso
     if not doc.get("assigned_to"):
@@ -1156,6 +1293,8 @@ async def get_latest_demands(store: Optional[str] = Query(None), user=Depends(ge
         query["store"] = store
     items = []
     for demand_type, col_name in COLLECTIONS.items():
+        if demand_type == "entreprise":
+            continue
         docs = await db[col_name].find(
             query,
             {"_id": 0, "id": 1, "store": 1, "created_at": 1,
@@ -1196,6 +1335,8 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
 
     items = []
     for category, col_name in COLLECTIONS.items():
+        if category == "entreprise":
+            continue
         docs = await db[col_name].find(query, {"_id": 0}).to_list(2000)
         for d in docs:
             created_at = d.get("created_at")
@@ -1211,45 +1352,56 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
             call_attempts = d.get("call_attempts") or []
             last_call = call_attempts[-1] if call_attempts else None
             status = d.get("status") or "nouveau"
+            if status not in ("nouveau", "pas_de_reponse", "a_rappeler", "reflechit", "devis_accepte", "rdv_pris") and last_call:
+                # ancien statut : on se fie au dernier appel
+                status = "pas_de_reponse" if last_call.get("outcome") == "pas_de_reponse" else STATUS_BY_CALL_DETAIL.get(last_call.get("detail"), status)
             section, group, label, sort_at = None, None, None, created_at
             today_paris = now_utc.astimezone(PARIS_TZ).date()
-
-            reflechit_count = sum(1 for c in call_attempts if c.get("outcome") == "joint" and c.get("detail") == "reflechit")
-            if last_call and last_call.get("detail") == "reflechit" and reflechit_count >= 3:
-                section, group = "a_classer", 6
-                label = f"Réfléchit toujours après {reflechit_count - 1} relances"
-
-            if section is None and last_call and last_call.get("outcome") == "joint" and last_call.get("detail") in ("rappeler", "reflechit") and last_call.get("callback_at"):
-                try:
-                    cb_dt = datetime.fromisoformat(last_call["callback_at"])
-                    kind = "Relance du devis prévue" if last_call.get("detail") == "reflechit" else "Rappel prévu"
+            callback_at = d.get("callback_at") or (last_call or {}).get("callback_at")
+            reflechit_count = sum(1 for c in call_attempts if c.get("detail") == "reflechit")
+            try:
+                if status == "rdv_pris" and d.get("appt_end_at"):
+                    start_dt, end_dt = datetime.fromisoformat(d["appt_start_at"]), datetime.fromisoformat(d["appt_end_at"])
+                    if now_utc >= end_dt + timedelta(hours=1):
+                        section, group, sort_at = "maintenant", 8, d["appt_end_at"]
+                        label = f"RDV du {_format_paris_day(start_dt)} ({d.get('appt_slot')}) passé : le client est-il venu ?"
+                    elif start_dt.astimezone(PARIS_TZ).date() == today_paris:
+                        section, group, sort_at = "plus_tard", 9, d["appt_start_at"]
+                        label = f"RDV aujourd'hui, {d.get('appt_slot')}"
+                elif status == "devis_accepte" and last_call:
+                    accepted_dt = datetime.fromisoformat(last_call["at"])
+                    if now_utc >= accepted_dt + timedelta(hours=24):
+                        section, group, sort_at = "maintenant", 7, last_call["at"]
+                        label = f"Devis accepté le {_format_paris_day(accepted_dt)} : le client est-il venu ?"
+                elif status == "reflechit" and reflechit_count >= 3:
+                    section, group = "a_classer", 6
+                    label = f"Réfléchit toujours après {reflechit_count - 1} relances"
+                elif status in ("a_rappeler", "reflechit") and callback_at:
+                    cb_dt = datetime.fromisoformat(callback_at)
+                    kind = "Relance du devis prévue" if status == "reflechit" else "Rappel prévu"
                     if cb_dt <= now_utc:
                         late = " (en retard)" if (now_utc - cb_dt) > timedelta(minutes=15) else ""
-                        section, group, sort_at = "maintenant", 1, last_call["callback_at"]
+                        section, group, sort_at = "maintenant", 1, callback_at
                         label = f"{kind} à {_format_paris_hhmm(cb_dt)}{late}"
                     elif cb_dt.astimezone(PARIS_TZ).date() == today_paris:
-                        section, group, sort_at = "plus_tard", 5, last_call["callback_at"]
+                        section, group, sort_at = "plus_tard", 5, callback_at
                         label = f"{kind} à {_format_paris_hhmm(cb_dt)}"
-                except Exception:
-                    pass
-
-            if section is None and status == "nouveau":
-                section, group = "maintenant", 2
-                label = f"Nouvelle demande, attend depuis {_format_waiting_since(created_dt, now_utc)}"
-
-            if section is None and last_call and last_call.get("outcome") == "pas_de_reponse":
-                if _unreachable_rule_satisfied(d):
-                    section, group = "a_classer", 4
-                    label = "3 appels sans réponse sur 2 jours"
-                else:
-                    try:
+                elif status == "nouveau":
+                    section, group = "maintenant", 2
+                    label = f"Nouvelle demande, attend depuis {_format_waiting_since(created_dt, now_utc)}"
+                elif status == "pas_de_reponse" and last_call:
+                    no_answer = sum(1 for c in call_attempts if c.get("outcome") == "pas_de_reponse")
+                    if _unreachable_rule_satisfied(d):
+                        section, group = "a_classer", 4
+                        label = f"{no_answer} appels sans réponse"
+                    else:
                         last_call_dt = datetime.fromisoformat(last_call["at"])
                         if _business_minutes_elapsed(last_call_dt, now_utc) > 180:
                             day = last_call_dt.astimezone(PARIS_TZ).strftime("%d/%m")
                             section, group, sort_at = "maintenant", 3, last_call["at"]
                             label = f"{len(call_attempts) + 1}e appel (pas de réponse le {day} à {_format_paris_hhmm(last_call_dt)})"
-                    except Exception:
-                        pass
+            except Exception:
+                section = None
 
             if section is None:
                 continue
@@ -1363,6 +1515,8 @@ async def push_sms_rattrapage(body: DeleteRequest, user=Depends(get_current_admi
         raise HTTPException(status_code=403, detail="Code de sécurité incorrect")
     sent = []
     for category, col_name in COLLECTIONS.items():
+        if category == "entreprise":
+            continue
         docs = await db[col_name].find({"status": "nouveau"}, {"_id": 0}).to_list(500)
         for doc in docs:
             store_id = doc.get("store", "")
@@ -1388,28 +1542,30 @@ class NotificationsTestRequest(BaseModel):
 
 
 def _demo_call(at: datetime, by: str, outcome: str, detail: Optional[str] = None, **kw) -> dict:
-    entry = {"at": at.isoformat(), "by": by, "outcome": outcome, "detail": detail,
-             "refus_reason": None, "message_laisse": kw.get("message_laisse"), "note": None}
+    entry = {"at": at.isoformat(), "by": by, "outcome": outcome, "detail": detail, "refus_reason": None,
+             "message_laisse": kw.get("message_laisse"), "mail_envoye": kw.get("mail_envoye"),
+             "message_envoye": kw.get("message_envoye"), "note": None}
+    if kw.get("quoted_price"):
+        entry["quoted_price"] = kw["quoted_price"]
     if kw.get("callback_at"):
         entry["callback_at"] = kw["callback_at"].isoformat()
+    for k in ("appt_date", "appt_slot", "appt_start_at", "appt_end_at"):
+        if kw.get(k):
+            entry[k] = kw[k]
     return entry
 
-@api_router.post("/admin/notifications/demo-set")
-async def create_demo_set(user=Depends(get_current_admin)):
-    """Crée 6 demandes de démo sur le Magasin TEST pour essayer l'onglet « À appeler ».
-    Aucune notification, aucune escalade ; supprimées automatiquement après 48 h."""
-    now = datetime.now(timezone.utc)
-    by = "Équipe TEST"
-    await db.demandes_devis.delete_many({"is_test": True, "demo": True})
+def _demo_leads(now: datetime, by: str) -> list:
+    """Un exemple de chaque cas de l'onglet « À appeler »."""
+    h = lambda n: timedelta(hours=n)
 
-    def demo(first: str, model: str, issue: str, created: datetime, status: str = "nouveau", calls=()):
+    def demo(first, model, issue, created, status="nouveau", calls=(), **extra):
         c = created.isoformat()
         history = [{"status": "nouveau", "at": c, "by": "system"}]
         if status != "nouveau" and calls:
-            history.append({"status": status, "at": calls[0]["at"], "by": by})
+            history.append({"status": status, "at": calls[-1]["at"], "by": by})
         brand, _, short_model = model.partition(" ")
-        return {
-            "id": str(uuid.uuid4()), "type": "devis", "store": TEST_STORE_ID, "is_test": True, "demo": True,
+        doc = {
+            "id": str(uuid.uuid4()), "type": "devis", "demo": True,
             "first_name": first, "name": "Démo", "phone": "0600000000", "email": "demo@example.com",
             "device_type": "smartphone", "brand": brand, "model": short_model, "issue_types": [issue],
             "created_at": c, "tracking_since": c, "status": status, "status_history": history,
@@ -1417,27 +1573,49 @@ async def create_demo_set(user=Depends(get_current_admin)):
             "first_contact_at": calls[0]["at"] if calls else None, "lost_reason_code": None,
             "notifications": [], "escalations_sent": ["15min:skipped", "30min:skipped", "2h:skipped"],
         }
+        doc.update(extra)
+        return doc
 
-    h = lambda n: timedelta(hours=n)
-    docs = [
+    yesterday = (now.astimezone(PARIS_TZ) - timedelta(days=1)).strftime("%Y-%m-%d")
+    a_start, a_end = _rdv_bounds(yesterday, "14h-17h")
+    appt = {"appt_date": yesterday, "appt_slot": "14h-17h", "appt_start_at": a_start.isoformat(), "appt_end_at": a_end.isoformat()}
+    cb_due, cb_later = now - timedelta(minutes=30), now + h(2)
+    return [
         demo("Lucas", "Apple iPhone 14", "Écran", now - timedelta(minutes=12)),
-        demo("Emma", "Samsung Galaxy S23", "Batterie", now - h(5), "contacte",
-             [_demo_call(now - h(2), by, "joint", "rappeler", callback_at=now - timedelta(minutes=30))]),
-        demo("Léa", "Apple iPhone 12", "Face ID", now - h(4), "contacte",
-             [_demo_call(now - h(1), by, "joint", "rappeler", callback_at=now + h(2))]),
-        demo("Hugo", "Apple iPhone 13", "Connecteur de charge", now - h(24), "contacte",
-             [_demo_call(now - h(22), by, "pas_de_reponse", message_laisse=True)]),
-        demo("Chloé", "Xiaomi Redmi Note 12", "Écran", now - h(30), "contacte",
-             [_demo_call(now - h(29), by, "pas_de_reponse", message_laisse=False),
-              _demo_call(now - h(28), by, "pas_de_reponse", message_laisse=True),
-              _demo_call(now - h(2), by, "pas_de_reponse", message_laisse=False)]),
-        demo("Sarah", "Apple iPhone 15", "Écran", now - h(40), "contacte",
-             [_demo_call(now - h(39), by, "joint", "reflechit", callback_at=now - h(30)),
-              _demo_call(now - h(20), by, "joint", "reflechit", callback_at=now - h(10)),
-              _demo_call(now - h(1), by, "joint", "reflechit", callback_at=now - timedelta(minutes=5))]),
+        demo("Emma", "Samsung Galaxy S23", "Batterie", now - h(5), "a_rappeler",
+             [_demo_call(now - h(2), by, "joint", "rappeler", callback_at=cb_due)], callback_at=cb_due.isoformat()),
+        demo("Léa", "Apple iPhone 12", "Face ID", now - h(4), "reflechit",
+             [_demo_call(now - h(1), by, "joint", "reflechit", callback_at=cb_later, quoted_price="129 €")],
+             callback_at=cb_later.isoformat(), quoted_price="129 €"),
+        demo("Hugo", "Apple iPhone 13", "Connecteur de charge", now - h(24), "pas_de_reponse",
+             [_demo_call(now - h(22), by, "pas_de_reponse", message_laisse=True, mail_envoye=True, message_envoye=False)]),
+        demo("Chloé", "Xiaomi Redmi Note 12", "Écran", now - h(30), "pas_de_reponse",
+             [_demo_call(now - h(n), by, "pas_de_reponse", message_laisse=False) for n in (29, 27, 25, 6, 4, 2)]),
+        demo("Sarah", "Apple iPhone 15", "Écran", now - h(40), "reflechit",
+             [_demo_call(now - h(n), by, "joint", "reflechit", callback_at=now - h(n - 1), quoted_price="149 €") for n in (39, 20, 3)],
+             callback_at=(now - h(2)).isoformat(), quoted_price="149 €"),
+        demo("Nathan", "Google Pixel 7", "Écran", now - h(40), "rdv_pris",
+             [_demo_call(now - h(30), by, "joint", "rdv_pris", quoted_price="99 €", **appt)], quoted_price="99 €", **appt),
+        demo("Inès", "Samsung Galaxy A54", "Batterie", now - h(30), "devis_accepte",
+             [_demo_call(now - h(26), by, "joint", "devis_accepte", quoted_price="79 €")], quoted_price="79 €"),
     ]
-    await db.demandes_devis.insert_many([dict(d) for d in docs])
-    return {"created": len(docs)}
+
+DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() == "true"
+DEMO_STORES = ["lattes", "plaisir", "montpellier-nord", "boulogne", "les-ulis", "nimes-costieres", "montpellier-sud", "nimes-etoile"]
+
+@api_router.post("/admin/notifications/demo-set")
+async def create_demo_set(user=Depends(get_current_admin)):
+    """Crée un exemple de chaque cas de l'onglet « À appeler ». Aucune notification,
+    aucune escalade. En production : sur le Magasin TEST, supprimés après 48 h.
+    Sur la démo (DEMO_MODE) : répartis sur les vrais magasins."""
+    now = datetime.now(timezone.utc)
+    await db.demandes_devis.delete_many({"demo": True})
+    docs = []
+    for i, d in enumerate(_demo_leads(now, "Équipe TEST" if not DEMO_MODE else "Démo")):
+        d.update({"store": DEMO_STORES[i % len(DEMO_STORES)], "is_test": False} if DEMO_MODE else {"store": TEST_STORE_ID, "is_test": True})
+        docs.append(d)
+    await db.demandes_devis.insert_many(docs)
+    return {"created": len(docs), "demo_mode": DEMO_MODE}
 
 class TestLeadCreateRequest(BaseModel):
     category: str  # "devis" or "contact"
@@ -1647,7 +1825,8 @@ async def get_admin_stats(
 
     stats = {}
     total_all = 0
-    by_status = {"nouveau": 0, "contacte": 0, "pris_en_charge": 0, "facture": 0, "refus_devis": 0, "client_perdu": 0}
+    by_status = {"nouveau": 0, "pas_de_reponse": 0, "a_rappeler": 0, "reflechit": 0, "devis_accepte": 0, "rdv_pris": 0,
+                 "contacte": 0, "pris_en_charge": 0, "facture": 0, "refus_devis": 0, "client_perdu": 0}
     by_category_status = {}
     for key, col_name in COLLECTIONS.items():
         count = await db[col_name].count_documents(base_query)
@@ -1666,6 +1845,8 @@ async def get_admin_stats(
     stats["facture"] = by_status["facture"]
     stats["refus_devis"] = by_status["refus_devis"]
     stats["client_perdu"] = by_status["client_perdu"]
+    for st in ("pas_de_reponse", "a_rappeler", "reflechit", "devis_accepte", "rdv_pris"):
+        stats[st] = by_status[st]
     stats["by_category_status"] = by_category_status
     return stats
 
@@ -1742,7 +1923,8 @@ async def export_all_demandes_csv(store: Optional[str] = Query(None), date_from:
             if k in d and k not in seen:
                 cols_raw.append(k); seen.add(k); break
     # Colonnes internes jamais exportées telles quelles (remplacées par les colonnes calculées ci-dessus)
-    seen.update({"status_history", "call_attempts", "tracking_since", "relances"})
+    seen.update({"status_history", "call_attempts", "tracking_since", "relances", "client_sms", "callback_at",
+                 "appt_date", "appt_slot", "appt_start_at", "appt_end_at", "demo"})
     for d in all_docs:
         for k in d.keys():
             if k not in seen and k != "id":
@@ -2078,6 +2260,8 @@ async def _run_escalation_once():
     now_utc = datetime.now(timezone.utc)
     now_is_open = _is_business_hours()
     for category, col_name in COLLECTIONS.items():
+        if category == "entreprise":
+            continue
         docs = await db[col_name].find({"status": "nouveau"}, {"_id": 0}).to_list(500)
         for doc in docs:
             created_at = doc.get("created_at")

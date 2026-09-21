@@ -150,6 +150,9 @@ def test_group4_injoignable_ready(headers, db):
             {"at": (now - timedelta(days=3)).isoformat(), "outcome": "pas_de_reponse", "message_laisse": False, "by": "T"},
             {"at": (now - timedelta(days=2)).isoformat(), "outcome": "pas_de_reponse", "message_laisse": False, "by": "T"},
             {"at": (now - timedelta(days=1)).isoformat(), "outcome": "pas_de_reponse", "message_laisse": False, "by": "T"},
+            {"at": (now - timedelta(hours=20)).isoformat(), "outcome": "pas_de_reponse", "message_laisse": False, "by": "T"},
+            {"at": (now - timedelta(hours=10)).isoformat(), "outcome": "pas_de_reponse", "message_laisse": False, "by": "T"},
+            {"at": (now - timedelta(hours=5)).isoformat(), "outcome": "pas_de_reponse", "message_laisse": False, "by": "T"},
         ]
         db.demandes_devis.update_one(
             {"id": lead_id},
@@ -160,7 +163,7 @@ def test_group4_injoignable_ready(headers, db):
         assert len(items) == 1
         it = items[0]
         assert it["group"] == 4, it
-        assert it["label"] == "3 appels sans réponse sur 2 jours", it["label"]
+        assert it["label"] == "6 appels sans réponse", it["label"]
 
         # Now PATCH to client_perdu/injoignable
         r2 = requests.patch(
@@ -213,13 +216,15 @@ def test_test_lead_excluded_when_no_store_filter(headers):
 def test_demo_set_covers_every_section(headers):
     r = requests.post(f"{BASE_URL}/api/admin/notifications/demo-set", headers=headers, timeout=15)
     assert r.status_code == 200, r.text
-    assert r.json()["created"] == 6
+    assert r.json()["created"] == 8
     items = requests.get(f"{BASE_URL}/api/admin/to-call", params={"store": "test"}, headers=headers, timeout=15).json()
     demo = [i for i in items if i.get("demo")]
     sections = {i["section"] for i in demo}
     assert {"maintenant", "a_classer"} <= sections
     assert any(i["group"] == 6 for i in demo)  # réfléchit toujours après 2 relances
-    assert any(i["group"] == 4 for i in demo)  # 3 appels sans réponse
+    assert any(i["group"] == 4 for i in demo)  # 6 appels sans réponse
+    assert any(i["group"] == 7 for i in demo)  # devis accepté il y a plus de 24 h
+    assert any(i["group"] == 8 for i in demo)  # RDV passé
     # Jamais visibles sans le filtre Magasin TEST
     all_items = requests.get(f"{BASE_URL}/api/admin/to-call", headers=headers, timeout=15).json()
     assert not any(i.get("store") == "test" for i in all_items)

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
 import {
-  LogOut, FileText, MessageSquare, Building2, Recycle,
+  LogOut, FileText, MessageSquare, Recycle,
   Loader2, ChevronDown, ChevronUp, Clock, Phone, Mail,
   Download, Filter, Sparkles, MessageCircle, Save, Trash2, UserX, RefreshCw, ExternalLink,
   Bell, BellOff, Euro, Check,
@@ -25,8 +25,8 @@ import { DEVICE_TYPE_LABELS, parseRdvMessage, formatLeadTitle } from '../lib/lea
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const CALL_DETAIL_LABELS = {
-  rdv_pris: 'RDV pris', vient_magasin: 'Vient en magasin',
-  devis_accepte: 'Devis accepté', reflechit: 'Réfléchit', rappeler: 'À rappeler', refus: 'Refus',
+  rdv_pris: 'Devis accepté + RDV pris', vient_magasin: 'Vient en magasin',
+  devis_accepte: 'Devis accepté, va venir', reflechit: 'Réfléchit', rappeler: 'À rappeler', refus: 'Refus',
 };
 
 const callResultLabel = (c) => {
@@ -37,10 +37,16 @@ const callResultLabel = (c) => {
     if (['rappeler', 'reflechit'].includes(c.detail) && c.callback_at) {
       try { l += `, ${new Date(c.callback_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`; } catch { /* ignore */ }
     }
+    if (c.detail === 'rdv_pris' && c.appt_start_at) l += `, ${formatDay(c.appt_start_at)} ${c.appt_slot}`;
     if (c.quoted_price) l += ` (prix annoncé : ${c.quoted_price})`;
     return l;
   }
-  if (c.outcome === 'pas_de_reponse') return c.message_laisse ? 'Pas de réponse, message laissé' : 'Pas de réponse, sans message';
+  if (c.outcome === 'pas_de_reponse') {
+    const parts = ['Pas de réponse', c.message_laisse ? 'message laissé' : 'sans message'];
+    if (c.mail_envoye) parts.push('email envoyé');
+    if (c.message_envoye) parts.push('WhatsApp/SMS envoyé');
+    return parts.join(', ');
+  }
   if (c.outcome === 'numero_invalide') return 'Numéro invalide';
   return c.outcome || '';
 };
@@ -49,25 +55,34 @@ const callResultLabel = (c) => {
 // mais seulement pour les leads créés après le début du suivi complet (tracking_since).
 const canMarkUnreachable = (item) => {
   if (item.created_at && item.tracking_since && item.created_at < item.tracking_since) return true;
-  const days = new Set();
-  let count = 0;
-  (item.call_attempts || []).forEach(c => {
-    if (c.outcome === 'pas_de_reponse') {
-      count += 1;
-      try { days.add(new Date(c.at).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })); } catch { /* ignore */ }
-    }
-  });
-  return count >= 3 && days.size >= 2;
+  return (item.call_attempts || []).filter(c => c.outcome === 'pas_de_reponse').length >= 6;
 };
 
 const STATUS_OPTIONS = [
-  { value: 'nouveau',        label: 'Nouveau client',     color: 'bg-red-100 text-red-700' },
-  { value: 'contacte',       label: 'Client contacté',    color: 'bg-orange-100 text-orange-700' },
-  { value: 'pris_en_charge', label: 'Pris en charge',     color: 'bg-blue-100 text-blue-700' },
-  { value: 'facture',        label: 'Client Facturé',     color: 'bg-[#E8F5EE] text-[#1A5C3A]' },
-  { value: 'refus_devis',    label: 'Refus devis client', color: 'bg-gray-100 text-gray-700' },
-  { value: 'client_perdu',   label: 'Client Perdu',       color: 'bg-gray-200 text-gray-900' },
+  { value: 'nouveau',        label: 'Nouveau',                 color: 'bg-red-100 text-red-700' },
+  { value: 'pas_de_reponse', label: 'Pas de réponse',          color: 'bg-orange-100 text-orange-700' },
+  { value: 'a_rappeler',     label: 'À rappeler',              color: 'bg-amber-100 text-amber-800' },
+  { value: 'reflechit',      label: 'Réfléchit',               color: 'bg-purple-100 text-purple-700' },
+  { value: 'devis_accepte',  label: 'Devis accepté, va venir', color: 'bg-blue-100 text-blue-700' },
+  { value: 'rdv_pris',       label: 'RDV pris',                color: 'bg-cyan-100 text-cyan-800' },
+  { value: 'facture',        label: 'Facturé',                 color: 'bg-[#E8F5EE] text-[#1A5C3A]' },
+  { value: 'refus_devis',    label: 'Refus',                   color: 'bg-gray-100 text-gray-700' },
+  { value: 'client_perdu',   label: 'Perdu',                   color: 'bg-gray-200 text-gray-900' },
+  { value: 'contacte',       label: 'Contacté (ancien)',       color: 'bg-orange-50 text-orange-700' },
+  { value: 'pris_en_charge', label: 'Pris en charge (ancien)', color: 'bg-blue-50 text-blue-700' },
 ];
+
+const formatDayTime = iso => new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const formatDay = iso => new Date(iso).toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+
+// Statut affiché avec la prochaine action (heure de rappel, créneau du RDV).
+const statusText = (item) => {
+  const st = item.status || 'nouveau';
+  const base = (STATUS_OPTIONS.find(s => s.value === st) || STATUS_OPTIONS[0]).label;
+  if (st === 'rdv_pris' && item.appt_start_at) return `RDV ${formatDay(item.appt_start_at)}, ${item.appt_slot}`;
+  if (['a_rappeler', 'reflechit'].includes(st) && item.callback_at) return `${base} · ${formatDayTime(item.callback_at)}`;
+  return base;
+};
 
 const SOURCE_LABELS = {
   google: 'Google',
@@ -95,6 +110,7 @@ const AdminPage = () => {
   const [loginLoading, setLoginLoading] = useState(false);
 
   const [activeTab, setActiveTab] = useState('a_appeler');
+  const [showAllDemands, setShowAllDemands] = useState(() => { try { return !!localStorage.getItem('admin_show_all'); } catch { return false; } });
   const [storeFilter, setStoreFilter] = useState(
     () => (typeof window !== 'undefined' && localStorage.getItem('admin_store_filter')) || ''
   );
@@ -267,7 +283,7 @@ const AdminPage = () => {
     const nowIso = new Date().toISOString();
     setData(prev => prev.map(d => {
       if (d.id !== id) return d;
-      const entry = { at: nowIso, by: payload.by, outcome: payload.outcome, detail: payload.detail, refus_reason: payload.refus_reason, message_laisse: payload.message_laisse, note: payload.note, callback_at: res.data.callback_at || payload.callback_at, quoted_price: payload.quoted_price };
+      const entry = { at: nowIso, by: payload.by, outcome: payload.outcome, detail: payload.detail, refus_reason: payload.refus_reason, message_laisse: payload.message_laisse, note: payload.note, callback_at: res.data.callback_at || payload.callback_at, quoted_price: payload.quoted_price, mail_envoye: payload.mail_envoye, message_envoye: payload.message_envoye, appt_start_at: res.data.appt_start_at, appt_slot: res.data.appt_slot };
       const statusChanged = res.data.new_status && res.data.new_status !== d.status;
       return {
         ...d,
@@ -279,6 +295,9 @@ const AdminPage = () => {
         lost_reason_code: res.data.lost_reason_code ?? null,
         lost_reason: res.data.lost_reason ?? null,
         quoted_price: res.data.quoted_price ?? d.quoted_price,
+        callback_at: res.data.callback_at ?? null,
+        appt_date: res.data.appt_date ?? null, appt_slot: res.data.appt_slot ?? null,
+        appt_start_at: res.data.appt_start_at ?? null, appt_end_at: res.data.appt_end_at ?? null,
         first_contact_at: d.first_contact_at || nowIso,
         assigned_to: d.assigned_to || payload.by,
       };
@@ -588,7 +607,6 @@ const AdminPage = () => {
     { id: 'a_appeler', label: 'À appeler', icon: Phone, count: toCallData.filter(i => i.section !== 'plus_tard').length },
     { id: 'devis', label: 'Devis', icon: FileText, count: stats?.devis },
     { id: 'contact', label: 'Contact / RDV', icon: MessageSquare, count: stats?.contact },
-    { id: 'entreprise', label: 'Entreprise', icon: Building2, count: stats?.entreprise },
     { id: 'rachat', label: 'Rachat', icon: Recycle, count: stats?.rachat },
   ];
 
@@ -659,17 +677,20 @@ const AdminPage = () => {
             <option value="test">Magasin TEST</option>
           </select>
 
-          <DateRangePicker
-            onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
-          />
-
-          <Button
-            onClick={handleExportCSV}
-            className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full text-xs ml-auto"
-            data-testid="admin-export-csv"
-          >
-            <Download size={14} className="mr-1" /> Exporter CSV
-          </Button>
+          {activeTab !== 'a_appeler' && (
+            <>
+              <DateRangePicker
+                onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
+              />
+              <Button
+                onClick={handleExportCSV}
+                className="bg-[#1A5C3A] text-white hover:bg-[#2ECC71] rounded-full text-xs ml-auto"
+                data-testid="admin-export-csv"
+              >
+                <Download size={14} className="mr-1" /> Exporter CSV
+              </Button>
+            </>
+          )}
           <AlertsToggle
             enabled={alertsEnabled}
             soundArmed={soundArmed}
@@ -699,9 +720,9 @@ const AdminPage = () => {
           />
         </div>
 
-        {/* Tabs */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {tabs.map(t => (
+        {/* Onglets : « À appeler » pour les magasins, « Toutes les demandes » pour le pilotage */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          {tabs.filter(t => t.id === 'a_appeler' || showAllDemands).map(t => (
             <button
               key={t.id}
               onClick={() => setActiveTab(t.id)}
@@ -715,6 +736,19 @@ const AdminPage = () => {
               {t.count !== undefined && <span className={`ml-1 px-2 py-0.5 rounded-full text-xs ${activeTab === t.id ? 'bg-white/20' : 'bg-[#E8F5EE]'}`}>{t.count}</span>}
             </button>
           ))}
+          <button
+            onClick={() => {
+              const next = !showAllDemands;
+              setShowAllDemands(next);
+              try { localStorage.setItem('admin_show_all', next ? '1' : ''); } catch { /* ignore */ }
+              if (!next) setActiveTab('a_appeler');
+            }}
+            className="flex items-center gap-1 px-3 py-2 rounded-full text-xs font-medium text-[#1A1A2E]/60 hover:text-[#1A5C3A] hover:bg-[#E8F5EE]"
+            data-testid="admin-toggle-all-demands"
+          >
+            {showAllDemands ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {showAllDemands ? 'Ranger les demandes' : 'Toutes les demandes'}
+          </button>
         </div>
 
         {activeTab === 'a_appeler' ? (
@@ -1215,7 +1249,6 @@ const NotifTestPanel = ({ authHeaders }) => {
 
 const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onPushSMS, requireIdentity, onLogCall, onLogRelance }) => {
   const [open, setOpen] = useState(false);
-  const [showStatusMenu, setShowStatusMenu] = useState(false);
   const feedbackRef = useRef(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteCode, setDeleteCode] = useState('');
@@ -1292,17 +1325,25 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
 
   const logRelance = (channel) => requireIdentity(() => onLogRelance?.(item.id, { channel, by: localStorage.getItem('admin_identity') || '' }));
 
-  const handleRelanceEmail = () => {
+  const openRelanceEmail = () => {
     const subject = encodeURIComponent('Votre demande de réparation chez Repair & Co');
     const body = encodeURIComponent(buildRelanceText());
     window.open(`mailto:${item.email}?subject=${subject}&body=${body}`);
+  };
+
+  const handleRelanceEmail = () => {
+    openRelanceEmail();
     logRelance('email');
   };
 
-  const handleRelanceWA = () => {
+  const openRelanceWA = () => {
     const phone = (item.phone || '').replace(/[\s\-().]/g, '').replace(/^0/, '33');
     const text = encodeURIComponent(buildRelanceText());
     window.open(`https://wa.me/${phone}?text=${text}`);
+  };
+
+  const handleRelanceWA = () => {
+    openRelanceWA();
     logRelance('whatsapp');
   };
 
@@ -1330,15 +1371,12 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
 
   const callAttempts = item.call_attempts || [];
   const lastCall = callAttempts.length ? callAttempts[callAttempts.length - 1] : null;
-  const pendingCallback = lastCall?.outcome === 'joint' && ['rappeler', 'reflechit'].includes(lastCall?.detail) && lastCall?.callback_at
-    && !['pris_en_charge', 'facture', 'refus_devis', 'client_perdu'].includes(item.status)
-    ? new Date(lastCall.callback_at).toLocaleString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-    : null;
   const unreachableAllowed = canMarkUnreachable(item);
   const timeline = [
     ...(item.status_history || []).map(h => ({ at: h.at, by: h.by, note: null, label: `Statut → ${STATUS_OPTIONS.find(s => s.value === h.status)?.label || h.status}` })),
     ...callAttempts.map(c => ({ at: c.at, by: c.by, note: c.note, label: `Appel : ${callResultLabel(c)}` })),
     ...(item.relances || []).map(r => ({ at: r.at, by: r.by, note: null, label: r.channel === 'whatsapp' ? 'Relance WhatsApp' : 'Relance Email' })),
+    ...(item.client_sms || []).map(m => ({ at: m.at, by: 'système', note: null, label: `SMS envoyé au client (${m.kind === 'client_rdv' ? 'confirmation du RDV' : 'demande bien reçue'})${m.status === 'sent' ? '' : ' : échec'}` })),
   ].sort((a, b) => new Date(a.at) - new Date(b.at));
 
   const getTitle = () => formatLeadTitle(item, type);
@@ -1411,6 +1449,17 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
     <Card className="bg-white border border-gray-100 hover:shadow-sm transition-shadow" data-testid={`demand-card-${item.id}`}>
       <CardContent className="p-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          {(item.status || 'nouveau') !== 'facture' ? (
+            <button
+              onClick={e => { e.stopPropagation(); requireIdentity(() => handleStatusChange('facture')); }}
+              className="self-start sm:self-center flex-shrink-0 flex items-center gap-1 px-3 py-2 border-2 border-[#1A5C3A] rounded-full text-xs text-[#1A5C3A] font-semibold hover:bg-[#E8F5EE] transition-colors min-h-[36px]"
+              data-testid={`demand-facture-btn-${item.id}`}
+            >
+              ✓ Facturé
+            </button>
+          ) : (
+            <span className="self-start sm:self-center flex-shrink-0 px-3 py-2 rounded-full text-xs font-semibold bg-[#E8F5EE] text-[#1A5C3A]" data-testid={`demand-facture-done-${item.id}`}>✓ Facturé</span>
+          )}
           <button onClick={() => setOpen(!open)} className="flex-1 flex items-center justify-between text-left min-w-0" data-testid={`demand-toggle-${item.id}`}>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -1436,18 +1485,13 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
               initialValue={item.quoted_price || ''}
               onSave={onSaveQuotedPrice}
             />
-            <span className={`text-xs px-2 py-1 rounded-full font-medium hidden sm:inline ${currentStatus.color}`} data-testid={`demand-status-badge-${item.id}`}>
-              {currentStatus.label}
+            <span className={`text-xs px-2 py-1 rounded-full font-medium ${currentStatus.color}`} data-testid={`demand-status-badge-${item.id}`}>
+              {statusText(item)}
             </span>
             <NotifBadge item={item} />
             {callAttempts.length > 0 && (
               <span className="flex items-center gap-1 text-xs text-[#1A5C3A] font-semibold" data-testid={`call-count-${item.id}`}>
                 <Phone size={12} /> {callAttempts.length}
-              </span>
-            )}
-            {pendingCallback && (
-              <span className="text-xs px-2 py-1 rounded-full font-medium bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap" data-testid={`callback-badge-${item.id}`}>
-                ⏰ {lastCall?.detail === 'reflechit' ? 'Relance devis' : 'Rappel'} {pendingCallback}
               </span>
             )}
             <button
@@ -1457,36 +1501,6 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             >
               <Phone size={12} /> Appel
             </button>
-            {(item.status || 'nouveau') !== 'facture' && (
-              <button
-                onClick={e => { e.stopPropagation(); handleStatusChange('facture'); }}
-                className="flex items-center gap-1 px-2.5 py-1.5 border border-[#1A5C3A] rounded-full text-xs text-[#1A5C3A] font-medium hover:bg-[#E8F5EE] transition-colors min-h-[30px]"
-                data-testid={`demand-facture-btn-${item.id}`}
-              >
-                ✓ Facturé
-              </button>
-            )}
-            {showStatusMenu ? (
-              <select
-                autoFocus
-                value={item.status || 'nouveau'}
-                onChange={e => { handleStatusChange(e.target.value); setShowStatusMenu(false); }}
-                onBlur={() => setShowStatusMenu(false)}
-                onClick={e => e.stopPropagation()}
-                className="px-2 py-1.5 border border-[#E8F5EE] rounded-lg text-xs text-[#1A1A2E] bg-white focus:outline-none focus:border-[#2ECC71]"
-                data-testid={`demand-status-select-${item.id}`}
-              >
-                {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-            ) : (
-              <button
-                onClick={e => { e.stopPropagation(); setShowStatusMenu(true); }}
-                className="text-xs text-[#1A1A2E]/50 underline hover:text-[#1A5C3A]"
-                data-testid={`demand-status-edit-${item.id}`}
-              >
-                Corriger le statut
-              </button>
-            )}
             <button
               onClick={e => { e.stopPropagation(); setPushCode(''); setPushError(''); setPushSuccess(false); setShowPushModal(true); }}
               className="p-1.5 rounded text-gray-300 hover:text-[#2ECC71] hover:bg-[#E8F5EE] transition-colors"
@@ -1654,6 +1668,8 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
         itemId={item.id}
         phone={item.phone}
         onSubmit={handleCallSubmit}
+        onOpenEmail={item.email ? openRelanceEmail : undefined}
+        onOpenWhatsApp={item.phone ? openRelanceWA : undefined}
       />
 
       {/* Client perdu — motif fixe en un clic */}
@@ -1690,7 +1706,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
                     </button>
                     {r.value === 'injoignable' && disabled && (
                       <p className="text-[11px] text-gray-400 mt-1 px-1" data-testid={`lost-reason-injoignable-hint-${item.id}`}>
-                        {passDeReponseCount}/3 appels : il faut 3 appels sans réponse sur 2 jours différents
+                        {passDeReponseCount}/6 appels sans réponse
                       </p>
                     )}
                   </div>

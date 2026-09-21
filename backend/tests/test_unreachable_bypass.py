@@ -39,7 +39,7 @@ class TestUnreachableBypass:
         }
         assert _unreachable_rule_satisfied(doc) is False
 
-    def test_new_lead_3_attempts_2_days_passes(self):
+    def test_new_lead_3_attempts_2_days_no_longer_enough(self):
         doc = {
             "created_at": "2025-10-01T00:00:00+00:00",
             "tracking_since": "2025-09-14T00:00:00+00:00",
@@ -49,7 +49,7 @@ class TestUnreachableBypass:
                 {"outcome": "pas_de_reponse", "at": "2025-10-03T09:00:00+00:00"},
             ],
         }
-        assert _unreachable_rule_satisfied(doc) is True
+        assert _unreachable_rule_satisfied(doc) is False  # règle du 21/09/2026 : 6 appels
 
     def test_missing_tracking_since_uses_standard_rule(self):
         """No tracking_since -> standard rule applies (0 attempts -> False)."""
@@ -58,3 +58,11 @@ class TestUnreachableBypass:
             "call_attempts": [],
         }
         assert _unreachable_rule_satisfied(doc) is False
+
+    def test_new_lead_6_attempts_passes(self):
+        doc = {
+            "created_at": "2025-10-01T10:00:00+00:00",
+            "tracking_since": "2025-10-01T10:00:00+00:00",
+            "call_attempts": [{"outcome": "pas_de_reponse", "at": f"2025-10-0{d}T09:00:00+00:00"} for d in range(2, 8)],
+        }
+        assert _unreachable_rule_satisfied(doc) is True
