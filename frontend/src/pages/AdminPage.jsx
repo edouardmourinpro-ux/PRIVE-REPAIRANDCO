@@ -1223,11 +1223,11 @@ const NotifTestPanel = ({ authHeaders }) => {
               {demoLoading && <Loader2 className="animate-spin mr-1" size={14} />}
               Créer des demandes de démo
             </Button>
-            <span className="text-xs text-[#1A1A2E]/60">6 demandes sur le Magasin TEST pour essayer l'onglet « À appeler ». Aucun envoi, supprimées après 48 h.</span>
+            <span className="text-xs text-[#1A1A2E]/60">Un exemple de chaque statut, dans chaque onglet. Remet la démo à zéro. Aucun envoi.</span>
           </div>
           {demoResult && (
             <p className="text-xs text-[#1A5C3A] mt-2" data-testid="demo-set-result">
-              ✅ {demoResult.created} demandes de démo créées. Dans « Magasin », choisissez « Magasin TEST », puis ouvrez l'onglet « À appeler ».
+              ✅ {demoResult.created} demandes de démo créées.{!demoResult.demo_mode && ' Dans « Magasin », choisissez « Magasin TEST ».'}
             </p>
           )}
           {leadError && <p className="text-red-600 text-xs mt-2">{leadError}</p>}
