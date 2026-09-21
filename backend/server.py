@@ -1104,7 +1104,7 @@ async def update_demand_status(category: str, demand_id: str, body: UpdateStatus
         if body.lost_reason_code not in LOST_REASON_CODES:
             raise HTTPException(status_code=400, detail="Motif de perte invalide")
         if new_status == "client_perdu" and body.lost_reason_code == "injoignable" and not _unreachable_rule_satisfied(doc):
-            raise HTTPException(status_code=400, detail="Il faut au moins 3 appels « Pas de réponse » sur 2 jours différents avant de marquer Injoignable.")
+            raise HTTPException(status_code=400, detail="Il faut 6 appels « Pas de réponse » avant de classer Injoignable.")
         update_fields["lost_reason_code"] = body.lost_reason_code
     if body.lost_reason:
         update_fields["lost_reason"] = body.lost_reason
@@ -1542,7 +1542,7 @@ class NotificationsTestRequest(BaseModel):
 
 
 def _demo_call(at: datetime, by: str, outcome: str, detail: Optional[str] = None, **kw) -> dict:
-    entry = {"at": at.isoformat(), "by": by, "outcome": outcome, "detail": detail, "refus_reason": None,
+    entry = {"at": at.isoformat(), "by": by, "outcome": outcome, "detail": detail, "refus_reason": kw.get("refus_reason"),
              "message_laisse": kw.get("message_laisse"), "mail_envoye": kw.get("mail_envoye"),
              "message_envoye": kw.get("message_envoye"), "note": None}
     if kw.get("quoted_price"):
@@ -1554,50 +1554,112 @@ def _demo_call(at: datetime, by: str, outcome: str, detail: Optional[str] = None
             entry[k] = kw[k]
     return entry
 
-def _demo_leads(now: datetime, by: str) -> list:
-    """Un exemple de chaque cas de l'onglet « À appeler »."""
-    h = lambda n: timedelta(hours=n)
+DEMO_TYPES = {"demandes_devis": "devis", "demandes_contact": "contact", "demandes_rachat": "rachat"}
 
-    def demo(first, model, issue, created, status="nouveau", calls=(), **extra):
+def _demo_leads(now: datetime, by: str) -> list:
+    """Des exemples de chaque statut dans chaque onglet (Devis, Contact / RDV, Rachat).
+    Renvoie des couples (collection, document)."""
+    h = lambda n: timedelta(hours=n)
+    call = lambda hours_ago, *a, **kw: _demo_call(now - h(hours_ago), by, *a, **kw)
+
+    def demo(col, first, name, created, status="nouveau", calls=(), **fields):
         c = created.isoformat()
         history = [{"status": "nouveau", "at": c, "by": "system"}]
-        if status != "nouveau" and calls:
-            history.append({"status": status, "at": calls[-1]["at"], "by": by})
-        brand, _, short_model = model.partition(" ")
+        if status != "nouveau":
+            history.append({"status": status, "at": calls[-1]["at"] if calls else (created + h(1)).isoformat(), "by": by})
         doc = {
-            "id": str(uuid.uuid4()), "type": "devis", "demo": True,
-            "first_name": first, "name": "Démo", "phone": "0600000000", "email": "demo@example.com",
-            "device_type": "smartphone", "brand": brand, "model": short_model, "issue_types": [issue],
+            "id": str(uuid.uuid4()), "type": DEMO_TYPES[col], "demo": True,
+            "first_name": first, "name": name, "phone": "0600000000",
             "created_at": c, "tracking_since": c, "status": status, "status_history": history,
             "call_attempts": list(calls), "assigned_to": by if calls else None,
             "first_contact_at": calls[0]["at"] if calls else None, "lost_reason_code": None,
             "notifications": [], "escalations_sent": ["15min:skipped", "30min:skipped", "2h:skipped"],
         }
-        doc.update(extra)
-        return doc
+        doc.update(fields)
+        return col, doc
 
-    yesterday = (now.astimezone(PARIS_TZ) - timedelta(days=1)).strftime("%Y-%m-%d")
-    a_start, a_end = _rdv_bounds(yesterday, "14h-17h")
-    appt = {"appt_date": yesterday, "appt_slot": "14h-17h", "appt_start_at": a_start.isoformat(), "appt_end_at": a_end.isoformat()}
+    def devis(first, name, model, issue, hours_ago, status="nouveau", calls=(), **extra):
+        brand, _, short_model = model.partition(" ")
+        return demo("demandes_devis", first, name, now - h(hours_ago), status, calls,
+                    email=f"{first.lower()}@example.com", device_type="smartphone",
+                    brand=brand, model=short_model, issue_types=[issue], **extra)
+
+    def rdv_form(first, name, model, issue, hours_ago, day, slot, status="nouveau", calls=(), **extra):
+        brand, _, short_model = model.partition(" ")
+        return demo("demandes_contact", first, name, now - h(hours_ago), status, calls,
+                    email=f"{first.lower()}@example.com",
+                    subject=f"RDV : Smartphone {model} : {issue} : {day} {slot}", message="",
+                    rdv_device_type="smartphone", rdv_brand=brand, rdv_model=short_model,
+                    rdv_issue=issue, rdv_date=day, rdv_slot=slot, **extra)
+
+    def contact(first, name, subject, message, hours_ago, status="nouveau", calls=(), **extra):
+        return demo("demandes_contact", first, name, now - h(hours_ago), status, calls,
+                    email=f"{first.lower()}@example.com", subject=subject, message=message, **extra)
+
+    def rachat(first, name, model, condition, hours_ago, status="nouveau", calls=(), **extra):
+        brand, _, short_model = model.partition(" ")
+        return demo("demandes_rachat", first, name, now - h(hours_ago), status, calls,
+                    brand=brand, model=short_model, condition=condition, **extra)
+
+    def open_day(day_offset):
+        # jour d'ouverture (pas de dimanche), en allant dans le sens du décalage
+        d = now.astimezone(PARIS_TZ) + timedelta(days=day_offset)
+        if d.weekday() == 6 and day_offset:
+            d += timedelta(days=1 if day_offset > 0 else -1)
+        return d.strftime("%Y-%m-%d")
+
+    def appt(day_offset, slot):
+        day = open_day(day_offset)
+        start, end = _rdv_bounds(day, slot)
+        return {"appt_date": day, "appt_slot": slot, "appt_start_at": start.isoformat(), "appt_end_at": end.isoformat()}
+
+    tomorrow = open_day(1)
     cb_due, cb_later = now - timedelta(minutes=30), now + h(2)
+    rdv_past, rdv_today, rdv_old = appt(-1, "14h-17h"), appt(0, "17h-20h"), appt(-3, "9h-12h")
+    no_answer_6 = [call(n, "pas_de_reponse", message_laisse=False) for n in (29, 27, 25, 6, 4, 2)]
     return [
-        demo("Lucas", "Apple iPhone 14", "Écran", now - timedelta(minutes=12)),
-        demo("Emma", "Samsung Galaxy S23", "Batterie", now - h(5), "a_rappeler",
-             [_demo_call(now - h(2), by, "joint", "rappeler", callback_at=cb_due)], callback_at=cb_due.isoformat()),
-        demo("Léa", "Apple iPhone 12", "Face ID", now - h(4), "reflechit",
-             [_demo_call(now - h(1), by, "joint", "reflechit", callback_at=cb_later, quoted_price="129 €")],
-             callback_at=cb_later.isoformat(), quoted_price="129 €"),
-        demo("Hugo", "Apple iPhone 13", "Connecteur de charge", now - h(24), "pas_de_reponse",
-             [_demo_call(now - h(22), by, "pas_de_reponse", message_laisse=True, mail_envoye=True, message_envoye=False)]),
-        demo("Chloé", "Xiaomi Redmi Note 12", "Écran", now - h(30), "pas_de_reponse",
-             [_demo_call(now - h(n), by, "pas_de_reponse", message_laisse=False) for n in (29, 27, 25, 6, 4, 2)]),
-        demo("Sarah", "Apple iPhone 15", "Écran", now - h(40), "reflechit",
-             [_demo_call(now - h(n), by, "joint", "reflechit", callback_at=now - h(n - 1), quoted_price="149 €") for n in (39, 20, 3)],
-             callback_at=(now - h(2)).isoformat(), quoted_price="149 €"),
-        demo("Nathan", "Google Pixel 7", "Écran", now - h(40), "rdv_pris",
-             [_demo_call(now - h(30), by, "joint", "rdv_pris", quoted_price="99 €", **appt)], quoted_price="99 €", **appt),
-        demo("Inès", "Samsung Galaxy A54", "Batterie", now - h(30), "devis_accepte",
-             [_demo_call(now - h(26), by, "joint", "devis_accepte", quoted_price="79 €")], quoted_price="79 €"),
+        # Devis : un exemple de chaque statut
+        devis("Lucas", "Martin", "Apple iPhone 14", "Écran", 0.2),
+        devis("Emma", "Bernard", "Samsung Galaxy S23", "Batterie", 5, "a_rappeler",
+              [call(2, "joint", "rappeler", callback_at=cb_due)], callback_at=cb_due.isoformat()),
+        devis("Léa", "Petit", "Apple iPhone 12", "Face ID", 4, "reflechit",
+              [call(1, "joint", "reflechit", callback_at=cb_later, quoted_price="129")],
+              callback_at=cb_later.isoformat(), quoted_price="129"),
+        devis("Hugo", "Robert", "Apple iPhone 13", "Connecteur de charge", 24, "pas_de_reponse",
+              [call(22, "pas_de_reponse", message_laisse=True, mail_envoye=True, message_envoye=False)]),
+        devis("Chloé", "Richard", "Xiaomi Redmi Note 12", "Écran", 30, "pas_de_reponse", no_answer_6),
+        devis("Sarah", "Durand", "Apple iPhone 15", "Écran", 40, "reflechit",
+              [call(n, "joint", "reflechit", callback_at=now - h(n - 1), quoted_price="149") for n in (39, 20, 3)],
+              callback_at=(now - h(2)).isoformat(), quoted_price="149"),
+        devis("Nathan", "Dubois", "Google Pixel 7", "Écran", 40, "rdv_pris",
+              [call(30, "joint", "rdv_pris", quoted_price="99", **rdv_past)], quoted_price="99", **rdv_past),
+        devis("Inès", "Moreau", "Samsung Galaxy A54", "Batterie", 30, "devis_accepte",
+              [call(26, "joint", "devis_accepte", quoted_price="79")], quoted_price="79"),
+        devis("Paul", "Laurent", "Apple iPhone 11", "Batterie", 80, "facture",
+              [call(78, "joint", "rdv_pris", quoted_price="69", **rdv_old)], quoted_price="69", **rdv_old),
+        devis("Clara", "Simon", "Samsung Galaxy S21", "Écran", 50, "refus_devis",
+              [call(48, "joint", "refus", refus_reason="prix", quoted_price="139")],
+              quoted_price="139", lost_reason_code="prix"),
+        devis("Louis", "Michel", "Apple iPhone XR", "Écran", 80, "client_perdu",
+              [call(n, "pas_de_reponse", message_laisse=n > 50) for n in (79, 77, 56, 54, 31, 29)],
+              lost_reason_code="injoignable"),
+        # Contact / RDV
+        rdv_form("Camille", "Garcia", "Apple iPhone 14 Pro", "Écran", 0.4, tomorrow, "Après-midi (14h-17h)"),
+        rdv_form("Thomas", "Roux", "Samsung Galaxy S22", "Batterie", 6, tomorrow, "Matin (9h30-12h30)", "rdv_pris",
+                 [call(5, "joint", "rdv_pris", quoted_price="89", **rdv_today)], quoted_price="89", **rdv_today),
+        contact("Alice", "Fournier", "Question sur une réparation",
+                "Bonjour, mon téléphone ne charge plus. Est-ce réparable, et en combien de temps ?", 7, "pas_de_reponse",
+                [call(5, "pas_de_reponse", message_laisse=True, mail_envoye=False, message_envoye=False)]),
+        contact("Jules", "Girard", "Demande de devis",
+                "Écran cassé sur mon Galaxy S22, quel est le prix ?", 70, "facture",
+                [call(68, "joint", "devis_accepte", quoted_price="159")], quoted_price="159"),
+        # Rachat
+        rachat("Julie", "Bonnet", "Apple iPhone 13", "bon", 0.7),
+        rachat("Antoine", "Dupont", "Samsung Galaxy S22", "moyen", 3, "a_rappeler",
+               [call(1, "joint", "rappeler", callback_at=now + h(1))], callback_at=(now + h(1)).isoformat()),
+        rachat("Manon", "Lambert", "Apple iPhone 12", "abime", 26, "refus_devis",
+               [call(24, "joint", "refus", refus_reason="prix", quoted_price="80")],
+               quoted_price="80", lost_reason_code="prix"),
     ]
 
 DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() == "true"
@@ -1605,17 +1667,19 @@ DEMO_STORES = ["lattes", "plaisir", "montpellier-nord", "boulogne", "les-ulis", 
 
 @api_router.post("/admin/notifications/demo-set")
 async def create_demo_set(user=Depends(get_current_admin)):
-    """Crée un exemple de chaque cas de l'onglet « À appeler ». Aucune notification,
+    """Crée des exemples de chaque statut dans chaque onglet. Aucune notification,
     aucune escalade. En production : sur le Magasin TEST, supprimés après 48 h.
     Sur la démo (DEMO_MODE) : répartis sur les vrais magasins."""
     now = datetime.now(timezone.utc)
-    await db.demandes_devis.delete_many({"demo": True})
-    docs = []
-    for i, d in enumerate(_demo_leads(now, "Équipe TEST" if not DEMO_MODE else "Démo")):
+    by_col = {col: [] for col in DEMO_TYPES}
+    for i, (col, d) in enumerate(_demo_leads(now, "Équipe TEST" if not DEMO_MODE else "Démo")):
         d.update({"store": DEMO_STORES[i % len(DEMO_STORES)], "is_test": False} if DEMO_MODE else {"store": TEST_STORE_ID, "is_test": True})
-        docs.append(d)
-    await db.demandes_devis.insert_many(docs)
-    return {"created": len(docs), "demo_mode": DEMO_MODE}
+        by_col[col].append(d)
+    for col, docs in by_col.items():
+        await db[col].delete_many({"demo": True})
+        if docs:
+            await db[col].insert_many(docs)
+    return {"created": sum(len(v) for v in by_col.values()), "demo_mode": DEMO_MODE}
 
 class TestLeadCreateRequest(BaseModel):
     category: str  # "devis" or "contact"

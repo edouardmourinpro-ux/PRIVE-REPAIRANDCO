@@ -51,7 +51,7 @@ const callResultLabel = (c) => {
   return c.outcome || '';
 };
 
-// « Injoignable » exige >= 3 « pas de réponse » sur >= 2 jours distincts (Paris),
+// « Injoignable » exige >= 6 « pas de réponse »,
 // mais seulement pour les leads créés après le début du suivi complet (tracking_since).
 const canMarkUnreachable = (item) => {
   if (item.created_at && item.tracking_since && item.created_at < item.tracking_since) return true;
@@ -781,15 +781,22 @@ const AdminPage = () => {
           {(() => {
             const catStats = stats?.by_category_status?.[activeTab] || {};
             const totalCat = stats?.[activeTab] || 0;
+            const chip = (value, label, activeBg, idleBg, idleText, border) => ({ value, label, count: value === 'all' ? totalCat : (catStats[value] || 0), activeBg, activeText: 'text-white', idleBg, idleText, border });
             const statusTabs = [
-              { value: 'all',            label: 'Tous',                count: totalCat,                       activeBg: 'bg-[#1A1A2E]',   activeText: 'text-white', idleBg: 'bg-white',     idleText: 'text-[#1A1A2E]',  border: 'border-[#E8F5EE]' },
-              { value: 'nouveau',        label: 'Nouveau client',      count: catStats.nouveau || 0,          activeBg: 'bg-red-500',     activeText: 'text-white', idleBg: 'bg-red-50',    idleText: 'text-red-700',    border: 'border-red-100' },
-              { value: 'contacte',       label: 'Client contacté',     count: catStats.contacte || 0,         activeBg: 'bg-orange-500',  activeText: 'text-white', idleBg: 'bg-orange-50', idleText: 'text-orange-700', border: 'border-orange-100' },
-              { value: 'pris_en_charge', label: 'Pris en charge',      count: catStats.pris_en_charge || 0,   activeBg: 'bg-blue-500',    activeText: 'text-white', idleBg: 'bg-blue-50',   idleText: 'text-blue-700',   border: 'border-blue-100' },
-              { value: 'facture',        label: 'Client Facturé',      count: catStats.facture || 0,          activeBg: 'bg-[#1A5C3A]',   activeText: 'text-white', idleBg: 'bg-[#E8F5EE]', idleText: 'text-[#1A5C3A]',  border: 'border-[#E8F5EE]' },
-              { value: 'refus_devis',    label: 'Refus devis',         count: catStats.refus_devis || 0,      activeBg: 'bg-gray-500',    activeText: 'text-white', idleBg: 'bg-gray-50',   idleText: 'text-gray-700',   border: 'border-gray-200' },
-              { value: 'client_perdu',   label: 'Client Perdu',        count: catStats.client_perdu || 0,     activeBg: 'bg-gray-800',    activeText: 'text-white', idleBg: 'bg-gray-100',  idleText: 'text-gray-900',   border: 'border-gray-300' },
-            ];
+              chip('all',            'Tous',           'bg-[#1A1A2E]', 'bg-white',     'text-[#1A1A2E]',  'border-[#E8F5EE]'),
+              chip('nouveau',        'Nouveau',        'bg-red-500',   'bg-red-50',    'text-red-700',    'border-red-100'),
+              chip('pas_de_reponse', 'Pas de réponse', 'bg-orange-500','bg-orange-50', 'text-orange-700', 'border-orange-100'),
+              chip('a_rappeler',     'À rappeler',     'bg-amber-500', 'bg-amber-50',  'text-amber-800',  'border-amber-100'),
+              chip('reflechit',      'Réfléchit',      'bg-purple-500','bg-purple-50', 'text-purple-700', 'border-purple-100'),
+              chip('devis_accepte',  'Devis accepté',  'bg-blue-500',  'bg-blue-50',   'text-blue-700',   'border-blue-100'),
+              chip('rdv_pris',       'RDV pris',       'bg-cyan-600',  'bg-cyan-50',   'text-cyan-800',   'border-cyan-100'),
+              chip('facture',        'Facturé',        'bg-[#1A5C3A]', 'bg-[#E8F5EE]', 'text-[#1A5C3A]',  'border-[#E8F5EE]'),
+              chip('refus_devis',    'Refus',          'bg-gray-500',  'bg-gray-50',   'text-gray-700',   'border-gray-200'),
+              chip('client_perdu',   'Perdu',          'bg-gray-800',  'bg-gray-100',  'text-gray-900',   'border-gray-300'),
+              // anciens statuts : visibles seulement s'il reste des demandes dedans
+              chip('contacte',       'Contacté (ancien)',       'bg-orange-400', 'bg-white', 'text-orange-700', 'border-orange-100'),
+              chip('pris_en_charge', 'Pris en charge (ancien)', 'bg-blue-400',   'bg-white', 'text-blue-700',   'border-blue-100'),
+            ].filter(st => !['contacte', 'pris_en_charge'].includes(st.value) || st.count > 0 || statusFilter === st.value);
             return statusTabs.map(st => {
               const active = statusFilter === st.value;
               return (
@@ -1694,7 +1701,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
                     <button
                       disabled={disabled}
                       onClick={() => setLostReasonCode(r.value)}
-                      title={disabled ? 'Nécessite 3 appels « Pas de réponse » sur 2 jours différents' : ''}
+                      title={disabled ? 'Nécessite 6 appels « Pas de réponse »' : ''}
                       className={`w-full min-h-[44px] px-3 rounded-lg text-sm border text-left transition-colors ${
                         selected ? 'bg-red-600 text-white border-red-600'
                           : disabled ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
