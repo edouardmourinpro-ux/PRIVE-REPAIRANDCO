@@ -1676,7 +1676,53 @@ def _demo_leads(now: datetime, by: str) -> list:
                quoted_price="80", lost_reason_code="prix"),
     ]
 
+def _demo_one_store(now: datetime, by: str) -> list:
+    """Test1 à Test8 : un client par état, tous sur le même magasin."""
+    h = lambda n: timedelta(hours=n)
+    call = lambda hours_ago, *a, **kw: _demo_call(now - h(hours_ago), by, *a, **kw)
+    rdv_day = now.astimezone(PARIS_TZ).strftime("%Y-%m-%d")
+    start, end = _rdv_bounds(rdv_day, "Fin de journée (17h-19h30)")
+    rdv_today = {"appt_date": rdv_day, "appt_slot": "Fin de journée (17h-19h30)",
+                 "appt_start_at": start.isoformat(), "appt_end_at": end.isoformat()}
+    cb_due, cb_later = now - timedelta(minutes=20), now + h(2)
+
+    def client(n, model, issue, hours_ago, status="nouveau", calls=(), **extra):
+        brand, _, short_model = model.partition(" ")
+        created = (now - h(hours_ago)).isoformat()
+        history = [{"status": "nouveau", "at": created, "by": "system"}]
+        if status != "nouveau":
+            history.append({"status": status, "at": calls[-1]["at"] if calls else created, "by": by})
+        return "demandes_devis", {
+            "id": str(uuid.uuid4()), "type": "devis", "demo": True,
+            "first_name": "Client", "name": f"Test{n}", "phone": "0600000000", "email": f"test{n}@example.com",
+            "device_type": "smartphone", "brand": brand, "model": short_model, "issue_types": [issue],
+            "created_at": created, "tracking_since": created, "status": status, "status_history": history,
+            "call_attempts": list(calls), "assigned_to": by if calls else None,
+            "first_contact_at": calls[0]["at"] if calls else None, "lost_reason_code": None,
+            "notifications": [], "escalations_sent": ["15min:skipped", "30min:skipped", "2h:skipped"], **extra,
+        }
+
+    return [
+        client(1, "Apple iPhone 14", "Écran", 0.15),
+        client(2, "Samsung Galaxy S23", "Batterie", 52, "pas_de_reponse",
+               [call(50, "pas_de_reponse", message_laisse=True, mail_envoye=True, message_envoye=True)]),
+        client(3, "Apple iPhone 13", "Connecteur de charge", 4, "a_rappeler",
+               [call(3, "joint", "rappeler", callback_at=cb_due)], callback_at=cb_due.isoformat()),
+        client(4, "Apple iPhone 12", "Face ID", 3, "reflechit",
+               [call(1, "joint", "reflechit", callback_at=cb_later, quoted_price="129")],
+               callback_at=cb_later.isoformat(), quoted_price="129"),
+        client(5, "Samsung Galaxy A54", "Écran", 30, "devis_accepte",
+               [call(26, "joint", "devis_accepte", quoted_price="89")], quoted_price="89"),
+        client(6, "Google Pixel 7", "Batterie", 6, "rdv_pris",
+               [call(5, "joint", "rdv_pris", quoted_price="99", **rdv_today)], quoted_price="99", **rdv_today),
+        client(7, "Xiaomi Redmi Note 12", "Écran", 60, "pas_de_reponse",
+               [call(n, "pas_de_reponse", message_laisse=False) for n in (58, 56, 34, 32, 8, 6)]),
+        client(8, "Apple iPhone 11", "Batterie", 48, "facture",
+               [call(46, "joint", "devis_accepte", quoted_price="69")], quoted_price="69"),
+    ]
+
 DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() == "true"
+DEMO_ONE_STORE = "lattes"
 DEMO_STORES = ["lattes", "plaisir", "montpellier-nord", "boulogne", "les-ulis", "nimes-costieres", "montpellier-sud", "nimes-etoile"]
 
 @api_router.post("/admin/notifications/demo-set")
@@ -1685,9 +1731,15 @@ async def create_demo_set(user=Depends(get_current_admin)):
     aucune escalade. En production : sur le Magasin TEST, supprimés après 48 h.
     Sur la démo (DEMO_MODE) : répartis sur les vrais magasins."""
     now = datetime.now(timezone.utc)
+    by = "Équipe TEST" if not DEMO_MODE else "Démo"
     by_col = {col: [] for col in DEMO_TYPES}
-    for i, (col, d) in enumerate(_demo_leads(now, "Équipe TEST" if not DEMO_MODE else "Démo")):
-        d.update({"store": DEMO_STORES[i % len(DEMO_STORES)], "is_test": False} if DEMO_MODE else {"store": TEST_STORE_ID, "is_test": True})
+    # Démo : Test1 à Test8 sur un seul magasin, les autres exemples sur les autres magasins
+    other_stores = [st for st in DEMO_STORES if st != DEMO_ONE_STORE]
+    for i, (col, d) in enumerate(_demo_leads(now, by)):
+        d.update({"store": other_stores[i % len(other_stores)], "is_test": False} if DEMO_MODE else {"store": TEST_STORE_ID, "is_test": True})
+        by_col[col].append(d)
+    for col, d in _demo_one_store(now, by):
+        d.update({"store": DEMO_ONE_STORE, "is_test": False} if DEMO_MODE else {"store": TEST_STORE_ID, "is_test": True})
         by_col[col].append(d)
     for col, docs in by_col.items():
         await db[col].delete_many({"demo": True})
@@ -1882,6 +1934,24 @@ async def notifications_health(user=Depends(get_current_admin)):
                 status = "degraded"
     return {"window_24h": w24, "window_7d": w7d, "status": status}
 
+
+@api_router.get("/admin/transfo")
+async def get_transfo(store: Optional[str] = Query(None), user=Depends(get_current_admin)):
+    """Taux de transfo : demandes facturées / demandes reçues sur 30 jours
+    (devis, contact / RDV, rachat), pour le magasin choisi ou tout le réseau."""
+    days = 30
+    query = {"created_at": {"$gte": (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()}}
+    if store:
+        query["store"] = store
+    if store != TEST_STORE_ID:
+        query["is_test"] = {"$ne": True}
+    total = facture = 0
+    for key, col_name in COLLECTIONS.items():
+        if key == "entreprise":
+            continue
+        total += await db[col_name].count_documents(query)
+        facture += await db[col_name].count_documents({**query, "status": "facture"})
+    return {"days": days, "total": total, "facture": facture, "rate": round(100 * facture / total) if total else 0}
 
 @api_router.get("/admin/stats")
 async def get_admin_stats(

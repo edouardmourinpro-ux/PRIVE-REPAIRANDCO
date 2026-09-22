@@ -16,6 +16,7 @@ import { STORES } from '../data/stores';
 import SEO from '../components/SEO';
 import { ALERT_SOUND_PRESETS, DEFAULT_ALERT_SOUND, playAlertSound } from '../lib/alertSounds';
 import { IdentityModal } from '../components/admin/IdentityModal';
+import { StorePicker, storeShortName } from '../components/admin/StorePicker';
 import { CallLogPanel, slotHours } from '../components/admin/CallLogPanel';
 import { ToCallTab } from '../components/admin/ToCallTab';
 import { LOST_REASON_OPTIONS, LOST_REASON_LABELS } from '../data/lostReasons';
@@ -134,6 +135,9 @@ const AdminPage = () => {
   const [currentIdentity, setCurrentIdentity] = useState(() => (typeof window !== 'undefined' && localStorage.getItem('admin_identity')) || '');
   const [showIdentityModal, setShowIdentityModal] = useState(false);
   const pendingActionRef = useRef(null);
+  // Choix du magasin : demandé juste après chaque connexion
+  const [showStorePicker, setShowStorePicker] = useState(() => { try { return !localStorage.getItem('admin_store_chosen'); } catch { return true; } });
+  const [transfo, setTransfo] = useState(null);
 
   const requireIdentity = useCallback((action) => {
     const current = (typeof window !== 'undefined' && localStorage.getItem('admin_identity')) || '';
@@ -193,6 +197,11 @@ const AdminPage = () => {
       const r = await axios.get(`${API_URL}/api/admin/stats`, { headers: authHeaders, params });
       setStats(r.data);
     } catch { setStats(null); }
+    try {
+      // Taux de transfo du magasin choisi, sur 30 jours (indépendant des filtres de période)
+      const r = await axios.get(`${API_URL}/api/admin/transfo`, { headers: authHeaders, params: storeFilter ? { store: storeFilter } : {} });
+      setTransfo(r.data);
+    } catch { setTransfo(null); }
   }, [storeFilter, dateFrom, dateTo, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadData = useCallback(async (tab = activeTab) => {
@@ -243,12 +252,33 @@ const AdminPage = () => {
       const r = await axios.post(`${API_URL}/api/auth/login`, { email, password });
       const t = r.data.token;
       localStorage.setItem('admin_token', t);
+      localStorage.removeItem('admin_store_chosen');
+      setShowStorePicker(true);
       setToken(t);
       setIsLoggedIn(true);
     } catch (err) {
       setLoginError(err.response?.data?.detail || 'Erreur de connexion');
     }
     setLoginLoading(false);
+  };
+
+  const chooseStore = (id) => {
+    setStoreFilter(id);
+    try { localStorage.setItem('admin_store_filter', id); localStorage.setItem('admin_store_chosen', '1'); } catch { /* ignore */ }
+    setShowStorePicker(false);
+    // Un magasin : l'identité est l'équipe du magasin, rien d'autre à demander
+    const team = Object.keys(STAFF_IDENTITY_STORE_MAP).find(k => STAFF_IDENTITY_STORE_MAP[k] === id);
+    if (team) {
+      localStorage.setItem('admin_identity', team);
+      setCurrentIdentity(team);
+    } else if (id === '') {
+      // Direction : on demande qui
+      if ((localStorage.getItem('admin_identity') || '').startsWith('Équipe ')) {
+        localStorage.removeItem('admin_identity');
+        setCurrentIdentity('');
+      }
+      if (!localStorage.getItem('admin_identity')) setShowIdentityModal(true);
+    }
   };
 
   const handleLogout = () => {
@@ -623,12 +653,21 @@ const AdminPage = () => {
               {stats?.total || 0} demandes · <span className="text-red-300 font-semibold">{toCallNowCount} à appeler</span>
             </span>
             <button
-              onClick={() => { pendingActionRef.current = null; setShowIdentityModal(true); }}
+              onClick={() => setShowStorePicker(true)}
               className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/30 rounded-full text-xs text-white font-medium transition-colors"
-              data-testid="admin-identity-change-link"
+              data-testid="admin-store-change-link"
             >
-              👤 {currentIdentity || 'Non défini'} · changer
+              🏪 {storeFilter === 'test' ? 'Magasin TEST' : storeFilter ? storeShortName(storeFilter) : 'Tous les magasins'} · changer
             </button>
+            {!STAFF_IDENTITY_STORE_MAP[currentIdentity] && (
+              <button
+                onClick={() => { pendingActionRef.current = null; setShowIdentityModal(true); }}
+                className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/30 rounded-full text-xs text-white font-medium transition-colors"
+                data-testid="admin-identity-change-link"
+              >
+                👤 {currentIdentity || 'Qui êtes-vous ?'}
+              </button>
+            )}
             <Button onClick={handleLogout} variant="outline" size="sm" className="border-white text-white hover:bg-white/10 rounded-full text-xs" data-testid="admin-logout">
               <LogOut size={14} className="mr-1" /> Déconnexion
             </Button>
@@ -636,8 +675,15 @@ const AdminPage = () => {
         </div>
       </div>
 
+      <StorePicker
+        open={showStorePicker}
+        canClose={(() => { try { return !!localStorage.getItem('admin_store_chosen'); } catch { return false; } })()}
+        onChoose={chooseStore}
+        onClose={() => setShowStorePicker(false)}
+      />
+
       <IdentityModal
-        open={showIdentityModal}
+        open={showIdentityModal && !showStorePicker}
         currentIdentity={currentIdentity}
         onConfirm={handleIdentityConfirm}
         onClose={() => { setShowIdentityModal(false); pendingActionRef.current = null; }}
@@ -646,6 +692,7 @@ const AdminPage = () => {
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Filters bar */}
         <div className="flex flex-wrap items-center gap-3 mb-4 bg-white p-3 rounded-xl border border-[#E8F5EE]">
+          {activeTab !== 'a_appeler' && (<>
           <div className="flex items-center gap-2 text-sm text-[#1A1A2E]/70 flex-shrink-0">
             <Filter size={16} className="text-[#1A5C3A]" />
             <span className="font-medium">Magasin :</span>
@@ -666,6 +713,7 @@ const AdminPage = () => {
             ))}
             <option value="test">Magasin TEST</option>
           </select>
+          </>)}
 
           {activeTab !== 'a_appeler' && (
             <>
@@ -739,6 +787,17 @@ const AdminPage = () => {
             {showAllDemands ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             {showAllDemands ? 'Ranger les demandes' : 'Toutes les demandes'}
           </button>
+          {transfo && (
+            <div
+              className="ml-auto flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-[#E8F5EE]"
+              title={`${transfo.facture} demandes facturées sur ${transfo.total} reçues ces ${transfo.days} derniers jours`}
+              data-testid="admin-transfo"
+            >
+              <span className="text-xs text-[#1A1A2E]/60">Taux de transfo {transfo.days} j</span>
+              <span className="text-lg font-bold text-[#1A5C3A] leading-none">{transfo.total ? `${transfo.rate} %` : '0 %'}</span>
+              <span className="text-xs text-[#1A1A2E]/50">{transfo.facture}/{transfo.total}</span>
+            </div>
+          )}
         </div>
 
         {activeTab === 'a_appeler' ? (
@@ -1351,14 +1410,18 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
         setShowLostModal(true);
         return;
       }
-      if (newStatus === 'facture') setOpen(true);
       onStatusChange(item.id, newStatus);
-      if (newStatus === 'facture') {
-        setTimeout(() => {
-          feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 350);
-      }
     });
+  };
+
+  // Case « Facturé » : seulement quand le client a accepté (ou déjà facturé, pour pouvoir décocher)
+  const status = item.status || 'nouveau';
+  const canFacture = ['devis_accepte', 'rdv_pris', 'pris_en_charge', 'facture'].includes(status);
+  const toggleFacture = (checked) => {
+    if (checked) return handleStatusChange('facture');
+    // décoché : on revient au statut d'avant
+    const previous = [...(item.status_history || [])].reverse().find(h => h.status && h.status !== 'facture');
+    handleStatusChange(previous?.status || 'devis_accepte');
   };
 
   const callAttempts = item.call_attempts || [];
@@ -1441,17 +1504,6 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
     <Card className="bg-white border border-gray-100 hover:shadow-sm transition-shadow" data-testid={`demand-card-${item.id}`}>
       <CardContent className="p-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          {(item.status || 'nouveau') !== 'facture' ? (
-            <button
-              onClick={e => { e.stopPropagation(); requireIdentity(() => handleStatusChange('facture')); }}
-              className="self-start sm:self-center flex-shrink-0 flex items-center gap-1 px-3 py-2 border-2 border-[#1A5C3A] rounded-full text-xs text-[#1A5C3A] font-semibold hover:bg-[#E8F5EE] transition-colors min-h-[36px]"
-              data-testid={`demand-facture-btn-${item.id}`}
-            >
-              ✓ Facturé
-            </button>
-          ) : (
-            <span className="self-start sm:self-center flex-shrink-0 px-3 py-2 rounded-full text-xs font-semibold bg-[#E8F5EE] text-[#1A5C3A]" data-testid={`demand-facture-done-${item.id}`}>✓ Facturé</span>
-          )}
           <button onClick={() => setOpen(!open)} className="flex-1 flex items-center justify-between text-left min-w-0" data-testid={`demand-toggle-${item.id}`}>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -1483,6 +1535,19 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
                 {statusText(item)}
               </span>
             </div>
+            <span className="sm:w-20 flex">
+              {canFacture && (
+                <label
+                  onClick={e => e.stopPropagation()}
+                  className={`flex items-center gap-1.5 text-xs cursor-pointer select-none ${status === 'facture' ? 'text-[#1A5C3A]' : 'text-[#1A1A2E]/70 hover:text-[#1A5C3A]'}`}
+                  title={status === 'facture' ? 'Décocher si c\'est une erreur' : 'Cochez quand le client a payé'}
+                  data-testid={`demand-facture-${item.id}`}
+                >
+                  <input type="checkbox" checked={status === 'facture'} onChange={e => toggleFacture(e.target.checked)} className="w-4 h-4 accent-[#1A5C3A] cursor-pointer" />
+                  {status !== 'facture' && 'Facturé'}
+                </label>
+              )}
+            </span>
             <span className="sm:w-3 flex justify-center"><NotifBadge item={item} /></span>
             <span className="sm:w-8 flex items-center gap-1 text-xs text-[#1A5C3A] font-semibold" data-testid={callAttempts.length > 0 ? `call-count-${item.id}` : undefined}>
               {callAttempts.length > 0 && <><Phone size={12} /> {callAttempts.length}</>}

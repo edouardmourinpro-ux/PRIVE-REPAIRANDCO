@@ -216,7 +216,7 @@ def test_test_lead_excluded_when_no_store_filter(headers):
 def test_demo_set_covers_every_section(headers):
     r = requests.post(f"{BASE_URL}/api/admin/notifications/demo-set", headers=headers, timeout=15)
     assert r.status_code == 200, r.text
-    assert r.json()["created"] == 18
+    assert r.json()["created"] == 26
     items = requests.get(f"{BASE_URL}/api/admin/to-call", params={"store": "test"}, headers=headers, timeout=15).json()
     demo = [i for i in items if i.get("demo")]
     sections = {i["section"] for i in demo}
@@ -229,3 +229,13 @@ def test_demo_set_covers_every_section(headers):
     # Jamais visibles sans le filtre Magasin TEST
     all_items = requests.get(f"{BASE_URL}/api/admin/to-call", headers=headers, timeout=15).json()
     assert not any(i.get("store") == "test" for i in all_items)
+
+
+def test_transfo_rate_for_store(headers):
+    requests.post(f"{BASE_URL}/api/admin/notifications/demo-set", headers=headers, timeout=15)
+    r = requests.get(f"{BASE_URL}/api/admin/transfo", params={"store": "test"}, headers=headers, timeout=15)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["days"] == 30
+    assert body["facture"] >= 3 and body["total"] >= 26  # dont Test8, facturé
+    assert body["rate"] == round(100 * body["facture"] / body["total"])
