@@ -17,6 +17,7 @@ import SEO from '../components/SEO';
 import { ALERT_SOUND_PRESETS, DEFAULT_ALERT_SOUND, playAlertSound } from '../lib/alertSounds';
 import { IdentityModal } from '../components/admin/IdentityModal';
 import { StorePicker, storeShortName } from '../components/admin/StorePicker';
+import { AdminRules } from '../components/admin/AdminRules';
 import { CallLogPanel, slotHours } from '../components/admin/CallLogPanel';
 import { ToCallTab } from '../components/admin/ToCallTab';
 import { LOST_REASON_OPTIONS, LOST_REASON_LABELS } from '../data/lostReasons';
@@ -674,6 +675,8 @@ const AdminPage = () => {
           </div>
         </div>
       </div>
+
+      <AdminRules />
 
       <StorePicker
         open={showStorePicker}
