@@ -518,6 +518,12 @@ def _rdv_bounds(rdv_date: str, slot: str):
     return (day.replace(hour=start_h, minute=start_m, tzinfo=PARIS_TZ).astimezone(timezone.utc),
             day.replace(hour=end_h, minute=end_m, tzinfo=PARIS_TZ).astimezone(timezone.utc))
 
+def _day_bounds(day: str):
+    """Journée d'ouverture (9h-20h) : pour un passage annoncé sans créneau."""
+    d = datetime.strptime(day, "%Y-%m-%d")
+    return (d.replace(hour=9, tzinfo=PARIS_TZ).astimezone(timezone.utc),
+            d.replace(hour=20, tzinfo=PARIS_TZ).astimezone(timezone.utc))
+
 def _slot_hours(slot: Optional[str]) -> str:
     """« Après-midi (14h-17h) » -> « 14h-17h »."""
     m = re.search(r"\(([^)]+)\)", slot or "")
@@ -537,8 +543,12 @@ def _client_sms_text(doc: dict, kind: str) -> str:
     if kind == "rdv":
         where = (STORE_INFO.get(store_id) or {}).get("location") or (STORE_INFO.get(store_id) or {}).get("address") or ""
         day = _format_paris_day(datetime.fromisoformat(doc["appt_start_at"]))
-        start, _, end = _slot_hours(doc.get("appt_slot")).partition("-")
-        text = f"Repair&Co : votre RDV est confirme le {day} entre {start} et {end} au magasin de {store}" + (f", {where}" if where else "") + ". A bientot !"
+        if doc.get("appt_slot"):
+            start, _, end = _slot_hours(doc["appt_slot"]).partition("-")
+            quand = f"votre RDV est confirme le {day} entre {start} et {end}"
+        else:
+            quand = f"nous vous attendons le {day}"
+        text = f"Repair&Co : {quand} au magasin de {store}" + (f", {where}" if where else "") + ". A bientot !"
     else:
         now_p = datetime.now(PARIS_TZ)
         when = "aujourd'hui" if (now_p.weekday() < 6 and 9 <= now_p.hour < 18) else "des l'ouverture a 9h"
@@ -762,8 +772,8 @@ CALL_JOINT_DETAILS = {"rdv_pris", "vient_magasin", "devis_accepte", "reflechit",
 CALLBACK_CHOICES = {"1h", "18h", "demain_10h", "custom"}
 
 CALL_DETAIL_LABELS = {
-    "rdv_pris": "Devis accepté + RDV pris", "vient_magasin": "Vient en magasin",
-    "devis_accepte": "Devis accepté, va venir", "reflechit": "Réfléchit", "rappeler": "À rappeler", "refus": "Refus",
+    "rdv_pris": "Devis accepté, RDV pris", "vient_magasin": "Vient en magasin",
+    "devis_accepte": "Devis accepté, passe sans RDV", "reflechit": "Réfléchit", "rappeler": "À rappeler", "refus": "Refus",
 }
 
 # Statuts pour lesquels un lead n'a plus besoin d'être appelé (onglet "À appeler" — S19).
@@ -1153,6 +1163,8 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
             raise HTTPException(status_code=400, detail="Détail d'appel invalide")
         if body.detail == "rdv_pris" and (not body.rdv_date or body.rdv_slot not in RDV_SLOTS):
             raise HTTPException(status_code=400, detail="Date et plage horaire du RDV requises")
+        if body.detail == "devis_accepte" and not body.rdv_date:
+            raise HTTPException(status_code=400, detail="Date de passage requise")
         if body.detail == "rappeler" or (body.detail == "reflechit" and body.callback_choice):
             if body.callback_choice not in CALLBACK_CHOICES:
                 raise HTTPException(status_code=400, detail="Choix de rappel invalide")
@@ -1178,9 +1190,10 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
         entry["callback_at"] = _resolve_callback_at(body.callback_choice, body.callback_at)
     elif body.detail == "reflechit":
         entry["callback_at"] = _business_days_later_10h(2)
-    if body.detail == "rdv_pris":
-        start_utc, end_utc = _rdv_bounds(body.rdv_date, body.rdv_slot)
-        entry.update({"appt_date": body.rdv_date, "appt_slot": body.rdv_slot,
+    if body.detail in ("rdv_pris", "devis_accepte") and body.rdv_date:
+        slot = body.rdv_slot if body.detail == "rdv_pris" else None
+        start_utc, end_utc = _rdv_bounds(body.rdv_date, slot) if slot else _day_bounds(body.rdv_date)
+        entry.update({"appt_date": body.rdv_date, "appt_slot": slot,
                       "appt_start_at": start_utc.isoformat(), "appt_end_at": end_utc.isoformat()})
 
     set_fields = {}
@@ -1209,13 +1222,13 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
     # Prochaine action : heure de rappel, ou créneau du RDV.
     set_fields["callback_at"] = entry.get("callback_at") if new_status in ("a_rappeler", "reflechit") else None
     for k in ("appt_date", "appt_slot", "appt_start_at", "appt_end_at"):
-        set_fields[k] = entry.get(k) if new_status == "rdv_pris" else None
+        set_fields[k] = entry.get(k) if new_status in ("rdv_pris", "devis_accepte") else None
 
     update_op = {"$push": push_fields}
     if set_fields:
         update_op["$set"] = set_fields
     await db[col_name].update_one({"id": demand_id}, update_op)
-    if new_status == "rdv_pris" and current_status != "facture":
+    if new_status in ("rdv_pris", "devis_accepte") and entry.get("appt_date") and current_status != "facture":
         asyncio.ensure_future(_send_client_sms(col_name, demand_id, {**doc, **set_fields}, "rdv"))
     return {
         "status": "logged",
@@ -1372,14 +1385,17 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
             callback_at = d.get("callback_at") or (last_call or {}).get("callback_at")
             reflechit_count = sum(1 for c in call_attempts if c.get("detail") == "reflechit")
             try:
-                if status == "rdv_pris" and d.get("appt_end_at"):
+                if status in ("rdv_pris", "devis_accepte") and d.get("appt_end_at"):
                     start_dt, end_dt = datetime.fromisoformat(d["appt_start_at"]), datetime.fromisoformat(d["appt_end_at"])
+                    avec_rdv = bool(d.get("appt_slot"))
                     if now_utc >= end_dt + timedelta(hours=1):
-                        section, group, sort_at = "maintenant", 8, d["appt_end_at"]
-                        label = f"RDV du {_format_paris_day(start_dt)} ({_slot_hours(d.get('appt_slot'))}) passé : le client est-il venu ?"
+                        section, sort_at = "maintenant", d["appt_end_at"]
+                        group = 8 if avec_rdv else 7
+                        label = (f"RDV du {_format_paris_day(start_dt)} ({_slot_hours(d['appt_slot'])}) passé : le client est-il venu ?"
+                                 if avec_rdv else f"Il devait passer le {_format_paris_day(start_dt)} : est-il venu ?")
                     elif start_dt.astimezone(PARIS_TZ).date() == today_paris:
                         section, group, sort_at = "plus_tard", 9, d["appt_start_at"]
-                        label = f"RDV aujourd'hui, {_slot_hours(d.get('appt_slot'))}"
+                        label = f"RDV aujourd'hui, {_slot_hours(d['appt_slot'])}" if avec_rdv else "Passe au magasin aujourd'hui"
                 elif status == "devis_accepte" and last_call:
                     accepted_dt = datetime.fromisoformat(last_call["at"])
                     if now_utc >= accepted_dt + timedelta(hours=24):
@@ -1627,6 +1643,10 @@ def _demo_leads(now: datetime, by: str) -> list:
 
     tomorrow = open_day(1)
     cb_due, cb_later = now - timedelta(minutes=30), now + h(2)
+    passage_day = open_day(-1)
+    p_start, p_end = _day_bounds(passage_day)
+    passage_hier = {"appt_date": passage_day, "appt_slot": None,
+                    "appt_start_at": p_start.isoformat(), "appt_end_at": p_end.isoformat()}
     rdv_past = appt(-1, "Après-midi (14h-17h)")
     rdv_today = appt(0, "Fin de journée (17h-19h30)")
     rdv_old = appt(-3, "Matin (9h30-12h30)")
@@ -1648,7 +1668,7 @@ def _demo_leads(now: datetime, by: str) -> list:
         devis("Nathan", "Dubois", "Google Pixel 7", "Écran", 40, "rdv_pris",
               [call(30, "joint", "rdv_pris", quoted_price="99", **rdv_past)], quoted_price="99", **rdv_past),
         devis("Inès", "Moreau", "Samsung Galaxy A54", "Batterie", 30, "devis_accepte",
-              [call(26, "joint", "devis_accepte", quoted_price="79")], quoted_price="79"),
+              [call(26, "joint", "devis_accepte", quoted_price="79", **passage_hier)], quoted_price="79", **passage_hier),
         devis("Paul", "Laurent", "Apple iPhone 11", "Batterie", 80, "facture",
               [call(78, "joint", "rdv_pris", quoted_price="69", **rdv_old)], quoted_price="69", **rdv_old),
         devis("Clara", "Simon", "Samsung Galaxy S21", "Écran", 50, "refus_devis",
@@ -1685,6 +1705,11 @@ def _demo_one_store(now: datetime, by: str) -> list:
     rdv_today = {"appt_date": rdv_day, "appt_slot": "Fin de journée (17h-19h30)",
                  "appt_start_at": start.isoformat(), "appt_end_at": end.isoformat()}
     cb_due, cb_later = now - timedelta(minutes=20), now + h(2)
+    veille = (now.astimezone(PARIS_TZ) - timedelta(days=1))
+    passage_day = (veille - timedelta(days=1) if veille.weekday() == 6 else veille).strftime("%Y-%m-%d")
+    p_start, p_end = _day_bounds(passage_day)
+    passage_hier = {"appt_date": passage_day, "appt_slot": None,
+                    "appt_start_at": p_start.isoformat(), "appt_end_at": p_end.isoformat()}
 
     def client(n, model, issue, hours_ago, status="nouveau", calls=(), **extra):
         brand, _, short_model = model.partition(" ")
@@ -1712,7 +1737,7 @@ def _demo_one_store(now: datetime, by: str) -> list:
                [call(1, "joint", "reflechit", callback_at=cb_later, quoted_price="129")],
                callback_at=cb_later.isoformat(), quoted_price="129"),
         client(5, "Samsung Galaxy A54", "Écran", 30, "devis_accepte",
-               [call(26, "joint", "devis_accepte", quoted_price="89")], quoted_price="89"),
+               [call(26, "joint", "devis_accepte", quoted_price="89", **passage_hier)], quoted_price="89", **passage_hier),
         client(6, "Google Pixel 7", "Batterie", 6, "rdv_pris",
                [call(5, "joint", "rdv_pris", quoted_price="99", **rdv_today)], quoted_price="99", **rdv_today),
         client(7, "Xiaomi Redmi Note 12", "Écran", 60, "pas_de_reponse",

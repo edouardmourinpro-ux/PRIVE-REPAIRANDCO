@@ -27,8 +27,8 @@ import { DEVICE_TYPE_LABELS, parseRdvMessage, formatLeadTitle } from '../lib/lea
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const CALL_DETAIL_LABELS = {
-  rdv_pris: 'Devis accepté + RDV pris', vient_magasin: 'Vient en magasin',
-  devis_accepte: 'Devis accepté, va venir', reflechit: 'Réfléchit', rappeler: 'À rappeler', refus: 'Refus',
+  rdv_pris: 'Devis accepté, RDV pris', vient_magasin: 'Vient en magasin',
+  devis_accepte: 'Devis accepté, passe sans RDV', reflechit: 'Réfléchit', rappeler: 'À rappeler', refus: 'Refus',
 };
 
 const callResultLabel = (c) => {
@@ -39,7 +39,7 @@ const callResultLabel = (c) => {
     if (['rappeler', 'reflechit'].includes(c.detail) && c.callback_at) {
       try { l += `, ${new Date(c.callback_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`; } catch { /* ignore */ }
     }
-    if (c.detail === 'rdv_pris' && c.appt_start_at) l += `, ${formatDay(c.appt_start_at)} ${slotHours(c.appt_slot)}`;
+    if (c.appt_start_at) l += `, ${formatDay(c.appt_start_at)}${c.appt_slot ? ` ${slotHours(c.appt_slot)}` : ''}`;
     if (c.quoted_price) l += ` (prix annoncé : ${c.quoted_price})`;
     return l;
   }
@@ -65,7 +65,7 @@ const STATUS_OPTIONS = [
   { value: 'pas_de_reponse', label: 'Pas de réponse',          color: 'bg-orange-100 text-orange-700' },
   { value: 'a_rappeler',     label: 'À rappeler',              color: 'bg-amber-100 text-amber-800' },
   { value: 'reflechit',      label: 'Réfléchit',               color: 'bg-purple-100 text-purple-700' },
-  { value: 'devis_accepte',  label: 'Devis accepté, va venir', color: 'bg-blue-100 text-blue-700' },
+  { value: 'devis_accepte',  label: 'Devis accepté',            color: 'bg-blue-100 text-blue-700' },
   { value: 'rdv_pris',       label: 'RDV pris',                color: 'bg-cyan-100 text-cyan-800' },
   { value: 'facture',        label: 'Facturé',                 color: 'bg-[#E8F5EE] text-[#1A5C3A]' },
   { value: 'refus_devis',    label: 'Refus',                   color: 'bg-gray-100 text-gray-700' },
@@ -82,6 +82,7 @@ const statusText = (item) => {
   const st = item.status || 'nouveau';
   const base = (STATUS_OPTIONS.find(s => s.value === st) || STATUS_OPTIONS[0]).label;
   if (st === 'rdv_pris' && item.appt_start_at) return `RDV ${formatDay(item.appt_start_at)}, ${slotHours(item.appt_slot)}`;
+  if (st === 'devis_accepte' && item.appt_start_at) return `Passe le ${formatDay(item.appt_start_at)}`;
   if (['a_rappeler', 'reflechit'].includes(st) && item.callback_at) return `${base} · ${formatDayTime(item.callback_at)}`;
   return base;
 };

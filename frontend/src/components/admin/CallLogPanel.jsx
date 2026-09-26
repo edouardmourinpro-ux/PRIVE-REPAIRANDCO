@@ -127,10 +127,9 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEma
 
           {step === 'joint' && (
             <div className="grid gap-2">
-              <Chip onClick={() => chooseJoint('rdv_pris')} testId={`call-detail-rdv-pris-${itemId}`}>Devis accepté + RDV pris</Chip>
-              <Chip onClick={() => chooseJoint('devis_accepte')} testId={`call-detail-devis-accepte-${itemId}`}>Devis accepté, va venir</Chip>
-              <Chip onClick={() => chooseJoint('reflechit')} testId={`call-detail-reflechit-${itemId}`}>Réfléchit</Chip>
-              <Chip onClick={() => chooseJoint('rappeler')} testId={`call-detail-rappeler-${itemId}`}>À rappeler</Chip>
+              <Chip onClick={() => chooseJoint('rdv_pris')} testId={`call-detail-rdv-pris-${itemId}`}>Oui, devis accepté</Chip>
+              <Chip onClick={() => chooseJoint('reflechit')} testId={`call-detail-reflechit-${itemId}`}>Pas encore, il réfléchit</Chip>
+              <Chip onClick={() => chooseJoint('rappeler')} testId={`call-detail-rappeler-${itemId}`}>Pas dispo, à rappeler</Chip>
               <Chip onClick={() => chooseJoint('refus')} testId={`call-detail-refus-${itemId}`} variant="danger">Refus</Chip>
             </div>
           )}
@@ -161,7 +160,7 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEma
 
           {step === 'rdv' && (
             <div>
-              <Question>Date et plage horaire du RDV</Question>
+              <Question>Quand vient-il ?</Question>
               <input
                 type="date"
                 value={rdvDate}
@@ -177,6 +176,13 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEma
                     {clientRdv?.slot === slot && rdvDate === clientRdv.date && <span className="ml-2 text-xs text-[#1A5C3A]">choisi par le client sur le site</span>}
                   </Chip>
                 ))}
+                <Chip
+                  onClick={() => rdvDate && submit(joint({ detail: 'devis_accepte', rdv_date: rdvDate }))}
+                  disabled={!rdvDate || submitting}
+                  testId={`call-rdv-sans-creneau-${itemId}`}
+                >
+                  Sans RDV, il passe dans la journée
+                </Chip>
               </div>
             </div>
           )}
