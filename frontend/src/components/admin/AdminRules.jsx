@@ -3,9 +3,9 @@ import { ChevronDown, ChevronUp, Phone, ClipboardCheck, MessageCircle, CalendarC
 
 // Les 3 règles qui ne se discutent pas, toujours visibles en haut de l'admin.
 const RULES = [
+  ['Rappeler dans les 15 minutes', 'Une demande qui tombe, c\'est un client qui attend au comptoir. On ne fait pas attendre un client.'],
   ['Jamais de prix à l\'écrit', 'Le prix se donne au téléphone. Ni email, ni SMS, ni WhatsApp.'],
-  ['Rappeler le client dès qu\'il arrive', 'Une demande, c\'est un client qui attend au comptoir. On ne fait pas attendre un client.'],
-  ['Jamais raccrocher sans connaître l\'issue', 'Une date précise, ou un refus avec son motif. Jamais « je vous rappelle ».'],
+  ['Ne jamais raccrocher sans une date', 'Un RDV, une date de rappel, ou un refus avec son motif. Jamais « je vous rappelle ».'],
 ];
 
 const STEPS = [
@@ -16,18 +16,18 @@ const STEPS = [
   },
   {
     icon: ClipboardCheck,
-    title: 'Cliquez sur « Appel » et notez le résultat',
-    text: 'Le numéro s\'affiche en grand. Après l\'appel : Joint, Pas de réponse, ou Numéro invalide.',
-  },
-  {
-    icon: MessageCircle,
-    title: 'Pas de réponse : message vocal, email, WhatsApp',
-    text: 'Les trois, à chaque fois. Les boutons ouvrent l\'email et le WhatsApp déjà écrits. Le client revient dans la liste 3 heures plus tard.',
+    title: 'Cliquez sur « Appel » et laissez-vous guider',
+    text: 'Le numéro s\'affiche en grand. Après l\'appel, l\'admin pose les questions une par une.',
   },
   {
     icon: CalendarClock,
     title: 'Le client répond : donnez toujours une suite',
     text: 'Oui : le prix, puis quand il vient. Il réfléchit ou il n\'est pas dispo : le prix s\'il y en a un, puis quand on le rappelle. Non : le motif.',
+  },
+  {
+    icon: MessageCircle,
+    title: 'Pas de réponse : message vocal, email, WhatsApp',
+    text: '2e appel, message vocal, email, WhatsApp : l\'admin pose les 4 questions. Chaque « non » demande pourquoi. Le client revient dans la liste 3 heures plus tard.',
   },
   {
     icon: CheckCircle2,

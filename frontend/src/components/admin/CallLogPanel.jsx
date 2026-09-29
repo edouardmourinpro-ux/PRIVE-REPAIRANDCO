@@ -36,7 +36,7 @@ const Question = ({ children }) => <p className="text-sm font-semibold text-[#1A
 
 // Panneau « Journal d'appel » : le résultat de l'appel fixe le statut et la prochaine action.
 // Aucun texte obligatoire : des boutons, plus le prix et la date quand il le faut.
-export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEmail, onOpenWhatsApp, clientRdv }) => {
+export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEmail, onOpenWhatsApp, clientRdv, clientSms }) => {
   const [step, setStep] = useState('root');
   const [detail, setDetail] = useState(null);
   const [price, setPrice] = useState('');
@@ -46,6 +46,8 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEma
   const [showNote, setShowNote] = useState(false);
   const [customDate, setCustomDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [noFor, setNoFor] = useState(null);
+  const [noReason, setNoReason] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -53,6 +55,7 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEma
       const clientDate = clientRdv?.date && clientRdv.date >= todayIso() ? clientRdv.date : todayIso();
       setStep('root'); setDetail(null); setPrice(''); setRdvDate(clientDate); setAnswers({});
       setNote(''); setShowNote(false); setCustomDate(''); setSubmitting(false);
+      setNoFor(null); setNoReason('');
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -79,19 +82,46 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEma
     else submit(joint());
   };
 
-  const answer = (key, value) => {
-    const next = { ...answers, [key]: value };
+  // Pas de réponse : 4 questions à la suite. Un « Non » demande toujours pourquoi.
+  const PDR_STEPS = [
+    { key: 'rappel_2e', question: 'Vous avez rappelé une deuxième fois ?' },
+    { key: 'message_laisse', question: 'Message vocal laissé ?' },
+    { key: 'mail_envoye', question: 'Email envoyé au client ?', action: 'email' },
+    { key: 'message_envoye', question: 'WhatsApp envoyé au client ?', action: 'whatsapp' },
+  ];
+
+  const answer = (key, value, raison) => {
+    const next = { ...answers, [key]: value, ...(value === false ? { [`${key}_raison`]: raison } : {}) };
     setAnswers(next);
-    if (key === 'message_laisse') setStep('pdr_mail');
-    else if (key === 'mail_envoye') setStep('pdr_message');
+    setNoFor(null); setNoReason('');
+    const i = PDR_STEPS.findIndex(st => st.key === key);
+    if (i >= 0 && i < PDR_STEPS.length - 1) setStep(`pdr_${PDR_STEPS[i + 1].key}`);
     else submit({ outcome: 'pas_de_reponse', ...next });
   };
 
   const YesNo = ({ name }) => (
-    <div className="grid grid-cols-2 gap-2">
-      <Chip onClick={() => answer(name, true)} disabled={submitting} testId={`call-${name}-oui-${itemId}`}>Oui</Chip>
-      <Chip onClick={() => answer(name, false)} disabled={submitting} testId={`call-${name}-non-${itemId}`}>Non</Chip>
-    </div>
+    noFor === name ? (
+      <div>
+        <textarea
+          value={noReason}
+          onChange={e => setNoReason(e.target.value)}
+          placeholder="Pourquoi ? (obligatoire)"
+          className="w-full px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm mb-2"
+          rows={2}
+          autoFocus
+          data-testid={`call-${name}-raison-${itemId}`}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <Chip onClick={() => { setNoFor(null); setNoReason(''); }} testId={`call-${name}-annuler-${itemId}`}>Retour</Chip>
+          <Chip onClick={() => answer(name, false, noReason.trim())} disabled={!noReason.trim() || submitting} variant="primary" testId={`call-${name}-non-valider-${itemId}`}>Valider</Chip>
+        </div>
+      </div>
+    ) : (
+      <div className="grid grid-cols-2 gap-2">
+        <Chip onClick={() => answer(name, true)} disabled={submitting} testId={`call-${name}-oui-${itemId}`}>Oui</Chip>
+        <Chip onClick={() => setNoFor(name)} disabled={submitting} testId={`call-${name}-non-${itemId}`}>Non</Chip>
+      </div>
+    )
   );
 
   return (
@@ -108,6 +138,14 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEma
           <p className="text-2xl font-bold text-[#1A5C3A] tracking-wide select-all" data-testid={`call-panel-phone-${itemId}`}>
             {phone || 'Numéro non renseigné'}
           </p>
+          {clientSms?.at && (
+            <p className="text-xs text-[#1A5C3A] mt-1 px-3" data-testid={`call-panel-sms-${itemId}`}>
+              Le client a reçu un SMS à {clientSms.at} : le magasin le rappelle. Nous nous sommes engagés.
+            </p>
+          )}
+          {!clientSms?.at && clientSms?.fixe && (
+            <p className="text-xs text-[#1A1A2E]/50 mt-1 px-3">Pas de SMS envoyé : numéro fixe.</p>
+          )}
         </div>
 
         <div className="space-y-2 mt-2">
@@ -119,8 +157,8 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEma
 
           {step === 'root' && (
             <div className="grid gap-2">
-              <Chip onClick={() => setStep('joint')} testId={`call-outcome-joint-${itemId}`}>✅ Joint</Chip>
-              <Chip onClick={() => setStep('pdr')} testId={`call-outcome-no-answer-${itemId}`}>📵 Pas de réponse</Chip>
+              <Chip onClick={() => setStep('joint')} testId={`call-outcome-joint-${itemId}`}>✅ Client joint</Chip>
+              <Chip onClick={() => setStep('pdr_rappel_2e')} testId={`call-outcome-no-answer-${itemId}`}>📵 Pas de réponse</Chip>
               <Chip onClick={() => submit({ outcome: 'numero_invalide' })} disabled={submitting} testId={`call-outcome-invalid-${itemId}`} variant="danger">⚠️ Numéro invalide</Chip>
             </div>
           )}
@@ -225,36 +263,22 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEma
             </div>
           )}
 
-          {step === 'pdr' && (
-            <div>
-              <Question>Message vocal laissé ?</Question>
-              <YesNo name="message_laisse" />
-            </div>
-          )}
-
-          {step === 'pdr_mail' && (
-            <div>
-              <Question>Email envoyé au client ?</Question>
-              {onOpenEmail && (
+          {PDR_STEPS.map(st => step === `pdr_${st.key}` && (
+            <div key={st.key}>
+              <Question>{st.question}</Question>
+              {st.action === 'email' && onOpenEmail && noFor !== st.key && (
                 <button onClick={onOpenEmail} className="w-full flex items-center justify-center gap-1 mb-2 px-3 py-2 rounded-xl text-xs font-medium border border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] min-h-[40px]" data-testid={`call-open-email-${itemId}`}>
                   <Mail size={14} /> Ouvrir l'email prêt à envoyer
                 </button>
               )}
-              <YesNo name="mail_envoye" />
-            </div>
-          )}
-
-          {step === 'pdr_message' && (
-            <div>
-              <Question>WhatsApp ou SMS envoyé au client ?</Question>
-              {onOpenWhatsApp && (
+              {st.action === 'whatsapp' && onOpenWhatsApp && noFor !== st.key && (
                 <button onClick={onOpenWhatsApp} className="w-full flex items-center justify-center gap-1 mb-2 px-3 py-2 rounded-xl text-xs font-medium border border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] min-h-[40px]" data-testid={`call-open-whatsapp-${itemId}`}>
                   <MessageCircle size={14} /> Ouvrir WhatsApp prêt à envoyer
                 </button>
               )}
-              <YesNo name="message_envoye" />
+              <YesNo name={st.key} />
             </div>
-          )}
+          ))}
 
           <div className="mt-2">
             {!showNote ? (

@@ -270,7 +270,8 @@ class TestCallLogFlow:
             # First call by Alice
             r = requests.post(f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/call",
                               headers=headers,
-                              json={"by": "Alice", "outcome": "pas_de_reponse", "message_laisse": False}, timeout=15)
+                              json={"by": "Alice", "outcome": "pas_de_reponse", "message_laisse": False,
+                                    "message_laisse_raison": "repondeur plein"}, timeout=15)
             assert r.status_code == 200
             # Second call by Bob
             r = requests.post(f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/call",
@@ -385,3 +386,44 @@ class TestStatusHistory:
             assert any(h["by"] == "Charlotte" and h["status"] == "contacte" for h in hist)
         finally:
             _delete_test_lead(headers, "devis", lead_id)
+
+
+def test_pas_de_reponse_non_exige_une_raison(headers):
+    """Un « non » sans raison est refusé ; avec une raison, il passe et se lit dans l'historique."""
+    lead_id = _create_test_lead(headers)
+    try:
+        r = requests.post(f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/call", headers=headers,
+                          json={"by": "Équipe TEST", "outcome": "pas_de_reponse", "rappel_2e": False}, timeout=15)
+        assert r.status_code == 400, r.text
+        r = requests.post(f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/call", headers=headers,
+                          json={"by": "Équipe TEST", "outcome": "pas_de_reponse",
+                                "rappel_2e": False, "rappel_2e_raison": "magasin plein",
+                                "message_laisse": True, "mail_envoye": True, "message_envoye": True}, timeout=15)
+        assert r.status_code == 200, r.text
+        leads = requests.get(f"{BASE_URL}/api/admin/demandes-devis", headers=headers, timeout=15).json()
+        found = next(d for d in leads if d["id"] == lead_id)
+        call = found["call_attempts"][-1]
+        assert call["rappel_2e"] is False and call["rappel_2e_raison"] == "magasin plein"
+    finally:
+        _delete_test_lead(headers, "devis", lead_id)
+
+
+def test_passage_client_venu_ou_a_rappeler(headers):
+    """« Le client est-il venu ? » : oui et facturé, ou retour dans « À rappeler »."""
+    lead_id = _create_test_lead(headers)
+    try:
+        url = f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/passage"
+        # venu mais pas facturé : la note est obligatoire
+        r = requests.post(url, headers=headers, json={"by": "Équipe TEST", "venu": True, "facture": False}, timeout=15)
+        assert r.status_code == 400, r.text
+        r = requests.post(url, headers=headers, json={"by": "Équipe TEST", "venu": False, "callback_choice": "demain_10h"}, timeout=15)
+        assert r.status_code == 200, r.text
+        assert r.json()["new_status"] == "a_rappeler" and r.json()["callback_at"]
+        r = requests.post(url, headers=headers, json={"by": "Équipe TEST", "venu": True, "facture": True}, timeout=15)
+        assert r.status_code == 200, r.text
+        assert r.json()["new_status"] == "facture"
+        leads = requests.get(f"{BASE_URL}/api/admin/demandes-devis", headers=headers, timeout=15).json()
+        found = next(d for d in leads if d["id"] == lead_id)
+        assert found["status"] == "facture" and len(found["passages"]) == 2
+    finally:
+        _delete_test_lead(headers, "devis", lead_id)

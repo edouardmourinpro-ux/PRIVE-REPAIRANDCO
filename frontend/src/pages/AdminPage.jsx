@@ -22,7 +22,7 @@ import { CallLogPanel, slotHours } from '../components/admin/CallLogPanel';
 import { ToCallTab } from '../components/admin/ToCallTab';
 import { LOST_REASON_OPTIONS, LOST_REASON_LABELS } from '../data/lostReasons';
 import { STAFF_IDENTITY_STORE_MAP } from '../data/staffIdentities';
-import { DEVICE_TYPE_LABELS, parseRdvMessage, formatLeadTitle } from '../lib/leadFormat';
+import { DEVICE_TYPE_LABELS, parseRdvMessage, formatLeadTitle, clientSmsInfo } from '../lib/leadFormat';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -44,9 +44,15 @@ const callResultLabel = (c) => {
     return l;
   }
   if (c.outcome === 'pas_de_reponse') {
-    const parts = ['Pas de réponse', c.message_laisse ? 'message laissé' : 'sans message'];
-    if (c.mail_envoye) parts.push('email envoyé');
-    if (c.message_envoye) parts.push('WhatsApp/SMS envoyé');
+    const parts = ['Pas de réponse'];
+    [['rappel_2e', '2e appel passé', 'pas de 2e appel'],
+     ['message_laisse', 'message vocal laissé', 'sans message vocal'],
+     ['mail_envoye', 'email envoyé', 'sans email'],
+     ['message_envoye', 'WhatsApp envoyé', 'sans WhatsApp']].forEach(([key, oui, non]) => {
+      if (c[key] === undefined || c[key] === null) return;
+      const raison = c[`${key}_raison`];
+      parts.push(c[key] ? oui : (raison ? `${non} (${raison})` : non));
+    });
     return parts.join(', ');
   }
   if (c.outcome === 'numero_invalide') return 'Numéro invalide';
@@ -262,6 +268,17 @@ const AdminPage = () => {
       setLoginError(err.response?.data?.detail || 'Erreur de connexion');
     }
     setLoginLoading(false);
+  };
+
+  const logPassage = async (item, payload) => {
+    try {
+      await axios.post(`${API_URL}/api/admin/demandes/${item.category}/${item.id}/passage`,
+        { ...payload, by: localStorage.getItem('admin_identity') || '' }, { headers: authHeaders });
+      loadToCall();
+      loadStats();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Impossible d\'enregistrer la réponse');
+    }
   };
 
   const chooseStore = (id) => {
@@ -812,6 +829,7 @@ const AdminPage = () => {
             onLogCall={logCall}
             onStatusChange={updateStatus}
             onRefresh={loadToCall}
+            onPassage={logPassage}
             renderCard={(item) => (
               <DemandCard
                 item={item}
@@ -1374,7 +1392,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
       `- De la réduction Qualirepar pour laquelle nous sommes labellisés 💪.\n\n` +
       `Bon à savoir aussi : un paiement en 3 ou 4 fois vous sera proposé.\n\n` +
       `À très bientôt,\n` +
-      `L'équipe Repair & Co ${storeName}`
+      `L'équipe Repair & Co ${storeName.replace(/^Repair\s*&\s*Co\s*/i, '')}`
     );
   };
 
@@ -1687,6 +1705,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
         onOpenEmail={item.email ? openRelanceEmail : undefined}
         onOpenWhatsApp={item.phone ? openRelanceWA : undefined}
         clientRdv={item.rdv_date ? { date: item.rdv_date, slot: item.rdv_slot } : null}
+        clientSms={clientSmsInfo(item)}
       />
 
       {/* Client perdu — motif fixe en un clic */}

@@ -57,3 +57,11 @@ export const formatLeadTitle = (item, type) => {
   }
   return nom || item.id;
 };
+
+// SMS de confirmation réellement parti au client (jamais une promesse en l'air)
+export const clientSmsInfo = (item) => {
+  const sent = (item.client_sms || []).find(e => e.kind === 'client_confirmation' && e.status === 'sent');
+  const digits = (item.phone || '').replace(/\D/g, '');
+  const fixe = digits.length === 10 && !['06', '07'].includes(digits.slice(0, 2));
+  return { at: sent ? new Date(sent.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null, fixe };
+};

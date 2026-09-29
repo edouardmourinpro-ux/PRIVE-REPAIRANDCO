@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { REFUS_REASON_OPTIONS } from '../../data/lostReasons';
+import { clientSmsInfo } from '../../lib/leadFormat';
 
 // Onglet « 📞 À appeler » : qui appeler, et quand. Calculé côté serveur.
 // Chaque demande s'ouvre comme dans les autres onglets (renderCard = DemandCard).
@@ -23,9 +24,22 @@ const GROUP_STYLE = {
   9: 'bg-blue-50 text-blue-800 border-blue-200',
 };
 
-export const ToCallTab = ({ items, loading, requireIdentity, onStatusChange, onRefresh, renderCard }) => {
+const CALLBACK_CHOICES = [['1h', 'Dans 1 h'], ['18h', 'Ce soir 18h'], ['demain_10h', 'Demain 10h']];
+
+export const ToCallTab = ({ items, loading, requireIdentity, onStatusChange, onRefresh, renderCard, onPassage }) => {
   const [confirmingId, setConfirmingId] = useState(null);
   const [perduId, setPerduId] = useState(null);
+  // « Le client est-il venu ? » : oui puis facturé, ou non puis date de rappel
+  const [venu, setVenu] = useState(null); // { id, step: 'facture' | 'note' | 'date', venu: bool, note }
+
+  const btn = 'min-h-[36px] px-3 rounded-full text-xs font-medium';
+  const closeVenu = () => setVenu(null);
+  const sendPassage = (item, payload) => {
+    requireIdentity(async () => {
+      await onPassage(item, payload);
+      closeVenu();
+    });
+  };
 
   const classerPerdu = (item, code) => {
     requireIdentity(() => {
@@ -74,7 +88,55 @@ export const ToCallTab = ({ items, loading, requireIdentity, onStatusChange, onR
                 {sectionItems.map(item => (
                   <div key={item.id} data-testid={`to-call-row-${item.id}`}>
                     <div className={`flex flex-wrap items-center justify-between gap-2 px-3 py-2 mb-1 rounded-lg border text-sm font-semibold ${GROUP_STYLE[item.group] || GROUP_STYLE[4]}`}>
-                      <span data-testid={`to-call-label-${item.id}`}>{item.label} · {item.store_name}</span>
+                      <span data-testid={`to-call-label-${item.id}`}>
+                        {item.label} · {item.store_name}
+                        {!item.call_attempts_count && clientSmsInfo(item).at && (
+                          <span className="block font-normal text-xs opacity-80" data-testid={`to-call-sms-${item.id}`}>
+                            SMS envoyé au client à {clientSmsInfo(item).at} : nous nous sommes engagés à le rappeler.
+                          </span>
+                        )}
+                      </span>
+                      {[7, 8].includes(item.group) && (
+                        venu?.id !== item.id ? (
+                          <span className="flex gap-2">
+                            <button onClick={() => setVenu({ id: item.id, step: 'facture', venu: true, note: '' })} className={`${btn} bg-[#1A5C3A] text-white`} data-testid={`to-call-venu-oui-${item.id}`}>Oui, il est venu</button>
+                            <button onClick={() => setVenu({ id: item.id, step: 'date', venu: false, note: '' })} className={`${btn} bg-white text-gray-800 border border-gray-300`} data-testid={`to-call-venu-non-${item.id}`}>Non</button>
+                          </span>
+                        ) : venu.step === 'facture' ? (
+                          <span className="flex flex-wrap items-center gap-2">
+                            Facturé ?
+                            <button onClick={() => sendPassage(item, { venu: true, facture: true })} className={`${btn} bg-[#1A5C3A] text-white`} data-testid={`to-call-facture-oui-${item.id}`}>Oui</button>
+                            <button onClick={() => setVenu({ ...venu, step: 'note' })} className={`${btn} bg-white text-gray-800 border border-gray-300`} data-testid={`to-call-facture-non-${item.id}`}>Non</button>
+                            <button onClick={closeVenu} className={`${btn} text-gray-500`}>Annuler</button>
+                          </span>
+                        ) : venu.step === 'note' ? (
+                          <span className="flex flex-wrap items-center gap-2 w-full">
+                            <input
+                              value={venu.note}
+                              onChange={e => setVenu({ ...venu, note: e.target.value })}
+                              placeholder="Pourquoi pas de facture ? (obligatoire)"
+                              className="flex-1 min-w-[220px] px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-normal"
+                              autoFocus
+                              data-testid={`to-call-facture-note-${item.id}`}
+                            />
+                            <button onClick={() => setVenu({ ...venu, step: 'date' })} disabled={!venu.note.trim()} className={`${btn} bg-[#1A5C3A] text-white disabled:opacity-40`} data-testid={`to-call-note-valider-${item.id}`}>Continuer</button>
+                            <button onClick={closeVenu} className={`${btn} text-gray-500`}>Annuler</button>
+                          </span>
+                        ) : (
+                          <span className="flex flex-wrap items-center gap-2">
+                            On le rappelle quand ?
+                            {CALLBACK_CHOICES.map(([value, label]) => (
+                              <button
+                                key={value}
+                                onClick={() => sendPassage(item, { venu: venu.venu, facture: false, note: venu.note.trim() || undefined, callback_choice: value })}
+                                className={`${btn} bg-white text-gray-800 border border-gray-300`}
+                                data-testid={`to-call-venu-callback-${value}-${item.id}`}
+                              >{label}</button>
+                            ))}
+                            <button onClick={closeVenu} className={`${btn} text-gray-500`}>Annuler</button>
+                          </span>
+                        )
+                      )}
                       {item.group === 6 && (
                         perduId === item.id ? (
                           <span className="flex flex-wrap gap-2">

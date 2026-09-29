@@ -720,13 +720,26 @@ class CallLogRequest(BaseModel):
     callback_choice: Optional[str] = None  # 1h | 18h | demain_10h | custom
     callback_at: Optional[str] = None
     refus_reason: Optional[str] = None
+    rappel_2e: Optional[bool] = None
+    rappel_2e_raison: Optional[str] = None
     message_laisse: Optional[bool] = None
+    message_laisse_raison: Optional[str] = None
     mail_envoye: Optional[bool] = None
+    mail_envoye_raison: Optional[str] = None
     message_envoye: Optional[bool] = None
+    message_envoye_raison: Optional[str] = None
     note: Optional[str] = None
     quoted_price: Optional[str] = None
     rdv_date: Optional[str] = None  # AAAA-MM-JJ
     rdv_slot: Optional[str] = None  # une clé de RDV_SLOTS
+
+class PassageRequest(BaseModel):
+    by: str
+    venu: bool
+    facture: Optional[bool] = None
+    note: Optional[str] = None            # obligatoire si venu sans facture
+    callback_choice: Optional[str] = None  # 1h | 18h | demain_10h | custom
+    callback_at: Optional[str] = None
 
 class RelanceLogRequest(BaseModel):
     by: str
@@ -847,11 +860,14 @@ def _call_result_label(entry: Optional[dict]) -> str:
             label += f" ({LOST_REASON_LABELS.get(entry['refus_reason'], entry['refus_reason'])})"
         return label
     if outcome == "pas_de_reponse":
-        parts = ["Pas de réponse", "message laissé" if entry.get("message_laisse") else "sans message"]
-        if entry.get("mail_envoye"):
-            parts.append("email envoyé")
-        if entry.get("message_envoye"):
-            parts.append("WhatsApp/SMS envoyé")
+        parts = ["Pas de réponse"]
+        for fait, raison, oui, non in ((entry.get("rappel_2e"), entry.get("rappel_2e_raison"), "2e appel passé", "pas de 2e appel"),
+                                       (entry.get("message_laisse"), entry.get("message_laisse_raison"), "message vocal laissé", "sans message vocal"),
+                                       (entry.get("mail_envoye"), entry.get("mail_envoye_raison"), "email envoyé", "sans email"),
+                                       (entry.get("message_envoye"), entry.get("message_envoye_raison"), "WhatsApp envoyé", "sans WhatsApp")):
+            if fait is None:
+                continue
+            parts.append(oui if fait else (f"{non} ({raison})" if raison else non))
         return ", ".join(parts)
     if outcome == "numero_invalide":
         return "Numéro invalide"
@@ -1172,6 +1188,13 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
                 raise HTTPException(status_code=400, detail="Date de rappel requise")
         if body.detail == "refus" and body.refus_reason not in REFUS_REASON_CODES:
             raise HTTPException(status_code=400, detail="Motif de refus invalide")
+    if body.outcome == "pas_de_reponse":
+        for repondu, raison, quoi in ((body.rappel_2e, body.rappel_2e_raison, "le 2e appel"),
+                                      (body.message_laisse, body.message_laisse_raison, "le message vocal"),
+                                      (body.mail_envoye, body.mail_envoye_raison, "l'email"),
+                                      (body.message_envoye, body.message_envoye_raison, "le WhatsApp")):
+            if repondu is False and not (raison or "").strip():
+                raise HTTPException(status_code=400, detail=f"Dites pourquoi {quoi} n'a pas été fait")
 
     doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0})
     if not doc:
@@ -1181,9 +1204,14 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
     entry = {
         "at": now_iso, "by": by, "outcome": body.outcome, "detail": body.detail,
         "refus_reason": body.refus_reason if body.detail == "refus" else None,
+        "rappel_2e": body.rappel_2e if body.outcome == "pas_de_reponse" else None,
+        "rappel_2e_raison": (body.rappel_2e_raison or "").strip() or None if body.outcome == "pas_de_reponse" else None,
         "message_laisse": body.message_laisse if body.outcome == "pas_de_reponse" else None,
+        "message_laisse_raison": (body.message_laisse_raison or "").strip() or None if body.outcome == "pas_de_reponse" else None,
         "mail_envoye": body.mail_envoye if body.outcome == "pas_de_reponse" else None,
+        "mail_envoye_raison": (body.mail_envoye_raison or "").strip() or None if body.outcome == "pas_de_reponse" else None,
         "message_envoye": body.message_envoye if body.outcome == "pas_de_reponse" else None,
+        "message_envoye_raison": (body.message_envoye_raison or "").strip() or None if body.outcome == "pas_de_reponse" else None,
         "note": (body.note or "").strip() or None,
     }
     if body.detail == "rappeler" or (body.detail == "reflechit" and body.callback_choice):
@@ -1241,6 +1269,47 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
         "appt_date": set_fields.get("appt_date"), "appt_slot": set_fields.get("appt_slot"),
         "appt_start_at": set_fields.get("appt_start_at"), "appt_end_at": set_fields.get("appt_end_at"),
     }
+
+@api_router.post("/admin/demandes/{category}/{demand_id}/passage")
+async def log_passage(category: str, demand_id: str, body: PassageRequest, user=Depends(get_current_admin)):
+    """Réponse à « le client est-il venu ? » : facturé, ou retour dans « À rappeler »."""
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    by = (body.by or "").strip()
+    if not by:
+        raise HTTPException(status_code=400, detail="Identité manquante, merci de préciser qui répond")
+    note = (body.note or "").strip()
+    if body.venu and not body.facture and not note:
+        raise HTTPException(status_code=400, detail="Dites pourquoi le client n'a pas été facturé")
+    doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    entry = {"at": now_iso, "by": by, "venu": bool(body.venu), "facture": bool(body.facture), "note": note or None}
+    set_fields = {}
+    if body.venu and body.facture:
+        new_status = "facture"
+        set_fields["callback_at"] = None
+    else:
+        # Pas venu, ou venu sans facture : on le reprend à la date choisie.
+        new_status = "a_rappeler"
+        if body.callback_choice not in CALLBACK_CHOICES:
+            raise HTTPException(status_code=400, detail="Choix de rappel invalide")
+        if body.callback_choice == "custom" and not body.callback_at:
+            raise HTTPException(status_code=400, detail="Date de rappel requise")
+        callback_at = _resolve_callback_at(body.callback_choice, body.callback_at)
+        entry["callback_at"] = callback_at
+        set_fields["callback_at"] = callback_at
+    for k in ("appt_date", "appt_slot", "appt_start_at", "appt_end_at"):
+        set_fields[k] = None
+    push_fields = {"passages": entry}
+    if (doc.get("status") or "nouveau") != new_status:
+        set_fields["status"] = new_status
+        push_fields["status_history"] = {"status": new_status, "at": now_iso, "by": by}
+    await db[col_name].update_one({"id": demand_id}, {"$push": push_fields, "$set": set_fields})
+    return {"status": "logged", "new_status": new_status, "callback_at": set_fields.get("callback_at")}
 
 @api_router.post("/admin/demandes/{category}/{demand_id}/relance")
 async def log_relance(category: str, demand_id: str, body: RelanceLogRequest, user=Depends(get_current_admin)):
@@ -1602,6 +1671,7 @@ def _demo_leads(now: datetime, by: str) -> list:
             "call_attempts": list(calls), "assigned_to": by if calls else None,
             "first_contact_at": calls[0]["at"] if calls else None, "lost_reason_code": None,
             "notifications": [], "escalations_sent": ["15min:skipped", "30min:skipped", "2h:skipped"],
+            "client_sms": [{"channel": "sms", "kind": "client_confirmation", "status": "sent", "at": c, "to": "336XXXXXXXX"}],
         }
         doc.update(fields)
         return col, doc
@@ -1724,7 +1794,9 @@ def _demo_one_store(now: datetime, by: str) -> list:
             "created_at": created, "tracking_since": created, "status": status, "status_history": history,
             "call_attempts": list(calls), "assigned_to": by if calls else None,
             "first_contact_at": calls[0]["at"] if calls else None, "lost_reason_code": None,
-            "notifications": [], "escalations_sent": ["15min:skipped", "30min:skipped", "2h:skipped"], **extra,
+            "notifications": [], "escalations_sent": ["15min:skipped", "30min:skipped", "2h:skipped"],
+            "client_sms": [{"channel": "sms", "kind": "client_confirmation", "status": "sent", "at": created, "to": "336XXXXXXXX"}],
+            **extra,
         }
 
     return [
@@ -2097,7 +2169,7 @@ async def export_all_demandes_csv(store: Optional[str] = Query(None), date_from:
                 cols_raw.append(k); seen.add(k); break
     # Colonnes internes jamais exportées telles quelles (remplacées par les colonnes calculées ci-dessus)
     seen.update({"status_history", "call_attempts", "tracking_since", "relances", "client_sms", "callback_at",
-                 "appt_date", "appt_slot", "appt_start_at", "appt_end_at", "demo"})
+                 "appt_date", "appt_slot", "appt_start_at", "appt_end_at", "demo", "passages"})
     for d in all_docs:
         for k in d.keys():
             if k not in seen and k != "id":
