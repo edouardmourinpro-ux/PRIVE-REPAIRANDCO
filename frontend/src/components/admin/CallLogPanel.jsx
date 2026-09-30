@@ -84,10 +84,10 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEma
 
   // Pas de réponse : 4 questions à la suite. Un « Non » demande toujours pourquoi.
   const PDR_STEPS = [
-    { key: 'rappel_2e', question: 'Vous avez rappelé une deuxième fois ?' },
-    { key: 'message_laisse', question: 'Message vocal laissé ?' },
-    { key: 'mail_envoye', question: 'Email envoyé au client ?', action: 'email' },
-    { key: 'message_envoye', question: 'WhatsApp envoyé au client ?', action: 'whatsapp' },
+    { key: 'rappel_2e', question: 'Vous avez rappelé une deuxième fois ?', non: "Vous n'avez pas rappelé une 2ème fois :" },
+    { key: 'message_laisse', question: 'Message vocal laissé ?', non: "Vous n'avez pas laissé de message vocal :" },
+    { key: 'mail_envoye', question: 'Email envoyé au client ?', non: "Vous n'avez pas envoyé de mail au client :", action: 'email' },
+    { key: 'message_envoye', question: 'WhatsApp envoyé au client ?', non: "Vous n'avez pas envoyé de WhatsApp au client :", action: 'whatsapp' },
   ];
 
   const answer = (key, value, raison) => {
@@ -265,7 +265,7 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEma
 
           {PDR_STEPS.map(st => step === `pdr_${st.key}` && (
             <div key={st.key}>
-              <Question>{st.question}</Question>
+              <Question>{noFor === st.key ? st.non : st.question}</Question>
               {st.action === 'email' && onOpenEmail && noFor !== st.key && (
                 <button onClick={onOpenEmail} className="w-full flex items-center justify-center gap-1 mb-2 px-3 py-2 rounded-xl text-xs font-medium border border-[#1A5C3A] text-[#1A5C3A] hover:bg-[#E8F5EE] min-h-[40px]" data-testid={`call-open-email-${itemId}`}>
                   <Mail size={14} /> Ouvrir l'email prêt à envoyer
