@@ -34,6 +34,33 @@ const todayIso = () => {
 
 const Question = ({ children }) => <p className="text-sm font-semibold text-[#1A1A2E] mb-2">{children}</p>;
 
+// Défini en dehors du panneau : un composant recréé à chaque rendu ferait
+// perdre le curseur au champ de saisie (le texte s'écrivait à l'envers).
+const YesNo = ({ name, itemId, noFor, setNoFor, noReason, setNoReason, onAnswer, submitting }) => (
+  noFor === name ? (
+    <div>
+      <textarea
+        value={noReason}
+        onChange={e => setNoReason(e.target.value)}
+        placeholder="Pourquoi ? (obligatoire)"
+        className="w-full px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm mb-2"
+        rows={2}
+        autoFocus
+        data-testid={`call-${name}-raison-${itemId}`}
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <Chip onClick={() => { setNoFor(null); setNoReason(''); }} testId={`call-${name}-annuler-${itemId}`}>Retour</Chip>
+        <Chip onClick={() => onAnswer(name, false, noReason.trim())} disabled={!noReason.trim() || submitting} variant="primary" testId={`call-${name}-non-valider-${itemId}`}>Valider</Chip>
+      </div>
+    </div>
+  ) : (
+    <div className="grid grid-cols-2 gap-2">
+      <Chip onClick={() => onAnswer(name, true)} disabled={submitting} testId={`call-${name}-oui-${itemId}`}>Oui</Chip>
+      <Chip onClick={() => setNoFor(name)} disabled={submitting} testId={`call-${name}-non-${itemId}`}>Non</Chip>
+    </div>
+  )
+);
+
 // Panneau « Journal d'appel » : le résultat de l'appel fixe le statut et la prochaine action.
 // Aucun texte obligatoire : des boutons, plus le prix et la date quand il le faut.
 export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEmail, onOpenWhatsApp, clientRdv, clientSms }) => {
@@ -98,31 +125,6 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEma
     if (i >= 0 && i < PDR_STEPS.length - 1) setStep(`pdr_${PDR_STEPS[i + 1].key}`);
     else submit({ outcome: 'pas_de_reponse', ...next });
   };
-
-  const YesNo = ({ name }) => (
-    noFor === name ? (
-      <div>
-        <textarea
-          value={noReason}
-          onChange={e => setNoReason(e.target.value)}
-          placeholder="Pourquoi ? (obligatoire)"
-          className="w-full px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm mb-2"
-          rows={2}
-          autoFocus
-          data-testid={`call-${name}-raison-${itemId}`}
-        />
-        <div className="grid grid-cols-2 gap-2">
-          <Chip onClick={() => { setNoFor(null); setNoReason(''); }} testId={`call-${name}-annuler-${itemId}`}>Retour</Chip>
-          <Chip onClick={() => answer(name, false, noReason.trim())} disabled={!noReason.trim() || submitting} variant="primary" testId={`call-${name}-non-valider-${itemId}`}>Valider</Chip>
-        </div>
-      </div>
-    ) : (
-      <div className="grid grid-cols-2 gap-2">
-        <Chip onClick={() => answer(name, true)} disabled={submitting} testId={`call-${name}-oui-${itemId}`}>Oui</Chip>
-        <Chip onClick={() => setNoFor(name)} disabled={submitting} testId={`call-${name}-non-${itemId}`}>Non</Chip>
-      </div>
-    )
-  );
 
   return (
     <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
@@ -276,7 +278,16 @@ export const CallLogPanel = ({ open, onClose, itemId, phone, onSubmit, onOpenEma
                   <MessageCircle size={14} /> Ouvrir WhatsApp prêt à envoyer
                 </button>
               )}
-              <YesNo name={st.key} />
+              <YesNo
+                name={st.key}
+                itemId={itemId}
+                noFor={noFor}
+                setNoFor={setNoFor}
+                noReason={noReason}
+                setNoReason={setNoReason}
+                onAnswer={answer}
+                submitting={submitting}
+              />
             </div>
           ))}
 
