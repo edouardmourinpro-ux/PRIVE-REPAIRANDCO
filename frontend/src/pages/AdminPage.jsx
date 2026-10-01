@@ -270,6 +270,15 @@ const AdminPage = () => {
     setLoginLoading(false);
   };
 
+  const updatePhone = async (id, phone, code, category = activeTab) => {
+    const r = await axios.patch(`${API_URL}/api/admin/demandes/${category}/${id}/phone`,
+      { phone, code, by: localStorage.getItem('admin_identity') || '' }, { headers: authHeaders });
+    toast.success('Numéro corrigé');
+    if (activeTab === 'a_appeler') loadToCall(); else loadData(activeTab);
+    loadStats();
+    return r.data;
+  };
+
   const logPassage = async (item, payload) => {
     try {
       await axios.post(`${API_URL}/api/admin/demandes/${item.category}/${item.id}/passage`,
@@ -838,6 +847,7 @@ const AdminPage = () => {
                 onSaveStaffFeedback={(id, payload) => saveStaffFeedback(id, payload, item.category)}
                 onSaveQuotedPrice={(id, price) => saveQuotedPrice(id, price, item.category)}
                 onDelete={(id, code) => handleDeleteDemand(id, code, item.category)}
+                onUpdatePhone={(id, phone, code) => updatePhone(id, phone, code, item.category)}
                 requireIdentity={requireIdentity}
                 onLogCall={(id, payload) => logCall(id, payload, item.category)}
                 onLogRelance={(id, payload) => logRelance(id, payload, item.category)}
@@ -929,6 +939,7 @@ const AdminPage = () => {
                 onSaveStaffFeedback={saveStaffFeedback}
                 onSaveQuotedPrice={saveQuotedPrice}
                 onDelete={handleDeleteDemand}
+                onUpdatePhone={updatePhone}
                 requireIdentity={requireIdentity}
                 onLogCall={logCall}
                 onLogRelance={logRelance}
@@ -1337,10 +1348,15 @@ const NotifTestPanel = ({ authHeaders, onOpenRattrapage }) => {
   );
 };
 
-const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, requireIdentity, onLogCall, onLogRelance }) => {
+const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onUpdatePhone, requireIdentity, onLogCall, onLogRelance }) => {
   const [open, setOpen] = useState(false);
   const feedbackRef = useRef(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [phoneValue, setPhoneValue] = useState('');
+  const [phoneCode, setPhoneCode] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [phoneLoading, setPhoneLoading] = useState(false);
   const [deleteCode, setDeleteCode] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -1434,6 +1450,18 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
       }
       onStatusChange(item.id, newStatus);
     });
+  };
+
+  const submitPhone = async () => {
+    setPhoneLoading(true);
+    setPhoneError('');
+    try {
+      await onUpdatePhone(item.id, phoneValue, phoneCode);
+      setShowPhoneModal(false);
+    } catch (err) {
+      setPhoneError(err.response?.data?.detail || 'Impossible de corriger le numéro');
+    }
+    setPhoneLoading(false);
   };
 
   // Case « Facturé » : seulement quand le client a accepté (ou déjà facturé, pour pouvoir décocher)
@@ -1642,6 +1670,13 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
                   <MessageCircle size={12} /> Relance WhatsApp
                 </button>
               )}
+              <button
+                onClick={() => { setPhoneValue(item.phone || ''); setPhoneCode(''); setPhoneError(''); setShowPhoneModal(true); }}
+                className="inline-flex items-center gap-1 px-3 py-1.5 border border-[#1A5C3A] rounded-full text-xs text-[#1A5C3A] font-medium hover:bg-[#E8F5EE] transition-colors"
+                data-testid={`demand-edit-phone-${item.id}`}
+              >
+                <Phone size={12} /> Corriger le numéro
+              </button>
               {item.hiboutik_customer_id && (
                 <button
                   onClick={() => {
@@ -1707,6 +1742,46 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
         clientRdv={item.rdv_date ? { date: item.rdv_date, slot: item.rdv_slot } : null}
         clientSms={clientSmsInfo(item)}
       />
+
+      {/* Corriger le numéro — protégé par le code de sécurité */}
+      <Dialog open={showPhoneModal} onOpenChange={o => { setShowPhoneModal(o); if (!o) { setPhoneCode(''); setPhoneError(''); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-[#1A1A2E] flex items-center gap-2">
+              <Phone size={16} className="text-[#1A5C3A]" /> Corriger le numéro
+            </DialogTitle>
+            <DialogDescription>
+              À faire seulement si le client vous a donné son bon numéro. Le code de sécurité est demandé.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <Input
+              value={phoneValue}
+              onChange={e => setPhoneValue(e.target.value)}
+              placeholder="06 12 34 56 78"
+              autoFocus
+              data-testid={`phone-input-${item.id}`}
+            />
+            <Input
+              type="password"
+              value={phoneCode}
+              onChange={e => setPhoneCode(e.target.value)}
+              placeholder="Code de sécurité"
+              onKeyDown={e => { if (e.key === 'Enter' && phoneCode && phoneValue) submitPhone(); }}
+              data-testid={`phone-code-${item.id}`}
+            />
+            {phoneError && <p className="text-red-600 text-sm">{phoneError}</p>}
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowPhoneModal(false)} className="text-xs rounded-full">Annuler</Button>
+              <Button onClick={submitPhone} disabled={phoneLoading || !phoneCode || !phoneValue}
+                className="bg-[#1A5C3A] hover:bg-[#2ECC71] text-white text-xs rounded-full" data-testid={`phone-confirm-${item.id}`}>
+                {phoneLoading ? <Loader2 className="animate-spin mr-1" size={14} /> : <Phone size={14} className="mr-1" />}
+                Enregistrer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Client perdu — motif fixe en un clic */}
       <Dialog open={showLostModal} onOpenChange={o => { setShowLostModal(o); }}>

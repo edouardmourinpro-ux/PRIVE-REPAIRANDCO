@@ -427,3 +427,25 @@ def test_passage_client_venu_ou_a_rappeler(headers):
         assert found["status"] == "facture" and len(found["passages"]) == 2
     finally:
         _delete_test_lead(headers, "devis", lead_id)
+
+
+def test_correction_numero_protegee_par_code(headers):
+    """Le numéro ne se corrige qu'avec le code, et un client perdu revient à appeler."""
+    lead_id = _create_test_lead(headers)
+    url = f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/phone"
+    try:
+        r = requests.post(f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/call", headers=headers,
+                          json={"by": "Équipe TEST", "outcome": "numero_invalide"}, timeout=15)
+        assert r.status_code == 200, r.text
+        r = requests.patch(url, headers=headers, json={"phone": "0611223344", "code": "mauvais", "by": "Équipe TEST"}, timeout=15)
+        assert r.status_code == 403, r.text
+        r = requests.patch(url, headers=headers, json={"phone": "123", "code": DELETE_CODE, "by": "Équipe TEST"}, timeout=15)
+        assert r.status_code == 400, r.text
+        r = requests.patch(url, headers=headers, json={"phone": "06 11 22 33 44", "code": DELETE_CODE, "by": "Équipe TEST"}, timeout=15)
+        assert r.status_code == 200, r.text
+        assert r.json()["phone"] == "0611223344" and r.json()["new_status"] == "a_rappeler"
+        leads = requests.get(f"{BASE_URL}/api/admin/demandes-devis", headers=headers, timeout=15).json()
+        found = next(d for d in leads if d["id"] == lead_id)
+        assert found["phone"] == "0611223344" and found["phone_changes"][-1]["by"] == "Équipe TEST"
+    finally:
+        _delete_test_lead(headers, "devis", lead_id)

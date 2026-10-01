@@ -733,6 +733,11 @@ class CallLogRequest(BaseModel):
     rdv_date: Optional[str] = None  # AAAA-MM-JJ
     rdv_slot: Optional[str] = None  # une clé de RDV_SLOTS
 
+class PhoneUpdateRequest(BaseModel):
+    phone: str
+    code: str
+    by: str
+
 class PassageRequest(BaseModel):
     by: str
     venu: bool
@@ -1349,6 +1354,37 @@ async def delete_demand(category: str, demand_id: str, body: DeleteRequest, user
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Demande non trouvée")
     return {"status": "deleted"}
+
+@api_router.patch("/admin/demandes/{category}/{demand_id}/phone")
+async def update_phone(category: str, demand_id: str, body: PhoneUpdateRequest, user=Depends(get_current_admin)):
+    """Corriger le numéro d'un client, protégé par le code de sécurité. Un lead
+    classé « numéro invalide » revient dans la liste des appels."""
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    if body.code != DELETE_CODE:
+        raise HTTPException(status_code=403, detail="Code de sécurité incorrect")
+    by = (body.by or "").strip()
+    if not by:
+        raise HTTPException(status_code=400, detail="Identité manquante, merci de préciser qui corrige")
+    digits = "".join(ch for ch in (body.phone or "") if ch.isdigit())
+    if digits.startswith("33") and len(digits) == 11:
+        digits = "0" + digits[2:]
+    if len(digits) != 10 or not digits.startswith("0"):
+        raise HTTPException(status_code=400, detail="Numéro invalide : 10 chiffres attendus, par exemple 06 12 34 56 78")
+
+    doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    set_fields = {"phone": digits}
+    push_fields = {"phone_changes": {"at": now_iso, "by": by, "from": doc.get("phone"), "to": digits}}
+    # Le client était classé perdu pour un mauvais numéro : il repasse à appeler.
+    if (doc.get("status") == "client_perdu" and doc.get("lost_reason_code") == "numero_invalide") or doc.get("status") == "client_perdu":
+        set_fields.update({"status": "a_rappeler", "callback_at": now_iso, "lost_reason_code": None, "lost_reason": None})
+        push_fields["status_history"] = {"status": "a_rappeler", "at": now_iso, "by": by}
+    await db[col_name].update_one({"id": demand_id}, {"$push": push_fields, "$set": set_fields})
+    return {"status": "updated", "phone": digits, "new_status": set_fields.get("status", doc.get("status")), "callback_at": set_fields.get("callback_at")}
 
 @api_router.patch("/admin/demandes/{category}/{demand_id}/feedback")
 async def update_staff_feedback(category: str, demand_id: str, body: StaffFeedbackRequest, user=Depends(get_current_admin)):
@@ -2169,7 +2205,7 @@ async def export_all_demandes_csv(store: Optional[str] = Query(None), date_from:
                 cols_raw.append(k); seen.add(k); break
     # Colonnes internes jamais exportées telles quelles (remplacées par les colonnes calculées ci-dessus)
     seen.update({"status_history", "call_attempts", "tracking_since", "relances", "client_sms", "callback_at",
-                 "appt_date", "appt_slot", "appt_start_at", "appt_end_at", "demo", "passages"})
+                 "appt_date", "appt_slot", "appt_start_at", "appt_end_at", "demo", "passages", "phone_changes"})
     for d in all_docs:
         for k in d.keys():
             if k not in seen and k != "id":
