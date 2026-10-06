@@ -1,5 +1,6 @@
-"""Unit test for Bug Fix 3: _unreachable_rule_satisfied bypasses legacy leads
-(created_at < tracking_since) regardless of call attempt count."""
+"""Unit test for _unreachable_rule_satisfied: 6 "pas_de_reponse" calls required
+(S20 complement — simplified from the old 3-calls/2-days rule), and legacy
+leads (created_at < tracking_since) bypass the rule regardless of count."""
 import sys
 import os
 sys.path.insert(0, "/app/backend")
@@ -26,27 +27,23 @@ class TestUnreachableBypass:
         }
         assert _unreachable_rule_satisfied(doc) is False
 
-    def test_new_lead_3_attempts_same_day_fails(self):
-        """3 attempts on 1 day -> still fails (needs 2 distinct days)."""
+    def test_new_lead_5_attempts_fails(self):
+        """5 attempts -> still fails (needs 6)."""
         doc = {
             "created_at": "2025-10-01T00:00:00+00:00",
             "tracking_since": "2025-09-14T00:00:00+00:00",
             "call_attempts": [
-                {"outcome": "pas_de_reponse", "at": "2025-10-02T09:00:00+00:00"},
-                {"outcome": "pas_de_reponse", "at": "2025-10-02T11:00:00+00:00"},
-                {"outcome": "pas_de_reponse", "at": "2025-10-02T15:00:00+00:00"},
+                {"outcome": "pas_de_reponse", "at": f"2025-10-0{d}T09:00:00+00:00"} for d in range(2, 7)
             ],
         }
         assert _unreachable_rule_satisfied(doc) is False
 
-    def test_new_lead_3_attempts_2_days_passes(self):
+    def test_new_lead_6_attempts_passes(self):
         doc = {
             "created_at": "2025-10-01T00:00:00+00:00",
             "tracking_since": "2025-09-14T00:00:00+00:00",
             "call_attempts": [
-                {"outcome": "pas_de_reponse", "at": "2025-10-02T09:00:00+00:00"},
-                {"outcome": "pas_de_reponse", "at": "2025-10-02T15:00:00+00:00"},
-                {"outcome": "pas_de_reponse", "at": "2025-10-03T09:00:00+00:00"},
+                {"outcome": "pas_de_reponse", "at": f"2025-10-0{d}T09:00:00+00:00"} for d in range(2, 8)
             ],
         }
         assert _unreachable_rule_satisfied(doc) is True

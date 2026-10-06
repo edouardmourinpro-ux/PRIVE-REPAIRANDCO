@@ -831,25 +831,16 @@ def _format_paris_hhmm(dt: datetime) -> str:
     return f"{p.hour:02d}h{p.minute:02d}"
 
 def _unreachable_rule_satisfied(doc: dict) -> bool:
-    """« Injoignable » exige >= 3 appels "pas de réponse" répartis sur >= 2
-    jours calendaires distincts (heure de Paris) — mais SEULEMENT pour les
-    leads créés après le début du suivi complet (tracking_since). Un lead
-    plus ancien (créé avant tracking_since) a pu recevoir de vrais appels
-    jamais journalisés avant le déploiement : la règle ne s'applique pas."""
+    """« Injoignable » exige >= 6 appels "pas de réponse" — mais SEULEMENT
+    pour les leads créés après le début du suivi complet (tracking_since).
+    Un lead plus ancien (créé avant tracking_since) a pu recevoir de vrais
+    appels jamais journalisés avant le déploiement : la règle ne s'applique pas."""
     created_at = doc.get("created_at")
     tracking_since = doc.get("tracking_since")
     if created_at and tracking_since and created_at < tracking_since:
         return True
-    days = set()
-    count = 0
-    for c in doc.get("call_attempts") or []:
-        if c.get("outcome") == "pas_de_reponse":
-            count += 1
-            try:
-                days.add(datetime.fromisoformat(c["at"]).astimezone(PARIS_TZ).date())
-            except Exception:
-                pass
-    return count >= 3 and len(days) >= 2
+    count = sum(1 for c in (doc.get("call_attempts") or []) if c.get("outcome") == "pas_de_reponse")
+    return count >= 6
 
 def _resolve_callback_at(choice: Optional[str], custom_at: Optional[str]) -> Optional[str]:
     now_paris = datetime.now(PARIS_TZ)
@@ -938,7 +929,7 @@ async def create_quote(input: QuoteRequestCreate):
         "status_history": [{"status": "nouveau", "at": now_str, "by": "system"}],
         "call_attempts": [], "assigned_to": None, "first_contact_at": None,
         "lost_reason_code": None, "tracking_since": now_str,
-        "passages": [], "phone_changes": [], "client_sms": [],
+        "passages": [], "phone_changes": [], "client_sms": [], "relances": [],
         "appt_type": None, "appt_date": None, "appt_slot": None,
         "appt_start_at": None, "appt_end_at": None, "next_callback_at": None,
     })
@@ -985,7 +976,7 @@ async def create_contact(input: ContactRequestCreate):
         "status_history": [{"status": "nouveau", "at": now_str, "by": "system"}],
         "call_attempts": [], "assigned_to": None, "first_contact_at": None,
         "lost_reason_code": None, "tracking_since": now_str,
-        "passages": [], "phone_changes": [], "client_sms": [],
+        "passages": [], "phone_changes": [], "client_sms": [], "relances": [],
         "appt_type": None, "appt_date": None, "appt_slot": None,
         "appt_start_at": None, "appt_end_at": None, "next_callback_at": None,
     })
@@ -1040,7 +1031,7 @@ async def create_b2b(input: B2BRequestCreate):
         "status_history": [{"status": "nouveau", "at": now_str, "by": "system"}],
         "call_attempts": [], "assigned_to": None, "first_contact_at": None,
         "lost_reason_code": None, "tracking_since": now_str,
-        "passages": [], "phone_changes": [], "client_sms": [],
+        "passages": [], "phone_changes": [], "client_sms": [], "relances": [],
         "appt_type": None, "appt_date": None, "appt_slot": None,
         "appt_start_at": None, "appt_end_at": None, "next_callback_at": None,
     })
@@ -1090,7 +1081,7 @@ async def create_buyback(input: BuybackRequestCreate):
         "status_history": [{"status": "nouveau", "at": now_str, "by": "system"}],
         "call_attempts": [], "assigned_to": None, "first_contact_at": None,
         "lost_reason_code": None, "tracking_since": now_str,
-        "passages": [], "phone_changes": [], "client_sms": [],
+        "passages": [], "phone_changes": [], "client_sms": [], "relances": [],
         "appt_type": None, "appt_date": None, "appt_slot": None,
         "appt_start_at": None, "appt_end_at": None, "next_callback_at": None,
     })
@@ -1174,7 +1165,7 @@ async def update_demand_status(category: str, demand_id: str, body: UpdateStatus
         if body.lost_reason_code not in LOST_REASON_CODES:
             raise HTTPException(status_code=400, detail="Motif de perte invalide")
         if new_status == "client_perdu" and body.lost_reason_code == "injoignable" and not _unreachable_rule_satisfied(doc):
-            raise HTTPException(status_code=400, detail="Il faut au moins 3 appels « Pas de réponse » sur 2 jours différents avant de marquer Injoignable.")
+            raise HTTPException(status_code=400, detail="Il faut 6 appels « Pas de réponse » avant de classer Injoignable.")
         update_fields["lost_reason_code"] = body.lost_reason_code
     if body.lost_reason:
         update_fields["lost_reason"] = body.lost_reason
@@ -1313,6 +1304,44 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
         "new_status": new_status,
         "call_attempts_count": len(doc.get("call_attempts") or []) + 1,
     }
+
+
+class RelanceRequest(BaseModel):
+    by: str
+    channel: str  # email | whatsapp
+
+RELANCE_CHANNELS = {"email", "whatsapp"}
+
+@api_router.post("/admin/demandes/{category}/{demand_id}/relance")
+async def log_relance(category: str, demand_id: str, body: RelanceRequest, user=Depends(get_current_admin)):
+    """Trace une relance manuelle (email/WhatsApp envoyé à la main par un staff).
+    Ne change jamais le statut ni la prochaine action — une relance n'est pas un appel."""
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    by = (body.by or "").strip()
+    if not by:
+        raise HTTPException(status_code=400, detail="Identité manquante — merci de préciser qui relance")
+    if body.channel not in RELANCE_CHANNELS:
+        raise HTTPException(status_code=400, detail="Canal de relance invalide")
+
+    doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    entry = {"at": now_iso, "by": by, "channel": body.channel}
+    set_fields = {}
+    if not doc.get("first_contact_at"):
+        set_fields["first_contact_at"] = now_iso
+    if not doc.get("assigned_to"):
+        set_fields["assigned_to"] = by
+
+    update_op = {"$push": {"relances": entry}}
+    if set_fields:
+        update_op["$set"] = set_fields
+    await db[col_name].update_one({"id": demand_id}, update_op)
+    return {"status": "logged"}
 
 
 @api_router.post("/admin/demandes/{category}/{demand_id}/passage")
@@ -1815,7 +1844,7 @@ async def create_test_lead(body: TestLeadCreateRequest, user=Depends(get_current
         "status_history": [{"status": "nouveau", "at": now_str, "by": "system"}],
         "call_attempts": [], "assigned_to": None, "first_contact_at": None,
         "lost_reason_code": None, "tracking_since": now_str,
-        "passages": [], "phone_changes": [], "client_sms": [],
+        "passages": [], "phone_changes": [], "client_sms": [], "relances": [],
         "appt_type": None, "appt_date": None, "appt_slot": None,
         "appt_start_at": None, "appt_end_at": None, "next_callback_at": None,
     }
@@ -1938,6 +1967,14 @@ async def get_admin_stats(
     stats["total"] = total_all
     stats.update(by_status)
     stats["by_category_status"] = by_category_status
+
+    # Entreprise (B2B) : détail brut par statut uniquement — jamais dans les
+    # totaux agrégés ci-dessus (hors CRM, hors mécanique d'escalade/SMS).
+    entreprise_query = dict(base_query)
+    cat_statuses = {}
+    for st in ALLOWED_STATUSES:
+        cat_statuses[st] = await db.demandes_entreprise.count_documents({**entreprise_query, "status": st})
+    by_category_status["entreprise"] = cat_statuses
     return stats
 
 # Keep old routes as aliases for backward compat
@@ -2410,7 +2447,7 @@ async def _migrate_skip_stale_escalations():
 
 async def _cleanup_old_test_leads():
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
-    for col_name in COLLECTIONS.values():
+    for col_name in list(COLLECTIONS.values()) + ["demandes_entreprise"]:
         await db[col_name].delete_many({"is_test": True, "created_at": {"$lt": cutoff}})
 
 async def _send_daily_digest(test_mode: bool = False):
@@ -2443,6 +2480,22 @@ async def _send_daily_digest(test_mode: bool = False):
 
     email_total = email_sent + email_failed
     sms_total = sms_sent + sms_failed
+    client_sms_sent = client_sms_failed = 0
+    for col_name in COLLECTIONS.values():
+        docs = await db[col_name].find(
+            {"is_test": {"$ne": True}, "client_sms": {"$exists": True, "$ne": []}}, {"_id": 0, "client_sms": 1}
+        ).to_list(5000)
+        for d in docs:
+            for s in (d.get("client_sms") or []):
+                try:
+                    if datetime.fromisoformat(s["at"]) < datetime.fromisoformat(since):
+                        continue
+                except Exception:
+                    continue
+                if s.get("status") == "sent":
+                    client_sms_sent += 1
+                else:
+                    client_sms_failed += 1
     status = "ok"
     if leads > 0:
         if email_total == 0 or email_sent == 0:
@@ -2460,6 +2513,7 @@ async def _send_daily_digest(test_mode: bool = False):
         f"Leads (24h) : {leads}",
         (f"SMS envoyés : {sms_sent} / échoués : {sms_failed}" if SMS_ENABLED else "SMS : désactivé (SMS_ENABLED=false)"),
         f"Emails envoyés : {email_sent} / échoués : {email_failed}",
+        f"SMS clients : envoyés {client_sms_sent} / échoués {client_sms_failed}",
         f"Leads escaladés : {escalated}",
     ]
     if failed_leads:
@@ -2526,7 +2580,7 @@ async def _migrate_refactor_fields_v2():
     SMS client, RDV) on leads created before this refactor. Never overwrites
     existing values — only fills missing ones."""
     new_fields = {
-        "passages": [], "phone_changes": [], "client_sms": [],
+        "passages": [], "phone_changes": [], "client_sms": [], "relances": [],
         "appt_type": None, "appt_date": None, "appt_slot": None,
         "appt_start_at": None, "appt_end_at": None, "next_callback_at": None,
     }
