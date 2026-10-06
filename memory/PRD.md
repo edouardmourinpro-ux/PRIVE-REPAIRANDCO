@@ -214,3 +214,38 @@ Convertit anciens statuts → simplifiés :
 - **Correctif UX post-test** : ajout de l'option "Magasin TEST" dans le filtre Magasin (invisible auparavant, remonté par testing_agent).
 - Testé via testing_agent (iteration_17) : 100% backend (8/8 pytest, `/app/backend/tests/test_to_call.py`) + 100% frontend. Aucune régression sur le Journal d'appel, l'escalade, les notifications ou le CSV (non modifiés).
 
+## S20 (fork actuel) — Refonte serveur du CRM admin (backend uniquement)
+
+Décision explicite utilisateur : backend only cette session, AdminPage.jsx (frontend) **non retouché** et donc temporairement incohérent avec les nouveaux champs — à refaire dans une prochaine session.
+
+### Nouveau modèle de statut — directement piloté par le résultat d'appel
+`ALLOWED_STATUSES` = nouveau, pas_de_reponse, a_rappeler, reflechit, devis_accepte, rdv_pris, facture, refus_devis, client_perdu (+ legacy en lecture : contacte, pris_en_charge). Chaque appel loggé via `/call` fixe directement le statut (plus de "1er appel => contacte" automatique) :
+- outcome=pas_de_reponse → status=pas_de_reponse (exige 4 questions oui/non : rappel_2e, message_laisse, mail_envoye, message_envoye — chaque "non" exige sa `*_raison`)
+- outcome=numero_invalide → status=client_perdu, lost_reason_code=numero_invalide
+- outcome=joint, detail=rdv_pris → status=rdv_pris, exige appt_date (AAAA-MM-JJ) + appt_slot (1 des 3 libellés exacts APPT_SLOTS), calcule appt_start_at/appt_end_at (Europe/Paris → UTC), envoie SMS client de confirmation
+- outcome=joint, detail=devis_accepte (ou alias legacy vient_magasin) → status=devis_accepte, appt_date seul (fenêtre 9h-20h), SMS client "on vous attend"
+- outcome=joint, detail=reflechit → status=reflechit, callback_choice optionnel (défaut: 10h Paris, 2 jours ouvrés), quoted_price optionnel
+- outcome=joint, detail=refus → status=refus_devis, exige refus_reason
+
+### Nouveaux endpoints
+- `POST /admin/demandes/{cat}/{id}/call` — réécrit entièrement (voir ci-dessus)
+- `POST /admin/demandes/{cat}/{id}/passage` — venu/no-show en magasin : venu+facturé→facture ; venu+non facturé→a_rappeler (note obligatoire) ; non venu→a_rappeler (callback obligatoire) ; efface toujours appt_*, journalise dans `passages[]`
+- `PATCH /admin/demandes/{cat}/{id}/phone` — corrige le téléphone, protégé par DELETE_CODE, journalise dans `phone_changes[]`
+- `GET /admin/to-call` — 9 groupes / 3 sections (maintenant, plus_tard, a_classer) basés sur next_callback_at, call_attempts, appt_end_at — remplace l'ancienne version à 4 groupes
+- `GET /admin/transfo` — taux de conversion facturé/total sur 30j glissants (devis+contact+rachat, jamais entreprise)
+
+### B2B hors CRM
+`COLLECTIONS` ne contient plus "entreprise" (devis/contact/rachat uniquement) → toutes les routes génériques `/admin/demandes/entreprise/*` renvoient 400. `/api/b2b` archive toujours dans `demandes_entreprise` (visible par script direct uniquement) mais envoie un seul email direct à `B2B_EMAIL` (.env, défaut david.m@repairandco.fr) — plus de SMS, plus de routage magasin, plus d'escalade.
+
+### Isolation du magasin "test"
+`store="test"` est maintenant accepté par les formulaires publics (/api/quote, /api/contact, /api/buyback) — avant il était bloqué 400. Toute soumission avec store="test" est auto-flaguée `is_test=True` (exclue de stats/export/digest, pas de sync Hiboutik, email/SMS routés uniquement vers TEST_RECIPIENT_*). Seul "test" bascule ainsi — les magasins fermés (béziers) restent bloqués. `push-sms` single et rattrapage utilisent aussi TEST_RECIPIENT_SMS si is_test.
+
+### SMS client (nouveau, CLIENT_SMS_ENABLED=false par défaut)
+SMS de service (jamais promo) au client : à la création (texte différent selon horaire boutique 9h-18h lun-sam) et à la confirmation RDV/passage. 1 SMS par type et par 24h (dédoublonnage via `client_sms[]`). Adresses magasin lues dynamiquement depuis `frontend/src/data/stores.js` (source unique, fonction `_store_address`).
+
+### Tests
+`backend/tests/test_s20_refactor.py` (26 tests, nouveau) couvre tout le refactor. `test_call_journal.py`/`test_to_call.py` mis à jour pour le nouveau contrat. `test_escalation_and_test_mode.py`/`test_beziers_closure.py`/`test_sms_notifications.py`/`test_phase1_survey.py` : `store="lattes"` remplacé par `store="test"` partout (fuite d'emails réels corrigée). Suite complète : 86 passed, 2 skipped (hors test_phase1_survey.py, fichier obsolète pré-S14, déjà cassé avant cette session). Validé par testing_agent (iteration_18.json) : 0 issue critique.
+
+### P0 — Prochaine session (confirmé avec l'utilisateur)
+- Refactor frontend AdminPage.jsx pour consommer les nouveaux endpoints /call, /passage, /phone, /to-call (9 groupes/3 sections), /transfo — actuellement cassé par design, attendre feu vert utilisateur avant de commencer.
+
