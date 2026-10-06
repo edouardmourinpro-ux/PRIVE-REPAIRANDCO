@@ -7,8 +7,9 @@ import { STAFF_IDENTITIES } from '../../data/staffIdentities';
 // l'identité de la personne qui agit est mémorisée en localStorage plutôt
 // que rattachée au login. S'affiche une seule fois par navigateur, avec un
 // lien "changer" toujours visible pour la mettre à jour.
-export const IdentityModal = ({ open, currentIdentity, onConfirm, onClose }) => {
+export const IdentityModal = ({ open, currentIdentity, onConfirm, onClose, options }) => {
   const [selected, setSelected] = useState(currentIdentity || '');
+  const list = options || STAFF_IDENTITIES;
 
   useEffect(() => {
     if (open) setSelected(currentIdentity || '');
@@ -32,7 +33,7 @@ export const IdentityModal = ({ open, currentIdentity, onConfirm, onClose }) => 
             autoFocus
           >
             <option value="">Sélectionner...</option>
-            {STAFF_IDENTITIES.map(name => <option key={name} value={name}>{name}</option>)}
+            {list.map(name => <option key={name} value={name}>{name}</option>)}
           </select>
           <div className="flex justify-end">
             <Button

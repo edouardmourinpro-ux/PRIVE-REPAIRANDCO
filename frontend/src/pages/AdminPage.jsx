@@ -16,13 +16,25 @@ import { STORES } from '../data/stores';
 import SEO from '../components/SEO';
 import { ALERT_SOUND_PRESETS, DEFAULT_ALERT_SOUND, playAlertSound } from '../lib/alertSounds';
 import { IdentityModal } from '../components/admin/IdentityModal';
+import { StoreGateModal } from '../components/admin/StoreGateModal';
+import { RulesBanner } from '../components/admin/RulesBanner';
 import { CallLogPanel } from '../components/admin/CallLogPanel';
 import { ToCallTab } from '../components/admin/ToCallTab';
 import { LOST_REASON_OPTIONS, LOST_REASON_LABELS } from '../data/lostReasons';
-import { STAFF_IDENTITY_STORE_MAP } from '../data/staffIdentities';
+import { STAFF_IDENTITY_STORE_MAP, STAFF_IDENTITIES } from '../data/staffIdentities';
 import { DEVICE_TYPE_LABELS, parseRdvMessage, formatLeadTitle } from '../lib/leadFormat';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// « Équipe X » → id magasin (staffIdentities.js), inversé ici pour retrouver
+// le libellé d'identité à partir de l'id magasin choisi dans la fenêtre
+// "Quel magasin ?" (S21).
+const STORE_ID_TO_TEAM_IDENTITY = Object.entries(STAFF_IDENTITY_STORE_MAP)
+  .reduce((acc, [name, id]) => { acc[id] = name; return acc; }, {});
+// Modal "Qui êtes-vous ?" ne propose plus que les prénoms de la direction —
+// les identités "Équipe X" sont désormais fixées automatiquement par la
+// fenêtre "Quel magasin ?" (S21), jamais choisies à la main.
+const DIRECTION_IDENTITIES = STAFF_IDENTITIES.filter(n => !n.startsWith('Équipe '));
 
 const CALL_DETAIL_LABELS = {
   rdv_pris: 'RDV pris', vient_magasin: 'Vient en magasin',
@@ -112,6 +124,34 @@ const AdminPage = () => {
   const [dataLoading, setDataLoading] = useState(false);
   const [toCallData, setToCallData] = useState([]);
   const [toCallLoading, setToCallLoading] = useState(false);
+
+  // ---- "Quel magasin ?" fenêtre obligatoire à chaque connexion (S21) ----
+  const [showStoreGate, setShowStoreGate] = useState(false);
+
+  useEffect(() => {
+    if (isLoggedIn) setShowStoreGate(true);
+  }, [isLoggedIn]);
+
+  const handleGatePickStore = (storeId) => {
+    const identity = storeId === 'test'
+      ? 'Équipe Magasin TEST'
+      : (STORE_ID_TO_TEAM_IDENTITY[storeId] || `Équipe ${STORE_NAME_MAP[storeId] || storeId}`);
+    try {
+      localStorage.setItem('admin_store_filter', storeId);
+      localStorage.setItem('admin_identity', identity);
+    } catch { /* ignore */ }
+    setStoreFilter(storeId);
+    setCurrentIdentity(identity);
+    setShowStoreGate(false);
+  };
+
+  const handleGatePickAll = () => {
+    try { localStorage.setItem('admin_store_filter', ''); } catch { /* ignore */ }
+    setStoreFilter('');
+    setShowStoreGate(false);
+    pendingActionRef.current = null;
+    setShowIdentityModal(true);
+  };
 
   // ---- "Qui êtes-vous ?" identity (compte admin partagé — S18 Journal d'appel) ----
   const [currentIdentity, setCurrentIdentity] = useState(() => (typeof window !== 'undefined' && localStorage.getItem('admin_identity')) || '');
@@ -574,6 +614,13 @@ const AdminPage = () => {
               {stats?.total || 0} demandes · <span className="text-red-300 font-semibold">{stats?.nouveau || 0} à traiter</span>
             </span>
             <button
+              onClick={() => setShowStoreGate(true)}
+              className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/30 rounded-full text-xs text-white font-medium transition-colors"
+              data-testid="admin-store-gate-change-link"
+            >
+              🏪 {storeFilter === 'test' ? 'Magasin TEST' : (storeFilter ? (STORE_NAME_MAP[storeFilter] || storeFilter).replace('Repair&Co ', '') : 'Tous les magasins')} · changer
+            </button>
+            <button
               onClick={() => { pendingActionRef.current = null; setShowIdentityModal(true); }}
               className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/30 rounded-full text-xs text-white font-medium transition-colors"
               data-testid="admin-identity-change-link"
@@ -594,16 +641,27 @@ const AdminPage = () => {
         </div>
       </div>
 
+      <RulesBanner />
+
+      <StoreGateModal
+        open={showStoreGate}
+        onPickStore={handleGatePickStore}
+        onPickAll={handleGatePickAll}
+      />
+
       <IdentityModal
         open={showIdentityModal}
         currentIdentity={currentIdentity}
         onConfirm={handleIdentityConfirm}
         onClose={() => { setShowIdentityModal(false); pendingActionRef.current = null; }}
+        options={DIRECTION_IDENTITIES}
       />
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Filters bar */}
         <div className="flex flex-wrap items-center gap-3 mb-4 bg-white p-3 rounded-xl border border-[#E8F5EE]">
+          {activeTab !== 'a_appeler' && (
+          <>
           <div className="flex items-center gap-2 text-sm text-[#1A1A2E]/70 flex-shrink-0">
             <Filter size={16} className="text-[#1A5C3A]" />
             <span className="font-medium">Magasin :</span>
@@ -624,6 +682,8 @@ const AdminPage = () => {
             ))}
             <option value="test">Magasin TEST</option>
           </select>
+          </>
+          )}
 
           <DateRangePicker
             onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}

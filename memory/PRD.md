@@ -254,6 +254,14 @@ SMS de service (jamais promo) au client : à la création (texte différent selo
 - Digest 8h : nouvelle ligne "SMS clients : envoyés X / échoués Y" (fenêtre 24h, client_sms[] hors is_test). Nettoyage 48h des leads is_test étendu à demandes_entreprise.
 - Tests : `backend/tests/test_s20_complements.py` (8 tests), `test_unreachable_bypass.py` mis à jour pour la règle à 6 appels. Suite complète : 94 passed, 2 skipped. Validé par testing_agent (iteration_19.json) : 0 issue.
 
+### S21 — Ajouts /admin : fenêtre "Quel magasin ?" + bandeau 3 règles (06/10/2026)
+Frontend only, rien publié (pas de deploy). N'a pas touché au reste de AdminPage.jsx (toujours sur l'ancien contrat pré-refactor serveur S20 — refonte complète toujours en attente de feu vert).
+- `StoreGateModal.jsx` (nouveau) : fenêtre non-fermable (pas de X/Échap/clic extérieur) à chaque connexion réussie (y compris reload avec token existant). 9 boutons magasins (stores.js) + bouton large "Tous les magasins (direction)" + lien discret "Magasin TEST". Choix magasin → identité auto "Équipe <Magasin>" (réutilise STAFF_IDENTITY_STORE_MAP inversé), IdentityModal jamais affichée. "Tous les magasins" → aucun filtre + IdentityModal s'ouvre (désormais filtrée aux seuls prénoms direction via nouvelle prop `options`, les anciennes entrées "Équipe X" ne sont plus proposées nulle part — fixées uniquement par la fenêtre magasin).
+- `RulesBanner.jsx` (nouveau) : bandeau permanent fond #1A1A2E sous l'en-tête, "LES 3 RÈGLES" + 3 règles, bouton "Comment faire ?" dépliant 5 cartes, état ouvert/fermé mémorisé (localStorage `admin_howto_expanded`).
+- Dropdown "Magasin" du bandeau filtres masqué sur l'onglet "À appeler" uniquement (conservé sur les autres onglets).
+- Header : nouveau bouton "🏪 <Magasin> · changer" (rouvre la fenêtre magasin), ajouté en plus du bouton identité existant.
+- Vérifié par screenshot (pas testing_agent, scope UI isolé) : gate obligatoire à chaque login/reload, filtre + identité corrects dans les 2 branches, dropdown bien masqué/affiché selon l'onglet, 5 cartes "Comment faire", mobile 390px sans débordement (un éventuel overflow du menu mobile du header public est pré-existant, hors scope).
+
 ### P0 — Prochaine session (confirmé avec l'utilisateur)
 - Refactor frontend AdminPage.jsx pour consommer les nouveaux endpoints /call, /passage, /phone, /to-call (9 groupes/3 sections), /transfo, /relance, by_category_status.entreprise — actuellement cassé par design, attendre feu vert utilisateur avant de commencer.
 
