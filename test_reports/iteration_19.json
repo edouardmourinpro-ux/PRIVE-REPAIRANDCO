@@ -1,0 +1,20 @@
+{
+  "summary": "Backend-only verification of S20 complements (5 points). Ran full suite excluding stale test_phase1_survey.py: 94 passed, 2 skipped. Live curl verification confirmed: (1) /relance appends to relances[] without touching status and lead stays in to-call group=2 (covered by test_relance_logs_without_changing_status + rejects by='' and channel='sms' with 400); (2) GET /api/admin/stats returns by_category_status with 4 keys (devis/contact/rachat/entreprise), each with 11 statuses; 'entreprise' is NOT a top-level key and its 24 nouveau leads are correctly EXCLUDED from stats.nouveau (25 = 13+11+1) and stats.total (32); (3) B2B isolation confirmed — POST /api/b2b leads never appear in /api/admin/to-call (0 entreprise items) and /api/admin/demandes/entreprise still returns 400; (4) Injoignable rule now rejects <6 pas_de_reponse calls with 400 'il faut 6 appels' and accepts at exactly 6 (200); (5) /api/admin/notifications/digest-test returned {status:'sent'} with no crash. Code review confirmed _cleanup_old_test_leads iterates over list(COLLECTIONS.values()) + ['demandes_entreprise'] (server.py:2450).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_s20_complements.py", "/app/test_reports/pytest/results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 2603 lines — exceeds the 700-line guideline; consider splitting into modules (routers/, services/, scheduler/) in a future refactor.",
+    "FastAPI @app.on_event('startup'/'shutdown') is deprecated (DeprecationWarning in pytest); migrate to lifespan event handlers.",
+    "get_admin_stats performs N*M count_documents calls (4 categories x 11 statuses + totals = ~48 round-trips); for a small dataset it's fine but consider an aggregation pipeline if lead volume grows."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "n/a (skipped per request)"},
+  "test_credentials": "david.m@repairandco.fr / Repair2025Admin! (admin), DELETE_CODE=MOUR1",
+  "seed_data_creation": "None — all test leads created via /api/admin/notifications/test-lead with store='test' and cleaned up via DELETE.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "S20 complements session clean. Pre-existing test_phase1_survey.py is stale (predates S14 status pipeline) and should be removed or rewritten — out of scope here. AdminPage.jsx frontend intentionally NOT updated this session; next frontend session will need to surface the new relances[] trace, by_category_status.entreprise breakdown, and the updated '6 appels' injoignable gating.",
+  "rca of the issue": "No issues found."
+}

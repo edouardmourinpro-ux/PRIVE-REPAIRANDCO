@@ -246,6 +246,14 @@ SMS de service (jamais promo) au client : à la création (texte différent selo
 ### Tests
 `backend/tests/test_s20_refactor.py` (26 tests, nouveau) couvre tout le refactor. `test_call_journal.py`/`test_to_call.py` mis à jour pour le nouveau contrat. `test_escalation_and_test_mode.py`/`test_beziers_closure.py`/`test_sms_notifications.py`/`test_phase1_survey.py` : `store="lattes"` remplacé par `store="test"` partout (fuite d'emails réels corrigée). Suite complète : 86 passed, 2 skipped (hors test_phase1_survey.py, fichier obsolète pré-S14, déjà cassé avant cette session). Validé par testing_agent (iteration_18.json) : 0 issue critique.
 
+### S20 compléments (même session) — toujours backend only
+- `POST /admin/demandes/{cat}/{id}/relance` (by, channel email|whatsapp) — journalise dans `relances[]`, renseigne first_contact_at/assigned_to si vides, **ne touche jamais au statut** ni à la position dans "À appeler".
+- `GET /admin/stats` → `by_category_status` inclut désormais "entreprise" (détail brut par statut) en plus de devis/contact/rachat, mais Entreprise reste exclu des totaux agrégés (stats.total, stats.entreprise n'existe pas, stats.<statut> racine).
+- Entreprise confirmé 100% hors mécanique : aucune escalade 15/30min/2h, aucun rattrapage SMS, uniquement l'email direct à B2B_EMAIL.
+- Règle "Injoignable" simplifiée : 6 appels "pas de réponse" (comptage pur, plus de contrainte 2 jours distincts) ; message d'erreur « Il faut 6 appels « Pas de réponse » avant de classer Injoignable. » ; les leads antérieurs à tracking_since restent exemptés.
+- Digest 8h : nouvelle ligne "SMS clients : envoyés X / échoués Y" (fenêtre 24h, client_sms[] hors is_test). Nettoyage 48h des leads is_test étendu à demandes_entreprise.
+- Tests : `backend/tests/test_s20_complements.py` (8 tests), `test_unreachable_bypass.py` mis à jour pour la règle à 6 appels. Suite complète : 94 passed, 2 skipped. Validé par testing_agent (iteration_19.json) : 0 issue.
+
 ### P0 — Prochaine session (confirmé avec l'utilisateur)
-- Refactor frontend AdminPage.jsx pour consommer les nouveaux endpoints /call, /passage, /phone, /to-call (9 groupes/3 sections), /transfo — actuellement cassé par design, attendre feu vert utilisateur avant de commencer.
+- Refactor frontend AdminPage.jsx pour consommer les nouveaux endpoints /call, /passage, /phone, /to-call (9 groupes/3 sections), /transfo, /relance, by_category_status.entreprise — actuellement cassé par design, attendre feu vert utilisateur avant de commencer.
 
