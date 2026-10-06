@@ -101,7 +101,8 @@ def test_group1_rappel_pret(headers, db):
                     "callback_at": past,
                     "by": "TEST",
                 }],
-                "status": "client_contacte",
+                "status": "a_rappeler",
+                "next_callback_at": past,
             }}
         )
         r = requests.get(f"{BASE_URL}/api/admin/to-call", headers=headers, params={"store": "test"})
@@ -129,7 +130,7 @@ def test_group3_relance(headers, db):
                     "at": old, "outcome": "pas_de_reponse",
                     "message_laisse": False, "by": "TEST",
                 }],
-                "status": "client_contacte",
+                "status": "pas_de_reponse",
             }}
         )
         r = requests.get(f"{BASE_URL}/api/admin/to-call", headers=headers, params={"store": "test"})
@@ -142,25 +143,25 @@ def test_group3_relance(headers, db):
         _delete(headers, "devis", lead_id)
 
 
-def test_group4_injoignable_ready(headers, db):
+def test_group4_a_classer_six_unanswered(headers, db):
     lead_id = _create_test_lead(headers, "devis")
     try:
         now = datetime.now(timezone.utc)
         attempts = [
-            {"at": (now - timedelta(days=3)).isoformat(), "outcome": "pas_de_reponse", "message_laisse": False, "by": "T"},
-            {"at": (now - timedelta(days=2)).isoformat(), "outcome": "pas_de_reponse", "message_laisse": False, "by": "T"},
-            {"at": (now - timedelta(days=1)).isoformat(), "outcome": "pas_de_reponse", "message_laisse": False, "by": "T"},
+            {"at": (now - timedelta(days=d)).isoformat(), "outcome": "pas_de_reponse", "message_laisse": False, "by": "T"}
+            for d in range(6, 0, -1)
         ]
         db.demandes_devis.update_one(
             {"id": lead_id},
-            {"$set": {"call_attempts": attempts, "status": "client_contacte"}}
+            {"$set": {"call_attempts": attempts, "status": "pas_de_reponse"}}
         )
         r = requests.get(f"{BASE_URL}/api/admin/to-call", headers=headers, params={"store": "test"})
         items = [i for i in r.json() if i["id"] == lead_id]
         assert len(items) == 1
         it = items[0]
         assert it["group"] == 4, it
-        assert it["label"] == "3 appels sans réponse — classer Injoignable ?", it["label"]
+        assert it["section"] == "a_classer", it
+        assert "sans réponse" in it["label"], it["label"]
 
         # Now PATCH to client_perdu/injoignable
         r2 = requests.patch(

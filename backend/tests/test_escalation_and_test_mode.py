@@ -1,8 +1,8 @@
 """Backend regression tests for 3-tier escalation + test-mode + store closure.
 
 Focus:
-- Public forms block store='test' (and closed stores like beziers)
-- Real leads still work with store='lattes'
+- Public forms accept store='test' and auto-flag is_test=True (isolated, no real send)
+- Real-store-shaped lead still works end-to-end using store='test' (never a real store)
 - Admin stats/export exclude is_test leads
 - Béziers appears in /magasins with closure_banner
 - /devis /rendez-vous /rachat /contact exclude Béziers from dropdowns
@@ -38,29 +38,29 @@ def auth_headers(admin_token):
     return {"Authorization": f"Bearer {admin_token}"}
 
 
-# ---- Public forms: test store blocked ----
-class TestPublicFormsBlockTestStore:
-    def test_quote_blocks_test_store(self):
+# ---- Public forms: test store accepted but auto-isolated ----
+class TestPublicFormsAcceptTestStore:
+    def test_quote_accepts_test_store_and_flags_is_test(self):
         payload = {
             "store": "test", "first_name": "X", "name": "Y", "phone": "0600000000",
             "email": "x@y.com", "device_type": "smartphone", "brand": "Apple",
             "model": "iPhone 12", "issue_types": ["Ecran"]
         }
         r = requests.post(f"{API}/quote", json=payload, timeout=30)
-        assert r.status_code == 400, f"expected 400 got {r.status_code}: {r.text}"
+        assert r.status_code == 200, f"expected 200 got {r.status_code}: {r.text}"
 
-    def test_contact_blocks_test_store(self):
+    def test_contact_accepts_test_store(self):
         payload = {"store": "test", "first_name": "X", "name": "Y", "phone": "0600000000",
                    "email": "x@y.com", "subject": "Test", "message": "test"}
         r = requests.post(f"{API}/contact", json=payload, timeout=30)
-        assert r.status_code == 400
+        assert r.status_code == 200, r.text
 
-    def test_buyback_blocks_test_store(self):
+    def test_buyback_accepts_test_store(self):
         payload = {"store": "test", "first_name": "X", "name": "Y", "phone": "0600000000",
                    "email": "x@y.com", "device_type": "smartphone", "brand": "Apple",
                    "model": "iPhone 12", "condition": "bon", "storage": "128"}
         r = requests.post(f"{API}/buyback", json=payload, timeout=30)
-        assert r.status_code == 400
+        assert r.status_code == 200, r.text
 
 
 # ---- Public forms: beziers blocked ----
@@ -80,11 +80,11 @@ class TestBeziersClosure:
         pytest.skip("no /api/magasins endpoint; store list is client-side (frontend/src/data/stores.js)")
 
 
-# ---- Real lead still works ----
+# ---- End-to-end lead still works (magasin TEST — jamais un vrai magasin) ----
 class TestRealLeadStillWorks:
-    def test_quote_lattes_success(self):
+    def test_quote_test_store_success(self):
         payload = {
-            "store": "lattes",
+            "store": "test",
             "first_name": "TEST_AUTO",
             "name": "TEST — regression",
             "phone": "0600000000",
@@ -95,17 +95,17 @@ class TestRealLeadStillWorks:
             "issue_types": ["Test regression"],
         }
         r = requests.post(f"{API}/quote", json=payload, timeout=30)
-        assert r.status_code == 200, f"lattes real lead failed: {r.status_code} {r.text}"
+        assert r.status_code == 200, f"test-store lead failed: {r.status_code} {r.text}"
         data = r.json()
         assert data.get("status") == "success"
         assert "id" in data
         # store id for downstream test
-        pytest.lattes_lead_id = data["id"]
+        pytest.test_store_lead_id = data["id"]
 
-    def test_quote_lattes_notification_recorded(self, auth_headers):
-        lead_id = getattr(pytest, "lattes_lead_id", None)
+    def test_quote_test_store_notification_recorded(self, auth_headers):
+        lead_id = getattr(pytest, "test_store_lead_id", None)
         if not lead_id:
-            pytest.skip("no lattes lead id available")
+            pytest.skip("no test-store lead id available")
         # wait for async notify to happen (SMS disabled -> only email required)
         found_ok = False
         last = None
@@ -119,6 +119,7 @@ class TestRealLeadStillWorks:
             if not match:
                 continue
             last = match
+            assert match.get("is_test") is True, "store='test' submission must be auto-flagged is_test"
             notifs = match.get("notifications") or []
             email_notifs = [n for n in notifs if n.get("channel") == "email"]
             if any(n.get("status") == "sent" for n in email_notifs):
@@ -179,7 +180,7 @@ class TestNotificationsTestEndpoint:
     def test_notif_test_defaults_to_test_recipient(self, auth_headers):
         r = requests.post(f"{API}/admin/notifications/test",
                           headers=auth_headers,
-                          json={"store": "lattes"},  # real defaults False
+                          json={"store": "test"},  # real defaults False
                           timeout=60)
         assert r.status_code == 200, r.text
         data = r.json()

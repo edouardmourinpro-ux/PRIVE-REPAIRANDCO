@@ -121,15 +121,16 @@ class TestCallLogValidation:
 # ---------- Auto nouveau -> contacte + persistence ----------
 
 class TestCallLogFlow:
-    def test_first_call_flips_nouveau_to_contacte(self, headers):
+    def test_first_call_sets_status_from_detail(self, headers):
         lead_id = _create_test_lead(headers)
         try:
             r = requests.post(f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/call",
                               headers=headers,
-                              json={"by": "David", "outcome": "joint", "detail": "rdv_pris"}, timeout=15)
+                              json={"by": "David", "outcome": "joint", "detail": "rdv_pris",
+                                    "appt_date": "2026-12-01", "appt_slot": "Matin (9h30-12h30)"}, timeout=15)
             assert r.status_code == 200, r.text
             body = r.json()
-            assert body["new_status"] == "contacte"
+            assert body["new_status"] == "rdv_pris"
             assert body["call_attempts_count"] == 1
 
             # Verify persistence via list endpoint
@@ -137,31 +138,32 @@ class TestCallLogFlow:
             assert r2.status_code == 200
             found = next((d for d in r2.json() if d["id"] == lead_id), None)
             assert found is not None
-            assert found["status"] == "contacte"
+            assert found["status"] == "rdv_pris"
             assert len(found.get("call_attempts") or []) == 1
             assert found["call_attempts"][0]["by"] == "David"
             assert found["call_attempts"][0]["detail"] == "rdv_pris"
             assert found.get("first_contact_at")
             assert found.get("assigned_to") == "David"
-            # status_history must have the auto contacte push in addition to system entry
+            # status_history must have the auto rdv_pris push in addition to system entry
             statuses = [h["status"] for h in found.get("status_history") or []]
-            assert "contacte" in statuses
+            assert "rdv_pris" in statuses
         finally:
             _delete_test_lead(headers, "devis", lead_id)
 
     def test_assigned_to_not_overwritten(self, headers):
         lead_id = _create_test_lead(headers)
         try:
+            pdr_body = {"rappel_2e": True, "message_laisse": True, "mail_envoye": True, "message_envoye": True}
             # First call by Alice
             r = requests.post(f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/call",
                               headers=headers,
-                              json={"by": "Alice", "outcome": "pas_de_reponse", "message_laisse": False}, timeout=15)
-            assert r.status_code == 200
+                              json={"by": "Alice", "outcome": "pas_de_reponse", **pdr_body}, timeout=15)
+            assert r.status_code == 200, r.text
             # Second call by Bob
             r = requests.post(f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/call",
                               headers=headers,
-                              json={"by": "Bob", "outcome": "pas_de_reponse", "message_laisse": True}, timeout=15)
-            assert r.status_code == 200
+                              json={"by": "Bob", "outcome": "pas_de_reponse", **pdr_body}, timeout=15)
+            assert r.status_code == 200, r.text
             r2 = requests.get(f"{BASE_URL}/api/admin/demandes-devis", headers=headers, timeout=15)
             found = next(d for d in r2.json() if d["id"] == lead_id)
             assert found["assigned_to"] == "Alice"  # never overwritten
@@ -176,10 +178,11 @@ class TestInjoignableRule:
         lead_id = _create_test_lead(headers)
         try:
             # Log 3 pas_de_reponse (same day) — should still fail the 2-days rule
+            pdr_body = {"rappel_2e": True, "message_laisse": True, "mail_envoye": True, "message_envoye": True}
             for _ in range(3):
                 requests.post(f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/call",
                               headers=headers,
-                              json={"by": "David", "outcome": "pas_de_reponse", "message_laisse": False}, timeout=15)
+                              json={"by": "David", "outcome": "pas_de_reponse", **pdr_body}, timeout=15)
             r = requests.patch(f"{BASE_URL}/api/admin/demandes/devis/{lead_id}/status",
                                headers=headers,
                                json={"status": "client_perdu", "by": "David", "lost_reason_code": "injoignable"}, timeout=15)

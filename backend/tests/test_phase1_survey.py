@@ -42,7 +42,7 @@ class TestFormPosts:
         r = requests.post(f"{BASE_URL}/api/quote", json={
             "device_type": "smartphone", "brand": "TEST_Apple", "model": "iPhone TEST",
             "issue_types": ["Écran cassé"], "name": "TEST_User", "phone": "0600000000",
-            "email": "test@test.fr", "store": "lattes",
+            "email": "test@test.fr", "store": "test",
         }, timeout=20)
         assert r.status_code == 200
         d = r.json()
@@ -66,7 +66,7 @@ class TestFormPosts:
     def test_post_buyback_returns_id(self):
         r = requests.post(f"{BASE_URL}/api/buyback", json={
             "brand": "TEST", "model": "X", "condition": "bon",
-            "name": "TEST_R", "phone": "0600000000", "store": "lattes"
+            "name": "TEST_R", "phone": "0600000000", "store": "test"
         }, timeout=20)
         assert r.status_code == 200
         assert "id" in r.json()
@@ -75,7 +75,7 @@ class TestFormPosts:
         r = requests.post(f"{BASE_URL}/api/quote", json={
             "device_type": "smartphone", "brand": "TEST_StatusBrand", "model": "Z",
             "issue_types": ["Batterie"], "name": "TEST_StatusUser", "phone": "0600000099",
-            "email": "s@s.fr", "store": "lattes",
+            "email": "s@s.fr", "store": "test",
         }, timeout=20)
         new_id = r.json()["id"]
         lst = requests.get(f"{BASE_URL}/api/admin/demandes/devis", headers=auth_headers, timeout=15).json()
@@ -91,7 +91,7 @@ class TestCustomerSurvey:
         r = requests.post(f"{BASE_URL}/api/quote", json={
             "device_type": "smartphone", "brand": "TEST_Survey", "model": "M",
             "issue_types": ["Écran cassé"], "name": "TEST_SurveyUser", "phone": "0600000003",
-            "email": "sv@s.fr", "store": "lattes",
+            "email": "sv@s.fr", "store": "test",
         }, timeout=20)
         return r.json()["id"]
 
@@ -152,7 +152,7 @@ class TestStatusPatch:
         r = requests.post(f"{BASE_URL}/api/quote", json={
             "device_type": "smartphone", "brand": "TEST_StatusPatch", "model": "M",
             "issue_types": ["Batterie"], "name": "TEST_StatusPatchUser", "phone": "0600000004",
-            "email": "sp@s.fr", "store": "lattes",
+            "email": "sp@s.fr", "store": "test",
         }, timeout=20)
         return r.json()["id"]
 
@@ -197,7 +197,7 @@ class TestStaffFeedback:
         r = requests.post(f"{BASE_URL}/api/quote", json={
             "device_type": "smartphone", "brand": "TEST_Staff", "model": "M",
             "issue_types": ["Batterie"], "name": "TEST_StaffUser", "phone": "0600000005",
-            "email": "stf@s.fr", "store": "lattes",
+            "email": "stf@s.fr", "store": "test",
         }, timeout=20)
         return r.json()["id"]
 
@@ -287,7 +287,7 @@ class TestCsvExport:
         r = requests.post(f"{BASE_URL}/api/quote", json={
             "device_type": "smartphone", "brand": "TEST_CSV", "model": "M",
             "issue_types": ["Écran cassé"], "name": "TEST_CSVUser", "phone": "0600000006",
-            "email": "csv@s.fr", "store": "lattes",
+            "email": "csv@s.fr", "store": "test",
         }, timeout=20)
         new_id = r.json()["id"]
         requests.post(

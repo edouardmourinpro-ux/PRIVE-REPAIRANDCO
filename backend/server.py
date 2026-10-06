@@ -24,7 +24,8 @@ import uuid
 import bcrypt
 import jwt
 import unicodedata
-from datetime import datetime, timezone, timedelta
+import re
+from datetime import datetime, timezone, timedelta, date
 from zoneinfo import ZoneInfo
 from hiboutik_sync import sync_lead_to_hiboutik
 
@@ -62,6 +63,8 @@ JWT_ALGORITHM = "HS256"
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@repair-and-co.fr')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
 DELETE_CODE = os.environ.get('DELETE_CODE', 'MOUR1')
+# Destinataire unique des demandes B2B — hors CRM admin, email direct uniquement.
+B2B_EMAIL = os.environ.get('B2B_EMAIL', 'david.m@repairandco.fr')
 
 # SMS via Brevo — https://api.brevo.com/v3/transactionalSMS/send
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY')
@@ -76,6 +79,9 @@ SMS_SENDER = os.environ.get('SMS_SENDER', 'RepairCo')
 SMS_ENABLED = os.environ.get('SMS_ENABLED', 'false').lower() == 'true'
 # Destinataires des alertes de supervision (pannes, escalades finales)
 SUPERVISION_EMAIL = os.environ.get('SUPERVISION_EMAIL', '')
+# SMS de service au CLIENT (confirmation création / RDV / passage) — distinct de
+# SMS_ENABLED qui gère les SMS vers les magasins/RPV.
+CLIENT_SMS_ENABLED = os.environ.get('CLIENT_SMS_ENABLED', 'false').lower() == 'true'
 
 # Destinataire PRIMAIRE du SMS : le mobile du magasin, un seul responsable par lead.
 # RÈGLE : uniquement des mobiles francais (33 6.. ou 33 7..).
@@ -138,12 +144,32 @@ STORE_NAMES = {
     "test": "Magasin TEST",
 }
 
+def _store_address(store_id: str) -> str:
+    """Lit frontend/src/data/stores.js (source unique) pour obtenir l'adresse
+    complète d'un magasin — évite de dupliquer les adresses côté backend.
+    Si le magasin déménage, un seul endroit à corriger (le frontend)."""
+    try:
+        stores_js = (ROOT_DIR.parent / "frontend" / "src" / "data" / "stores.js").read_text(encoding="utf-8")
+    except Exception:
+        return ""
+    for block in re.findall(r"\{([^{}]*)\}", stores_js):
+        m_id = re.search(r'id:\s*"([^"]+)"', block)
+        if not m_id or m_id.group(1) != store_id:
+            continue
+        m_addr = re.search(r'address:\s*"([^"]*)"', block)
+        m_postal = re.search(r'postalCode:\s*"([^"]*)"', block)
+        m_city = re.search(r'city:\s*"([^"]*)"', block)
+        parts = [p for p in [m_addr.group(1) if m_addr else None, m_postal.group(1) if m_postal else None, m_city.group(1) if m_city else None] if p]
+        return ", ".join(parts)
+    return ""
+
 # Magasins qui n'acceptent pas de demande (fermés / en travaux) + magasin technique de test.
 # Doit rester aligné avec acceptsLeads dans frontend/src/data/stores.js.
 CLOSED_STORES = {"beziers"}
-# Magasin technique réservé au mode test admin — jamais accessible via un formulaire public.
+# Magasin technique réservé au mode test — absent du frontend (stores.js) ; une
+# soumission publique avec store="test" est acceptée mais marquée is_test=True
+# automatiquement (isolation totale : TEST_RECIPIENT_*, jamais Hiboutik/stats/digest).
 TEST_STORE_ID = "test"
-PUBLIC_BLOCKED_STORES = CLOSED_STORES | {TEST_STORE_ID}
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -327,6 +353,17 @@ SOURCE_LABELS = {
 def _is_french_mobile(number: str) -> bool:
     """Only 33 6.. / 33 7.. mobiles are ever SMS-deliverable — landlines are not."""
     return (number or "").startswith(("336", "337"))
+
+def _normalize_fr_mobile(phone: str) -> Optional[str]:
+    """Convertit un numéro saisi au format national (ex: 0788809386) vers le
+    format international sans + utilisé par Brevo (33788809386). Renvoie
+    None si ce n'est pas un mobile français valide."""
+    digits = re.sub(r"\D", "", phone or "")
+    if digits.startswith("0") and len(digits) == 10:
+        digits = "33" + digits[1:]
+    if not digits.startswith("33") or len(digits) != 11:
+        return None
+    return digits if _is_french_mobile(digits) else None
 
 def _strip_accents(text: str) -> str:
     """SMS content must be pure ASCII — any accent flips encoding to UCS-2 and
@@ -576,15 +613,44 @@ class QuotedPriceRequest(BaseModel):
 class CallLogRequest(BaseModel):
     by: str
     outcome: str  # joint | pas_de_reponse | numero_invalide
-    detail: Optional[str] = None  # rdv_pris | vient_magasin | devis_accepte | rappeler | refus
+    detail: Optional[str] = None  # rdv_pris | devis_accepte | vient_magasin (legacy) | rappeler | refus | reflechit
+    appt_date: Optional[str] = None  # AAAA-MM-JJ — requis si detail = rdv_pris | devis_accepte | vient_magasin
+    appt_slot: Optional[str] = None  # un des 3 libellés exacts APPT_SLOTS — requis seulement si detail = rdv_pris
     callback_choice: Optional[str] = None  # 1h | 18h | demain_10h | custom
     callback_at: Optional[str] = None
     refus_reason: Optional[str] = None
+    quoted_price: Optional[str] = None  # facultatif, detail = reflechit
+    # outcome = pas_de_reponse : 4 questions oui/non à la suite, chaque "non" exige sa raison
+    rappel_2e: Optional[bool] = None
+    rappel_2e_raison: Optional[str] = None
     message_laisse: Optional[bool] = None
+    message_laisse_raison: Optional[str] = None
+    mail_envoye: Optional[bool] = None
+    mail_envoye_raison: Optional[str] = None
+    message_envoye: Optional[bool] = None
+    message_envoye_raison: Optional[str] = None
     note: Optional[str] = None
 
-# Allowed status values (Phase 2 — pipeline 6 statuts)
-ALLOWED_STATUSES = {"nouveau", "contacte", "pris_en_charge", "facture", "refus_devis", "client_perdu"}
+class PassageRequest(BaseModel):
+    by: str
+    venu: bool
+    facture: Optional[bool] = None
+    callback_choice: Optional[str] = None
+    callback_at: Optional[str] = None
+    note: Optional[str] = None
+
+class PhoneUpdateRequest(BaseModel):
+    code: str
+    by: str
+    phone: str
+
+# Allowed status values (refonte serveur S20 — statut aligné directement sur le résultat d'appel)
+ALLOWED_STATUSES = {
+    "nouveau", "pas_de_reponse", "a_rappeler", "reflechit", "devis_accepte",
+    "rdv_pris", "facture", "refus_devis", "client_perdu",
+    # anciens statuts (S14), conservés en lecture pour les demandes déjà en base
+    "contacte", "pris_en_charge",
+}
 # Map legacy → new
 LEGACY_STATUS_MAP = {
     "en_attente": "contacte",
@@ -596,7 +662,7 @@ LEGACY_STATUS_MAP = {
     "annule": "facture",
 }
 
-# ==================== JOURNAL D'APPEL (S18) ====================
+# ==================== JOURNAL D'APPEL (S18 → refonte serveur S20) ====================
 
 # Motifs de perte / refus — liste fixe en un clic. "Injoignable" couvre déjà
 # "ne répond plus" (pas de doublon sémantique dans la liste).
@@ -618,16 +684,147 @@ LOST_REASON_CODES = set(LOST_REASON_LABELS.keys())
 REFUS_REASON_CODES = {"prix", "delai", "deja_repare_ailleurs", "plus_besoin", "piece_indisponible", "autre"}
 
 CALL_OUTCOMES = {"joint", "pas_de_reponse", "numero_invalide"}
-CALL_JOINT_DETAILS = {"rdv_pris", "vient_magasin", "devis_accepte", "rappeler", "refus"}
+CALL_JOINT_DETAILS = {"rdv_pris", "devis_accepte", "vient_magasin", "rappeler", "refus", "reflechit"}
 CALLBACK_CHOICES = {"1h", "18h", "demain_10h", "custom"}
 
 CALL_DETAIL_LABELS = {
     "rdv_pris": "RDV pris", "vient_magasin": "Vient en magasin",
     "devis_accepte": "Devis accepté", "rappeler": "À rappeler", "refus": "Refus",
+    "reflechit": "Réfléchit",
 }
 
-# Statuts pour lesquels un lead n'a plus besoin d'être appelé (onglet "À appeler" — S19).
+# detail d'appel joint → statut direct de la demande (S20). "vient_magasin" est
+# l'ancien détail (pré-S20), traité comme "devis_accepte" — accepté en lecture
+# pour compat, aucun nouveau call ne devrait plus l'envoyer.
+CALL_DETAIL_STATUS = {
+    "rdv_pris": "rdv_pris",
+    "devis_accepte": "devis_accepte",
+    "vient_magasin": "devis_accepte",
+    "rappeler": "a_rappeler",
+    "refus": "refus_devis",
+    "reflechit": "reflechit",
+}
+
+# Créneaux RDV — libellés exacts affichés sur le site public. Valeurs =
+# (heure_debut, min_debut, heure_fin, min_fin) en heure de Paris.
+APPT_SLOTS = {
+    "Matin (9h30-12h30)": (9, 30, 12, 30),
+    "Après-midi (14h-17h)": (14, 0, 17, 0),
+    "Fin de journée (17h-19h30)": (17, 0, 19, 30),
+}
+APPT_SLOT_SHORT = {
+    "Matin (9h30-12h30)": "9h30-12h30",
+    "Après-midi (14h-17h)": "14h-17h",
+    "Fin de journée (17h-19h30)": "17h-19h30",
+}
+APPT_SLOT_SMS_TEXT = {
+    "Matin (9h30-12h30)": "entre 9h30 et 12h30",
+    "Après-midi (14h-17h)": "entre 14h et 17h",
+    "Fin de journée (17h-19h30)": "entre 17h et 19h30",
+}
+# "devis_accepte" / "vient_magasin" : passage sans créneau fixe → fenêtre horaire type (9h-20h).
+PASSAGE_WINDOW = (9, 0, 20, 0)
+
+# Statuts pour lesquels un lead n'a plus besoin d'être appelé (onglet "À appeler" — S19/S20).
 NON_CALLABLE_STATUSES = {"pris_en_charge", "facture", "refus_devis", "client_perdu"}
+
+FR_WEEKDAY_ABBR = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
+
+def _format_fr_date_short(d: date) -> str:
+    """Ex: 'ven. 25/09' — jour abrégé + date, utilisé dans l'onglet À appeler et les SMS client."""
+    return f"{FR_WEEKDAY_ABBR[d.weekday()]} {d.strftime('%d/%m')}"
+
+def _compute_appt_window(appt_date: str, start_h: int, start_m: int, end_h: int, end_m: int):
+    """Calcule le début/fin de créneau en Europe/Paris puis renvoie (start_iso_utc, end_iso_utc)."""
+    d = datetime.strptime(appt_date, "%Y-%m-%d").date()
+    start_paris = datetime(d.year, d.month, d.day, start_h, start_m, tzinfo=PARIS_TZ)
+    end_paris = datetime(d.year, d.month, d.day, end_h, end_m, tzinfo=PARIS_TZ)
+    return start_paris.astimezone(timezone.utc).isoformat(), end_paris.astimezone(timezone.utc).isoformat()
+
+def _require_callback_at(choice: Optional[str], custom_at: Optional[str]) -> str:
+    """Comme _resolve_callback_at mais lève une 400 si le choix est absent/invalide."""
+    if choice not in CALLBACK_CHOICES:
+        raise HTTPException(status_code=400, detail="Choix de rappel invalide")
+    if choice == "custom" and not custom_at:
+        raise HTTPException(status_code=400, detail="Date de rappel requise")
+    return _resolve_callback_at(choice, custom_at)
+
+def _default_reflechit_callback_at() -> str:
+    """Sans choix explicite : replanifie à 10h, 2 jours ouvrés plus tard (dimanche fermé)."""
+    d = datetime.now(PARIS_TZ).date()
+    added = 0
+    while added < 2:
+        d += timedelta(days=1)
+        if d.weekday() != 6:
+            added += 1
+    dt = datetime(d.year, d.month, d.day, 10, 0, tzinfo=PARIS_TZ)
+    return dt.astimezone(timezone.utc).isoformat()
+
+def _is_client_creation_daytime(now_paris: datetime = None) -> bool:
+    """Lundi-samedi, 9h-18h Paris — fenêtre utilisée pour choisir le texte du SMS de création."""
+    now_paris = now_paris or datetime.now(PARIS_TZ)
+    return now_paris.weekday() != 6 and 9 <= now_paris.hour < 18
+
+def _build_client_creation_sms(store_name: str) -> str:
+    if _is_client_creation_daytime():
+        text = f"Repair&Co : demande bien recue. Le magasin de {store_name} vous rappelle aujourd'hui. Merci de garder votre telephone a portee."
+    else:
+        text = f"Repair&Co : demande bien recue. Le magasin de {store_name} vous rappelle des l'ouverture a 9h. Merci de garder votre telephone a portee."
+    return _strip_accents(text)[:160]
+
+def _build_client_appt_sms(appt_type: str, appt_date: str, appt_slot: Optional[str], store_name: str, store_address: str) -> str:
+    d = datetime.strptime(appt_date, "%Y-%m-%d").date()
+    date_short = _format_fr_date_short(d)
+    where = f"{store_name}, {store_address}" if store_address else store_name
+    if appt_type == "rdv":
+        slot_text = APPT_SLOT_SMS_TEXT.get(appt_slot, "")
+        text = f"Repair&Co : votre RDV est confirme le {date_short} {slot_text} au magasin de {where}. A bientot !"
+    else:
+        text = f"Repair&Co : nous vous attendons le {date_short} au magasin de {where}. A bientot !"
+    return _strip_accents(text)[:160]
+
+async def _send_client_sms(collection_name: str, demand_id: str, phone: str, sms_type: str, text: str) -> None:
+    """Envoie un SMS de service au client (jamais de promo/lien), avec garde
+    anti-doublon (1 confirmation du même type par demande et par 24h) et
+    persistance dans client_sms[]. Tâche de fond — ne lève jamais."""
+    if not CLIENT_SMS_ENABLED:
+        return
+    number = _normalize_fr_mobile(phone)
+    if not number:
+        return
+    doc = await db[collection_name].find_one({"id": demand_id}, {"_id": 0, "client_sms": 1})
+    if doc:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        for existing in (doc.get("client_sms") or []):
+            if existing.get("type") == sms_type:
+                try:
+                    if datetime.fromisoformat(existing["at"]) >= cutoff:
+                        return
+                except Exception:
+                    pass
+    try:
+        result = await asyncio.to_thread(_brevo_send_sms_sync, number, text)
+        entry = {"type": sms_type, "to": number, "status": "sent", "provider_id": result.get("messageId"), "at": datetime.now(timezone.utc).isoformat()}
+    except Exception as e:
+        entry = {"type": sms_type, "to": number, "status": "failed", "error": str(e)[:300], "at": datetime.now(timezone.utc).isoformat()}
+    try:
+        await db[collection_name].update_one({"id": demand_id}, {"$push": {"client_sms": entry}})
+    except Exception as e:
+        logger.error(f"[CLIENT SMS] Échec persistance ({collection_name}/{demand_id}): {e}")
+
+async def _send_client_creation_sms(collection_name: str, demand_id: str, phone: Optional[str], store_name: str) -> None:
+    if not phone:
+        return
+    await _send_client_sms(collection_name, demand_id, phone, "creation", _build_client_creation_sms(store_name))
+
+async def _send_client_appt_sms(collection_name: str, demand_id: str, phone: Optional[str], appt_type: str, appt_date: str, appt_slot: Optional[str], store_id: str) -> None:
+    if not phone:
+        return
+    store_name = STORE_NAMES.get(store_id, store_id or "")
+    store_address = _store_address(store_id)
+    sms_type = "rdv" if appt_type == "rdv" else "passage"
+    text = _build_client_appt_sms(appt_type, appt_date, appt_slot, store_name, store_address)
+    await _send_client_sms(collection_name, demand_id, phone, sms_type, text)
 
 def _format_paris_hhmm(dt: datetime) -> str:
     p = dt.astimezone(PARIS_TZ)
@@ -730,7 +927,7 @@ async def root():
 
 @api_router.post("/quote")
 async def create_quote(input: QuoteRequestCreate):
-    if input.store in PUBLIC_BLOCKED_STORES:
+    if input.store in CLOSED_STORES:
         raise HTTPException(status_code=400, detail="Ce magasin est temporairement fermé. Merci de choisir un autre magasin.")
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
@@ -741,13 +938,19 @@ async def create_quote(input: QuoteRequestCreate):
         "status_history": [{"status": "nouveau", "at": now_str, "by": "system"}],
         "call_attempts": [], "assigned_to": None, "first_contact_at": None,
         "lost_reason_code": None, "tracking_since": now_str,
+        "passages": [], "phone_changes": [], "client_sms": [],
+        "appt_type": None, "appt_date": None, "appt_slot": None,
+        "appt_start_at": None, "appt_end_at": None, "next_callback_at": None,
     })
+    if doc["store"] == TEST_STORE_ID:
+        doc["is_test"] = True
     await db.demandes_devis.insert_one(doc)
-    asyncio.ensure_future(_sync_and_persist(
-        "demandes_devis", doc["id"],
-        first_name=doc.get('first_name'), last_name=doc['name'],
-        phone=doc['phone'], email=doc['email'],
-    ))
+    if not doc.get("is_test"):
+        asyncio.ensure_future(_sync_and_persist(
+            "demandes_devis", doc["id"],
+            first_name=doc.get('first_name'), last_name=doc['name'],
+            phone=doc['phone'], email=doc['email'],
+        ))
     asyncio.ensure_future(_notify_lead(
         "demandes_devis", doc["id"], doc.get("store"),
         f"[Repair&Co] Nouveau devis — {doc['name']} — {store_name}",
@@ -766,11 +969,12 @@ async def create_quote(input: QuoteRequestCreate):
         ),
         doc, "devis",
     ))
+    asyncio.ensure_future(_send_client_creation_sms("demandes_devis", doc["id"], doc.get("phone"), store_name))
     return {"status": "success", "id": doc["id"]}
 
 @api_router.post("/contact")
 async def create_contact(input: ContactRequestCreate):
-    if input.store and input.store in PUBLIC_BLOCKED_STORES:
+    if input.store and input.store in CLOSED_STORES:
         raise HTTPException(status_code=400, detail="Ce magasin est temporairement fermé. Merci de choisir un autre magasin.")
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
@@ -781,13 +985,19 @@ async def create_contact(input: ContactRequestCreate):
         "status_history": [{"status": "nouveau", "at": now_str, "by": "system"}],
         "call_attempts": [], "assigned_to": None, "first_contact_at": None,
         "lost_reason_code": None, "tracking_since": now_str,
+        "passages": [], "phone_changes": [], "client_sms": [],
+        "appt_type": None, "appt_date": None, "appt_slot": None,
+        "appt_start_at": None, "appt_end_at": None, "next_callback_at": None,
     })
+    if doc.get("store") == TEST_STORE_ID:
+        doc["is_test"] = True
     await db.demandes_contact.insert_one(doc)
-    asyncio.ensure_future(_sync_and_persist(
-        "demandes_contact", doc["id"],
-        first_name=doc.get('first_name'), last_name=doc['name'],
-        phone=doc.get('phone'), email=doc['email'],
-    ))
+    if not doc.get("is_test"):
+        asyncio.ensure_future(_sync_and_persist(
+            "demandes_contact", doc["id"],
+            first_name=doc.get('first_name'), last_name=doc['name'],
+            phone=doc.get('phone'), email=doc['email'],
+        ))
     is_rdv = bool(doc.get('rdv_device_type') or doc.get('rdv_brand') or (doc.get('subject') or '').startswith('RDV'))
     demand_label = "RDV" if is_rdv else "message"
     asyncio.ensure_future(_notify_lead(
@@ -814,11 +1024,12 @@ async def create_contact(input: ContactRequestCreate):
         ),
         doc, "contact",
     ))
+    asyncio.ensure_future(_send_client_creation_sms("demandes_contact", doc["id"], doc.get("phone"), store_name))
     return {"status": "success", "id": doc["id"]}
 
 @api_router.post("/b2b")
 async def create_b2b(input: B2BRequestCreate):
-    if input.store and input.store in PUBLIC_BLOCKED_STORES:
+    if input.store and input.store in CLOSED_STORES:
         raise HTTPException(status_code=400, detail="Ce magasin est temporairement fermé. Merci de choisir un autre magasin.")
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
@@ -829,6 +1040,9 @@ async def create_b2b(input: B2BRequestCreate):
         "status_history": [{"status": "nouveau", "at": now_str, "by": "system"}],
         "call_attempts": [], "assigned_to": None, "first_contact_at": None,
         "lost_reason_code": None, "tracking_since": now_str,
+        "passages": [], "phone_changes": [], "client_sms": [],
+        "appt_type": None, "appt_date": None, "appt_slot": None,
+        "appt_start_at": None, "appt_end_at": None, "next_callback_at": None,
     })
     await db.demandes_entreprise.insert_one(doc)
     asyncio.ensure_future(_sync_and_persist(
@@ -837,8 +1051,11 @@ async def create_b2b(input: B2BRequestCreate):
         phone=doc['phone'], email=doc['email'],
     ))
     full_name = f"{doc['first_name']} {doc['last_name']}".strip()
-    asyncio.ensure_future(_notify_lead(
-        "demandes_entreprise", doc["id"], doc.get("store"),
+    # B2B est hors CRM admin : la demande est archivée en base (demandes_entreprise,
+    # retirée de COLLECTIONS) mais un seul email direct part à B2B_EMAIL — aucun SMS,
+    # aucun routage magasin, aucune escalade.
+    asyncio.ensure_future(send_email_tracked(
+        B2B_EMAIL,
         f"[Repair&Co] Nouveau B2B — {full_name} — {doc['company']}",
         build_email_html(
             title="Demande Services Entreprise",
@@ -856,13 +1073,13 @@ async def create_b2b(input: B2BRequestCreate):
             submitted_at=now_fr,
             demand_id=doc["id"],
         ),
-        doc, "entreprise",
+        kind="b2b",
     ))
     return {"status": "success", "id": doc["id"]}
 
 @api_router.post("/buyback")
 async def create_buyback(input: BuybackRequestCreate):
-    if input.store in PUBLIC_BLOCKED_STORES:
+    if input.store in CLOSED_STORES:
         raise HTTPException(status_code=400, detail="Ce magasin est temporairement fermé. Merci de choisir un autre magasin.")
     now_str = datetime.now(timezone.utc).isoformat()
     now_fr = format_now_fr()
@@ -873,13 +1090,19 @@ async def create_buyback(input: BuybackRequestCreate):
         "status_history": [{"status": "nouveau", "at": now_str, "by": "system"}],
         "call_attempts": [], "assigned_to": None, "first_contact_at": None,
         "lost_reason_code": None, "tracking_since": now_str,
+        "passages": [], "phone_changes": [], "client_sms": [],
+        "appt_type": None, "appt_date": None, "appt_slot": None,
+        "appt_start_at": None, "appt_end_at": None, "next_callback_at": None,
     })
+    if doc["store"] == TEST_STORE_ID:
+        doc["is_test"] = True
     await db.demandes_rachat.insert_one(doc)
-    asyncio.ensure_future(_sync_and_persist(
-        "demandes_rachat", doc["id"],
-        first_name=doc.get('first_name'), last_name=doc['name'],
-        phone=doc['phone'],
-    ))
+    if not doc.get("is_test"):
+        asyncio.ensure_future(_sync_and_persist(
+            "demandes_rachat", doc["id"],
+            first_name=doc.get('first_name'), last_name=doc['name'],
+            phone=doc['phone'],
+        ))
     asyncio.ensure_future(_notify_lead(
         "demandes_rachat", doc["id"], doc.get("store"),
         f"[Repair&Co] Nouveau rachat — {doc['name']} — {store_name}",
@@ -897,6 +1120,7 @@ async def create_buyback(input: BuybackRequestCreate):
         ),
         doc, "rachat",
     ))
+    asyncio.ensure_future(_send_client_creation_sms("demandes_rachat", doc["id"], doc.get("phone"), store_name))
     return {"status": "success", "id": doc["id"]}
 
 
@@ -905,7 +1129,6 @@ async def create_buyback(input: BuybackRequestCreate):
 COLLECTIONS = {
     "devis": "demandes_devis",
     "contact": "demandes_contact",
-    "entreprise": "demandes_entreprise",
     "rachat": "demandes_rachat",
 }
 
@@ -978,16 +1201,64 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
         raise HTTPException(status_code=400, detail="Identité manquante — merci de préciser qui appelle")
     if body.outcome not in CALL_OUTCOMES:
         raise HTTPException(status_code=400, detail="Résultat d'appel invalide")
+
+    appt_date = appt_slot = appt_type = None
+    appt_start_at = appt_end_at = None
+    callback_at = None
+    lost_reason_code = None
+
     if body.outcome == "joint":
-        if body.detail not in CALL_JOINT_DETAILS:
+        detail = body.detail
+        if detail not in CALL_JOINT_DETAILS:
             raise HTTPException(status_code=400, detail="Détail d'appel invalide")
-        if body.detail == "rappeler":
-            if body.callback_choice not in CALLBACK_CHOICES:
-                raise HTTPException(status_code=400, detail="Choix de rappel invalide")
-            if body.callback_choice == "custom" and not body.callback_at:
-                raise HTTPException(status_code=400, detail="Date de rappel requise")
-        if body.detail == "refus" and body.refus_reason not in REFUS_REASON_CODES:
+
+        if detail in ("rdv_pris", "devis_accepte", "vient_magasin"):
+            if not body.appt_date:
+                raise HTTPException(status_code=400, detail="Date de rendez-vous/passage requise")
+            try:
+                datetime.strptime(body.appt_date, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Date invalide (format AAAA-MM-JJ attendu)")
+            appt_date = body.appt_date
+            if detail == "rdv_pris":
+                if body.appt_slot not in APPT_SLOTS:
+                    raise HTTPException(status_code=400, detail="Créneau invalide")
+                appt_slot = body.appt_slot
+                appt_type = "rdv"
+                sh, sm, eh, em = APPT_SLOTS[appt_slot]
+            else:
+                appt_type = "passage"
+                sh, sm, eh, em = PASSAGE_WINDOW
+            appt_start_at, appt_end_at = _compute_appt_window(appt_date, sh, sm, eh, em)
+
+        if detail == "rappeler":
+            callback_at = _require_callback_at(body.callback_choice, body.callback_at)
+        elif detail == "reflechit":
+            callback_at = _require_callback_at(body.callback_choice, body.callback_at) if body.callback_choice else _default_reflechit_callback_at()
+        if detail == "refus" and body.refus_reason not in REFUS_REASON_CODES:
             raise HTTPException(status_code=400, detail="Motif de refus invalide")
+
+        new_status = CALL_DETAIL_STATUS[detail]
+        if new_status == "refus_devis":
+            lost_reason_code = body.refus_reason
+
+    elif body.outcome == "pas_de_reponse":
+        for flag_field, reason_field, question in [
+            ("rappel_2e", "rappel_2e_raison", "avez-vous rappelé une 2e fois"),
+            ("message_laisse", "message_laisse_raison", "message vocal laissé"),
+            ("mail_envoye", "mail_envoye_raison", "email envoyé au client"),
+            ("message_envoye", "message_envoye_raison", "WhatsApp envoyé au client"),
+        ]:
+            value = getattr(body, flag_field)
+            if value is None:
+                raise HTTPException(status_code=400, detail=f"Réponse manquante — {question} ?")
+            if value is False and not (getattr(body, reason_field) or "").strip():
+                raise HTTPException(status_code=400, detail=f"Raison manquante — pourquoi « non » à « {question} » ?")
+        new_status = "pas_de_reponse"
+
+    else:  # numero_invalide
+        new_status = "client_perdu"
+        lost_reason_code = "numero_invalide"
 
     doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0})
     if not doc:
@@ -997,31 +1268,127 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
     entry = {
         "at": now_iso, "by": by, "outcome": body.outcome, "detail": body.detail,
         "refus_reason": body.refus_reason if body.detail == "refus" else None,
-        "message_laisse": body.message_laisse if body.outcome == "pas_de_reponse" else None,
         "note": (body.note or "").strip() or None,
     }
-    if body.detail == "rappeler":
-        entry["callback_at"] = _resolve_callback_at(body.callback_choice, body.callback_at)
+    if body.outcome == "pas_de_reponse":
+        entry.update({
+            "rappel_2e": body.rappel_2e, "rappel_2e_raison": (body.rappel_2e_raison or "").strip() or None,
+            "message_laisse": body.message_laisse, "message_laisse_raison": (body.message_laisse_raison or "").strip() or None,
+            "mail_envoye": body.mail_envoye, "mail_envoye_raison": (body.mail_envoye_raison or "").strip() or None,
+            "message_envoye": body.message_envoye, "message_envoye_raison": (body.message_envoye_raison or "").strip() or None,
+        })
+    if callback_at:
+        entry["callback_at"] = callback_at
+    if appt_date:
+        entry["appt_date"] = appt_date
+        entry["appt_slot"] = appt_slot
+    if body.detail == "reflechit" and (body.quoted_price or "").strip():
+        entry["quoted_price"] = body.quoted_price.strip()
 
-    set_fields = {}
+    set_fields = {"status": new_status, "next_callback_at": callback_at}
+    if lost_reason_code:
+        set_fields["lost_reason_code"] = lost_reason_code
+    if appt_date:
+        set_fields.update({
+            "appt_type": appt_type, "appt_date": appt_date, "appt_slot": appt_slot,
+            "appt_start_at": appt_start_at, "appt_end_at": appt_end_at,
+        })
+    if body.detail == "reflechit" and (body.quoted_price or "").strip():
+        set_fields["quoted_price"] = body.quoted_price.strip()
     if not doc.get("first_contact_at"):
         set_fields["first_contact_at"] = now_iso
     if not doc.get("assigned_to"):
         set_fields["assigned_to"] = by
-    push_fields = {"call_attempts": entry}
-    if (doc.get("status") or "nouveau") == "nouveau":
-        set_fields["status"] = "contacte"
-        push_fields["status_history"] = {"status": "contacte", "at": now_iso, "by": by}
 
-    update_op = {"$push": push_fields}
-    if set_fields:
-        update_op["$set"] = set_fields
-    await db[col_name].update_one({"id": demand_id}, update_op)
+    await db[col_name].update_one(
+        {"id": demand_id},
+        {"$set": set_fields, "$push": {"call_attempts": entry, "status_history": {"status": new_status, "at": now_iso, "by": by}}},
+    )
+
+    if appt_date:
+        asyncio.ensure_future(_send_client_appt_sms(col_name, demand_id, doc.get("phone"), appt_type, appt_date, appt_slot, doc.get("store")))
+
     return {
         "status": "logged",
+        "new_status": new_status,
         "call_attempts_count": len(doc.get("call_attempts") or []) + 1,
-        "new_status": set_fields.get("status", doc.get("status") or "nouveau"),
     }
+
+
+@api_router.post("/admin/demandes/{category}/{demand_id}/passage")
+async def log_passage(category: str, demand_id: str, body: PassageRequest, user=Depends(get_current_admin)):
+    """Enregistre un passage en magasin (venu ou no-show) et referme le RDV/passage en cours."""
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    by = (body.by or "").strip()
+    if not by:
+        raise HTTPException(status_code=400, detail="Identité manquante — merci de préciser qui enregistre le passage")
+
+    doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    callback_at = None
+    facture = None
+
+    if body.venu:
+        if body.facture:
+            new_status = "facture"
+            facture = True
+        else:
+            facture = False
+            if not (body.note or "").strip():
+                raise HTTPException(status_code=400, detail="La note est obligatoire si le client est venu sans être facturé")
+            new_status = "a_rappeler"
+            callback_at = _require_callback_at(body.callback_choice, body.callback_at)
+    else:
+        new_status = "a_rappeler"
+        callback_at = _require_callback_at(body.callback_choice, body.callback_at)
+
+    entry = {"at": now_iso, "by": by, "venu": bool(body.venu), "facture": facture, "note": (body.note or "").strip() or None}
+
+    set_fields = {
+        "status": new_status, "next_callback_at": callback_at,
+        "appt_type": None, "appt_date": None, "appt_slot": None, "appt_start_at": None, "appt_end_at": None,
+    }
+    if not doc.get("assigned_to"):
+        set_fields["assigned_to"] = by
+
+    await db[col_name].update_one(
+        {"id": demand_id},
+        {"$set": set_fields, "$push": {"passages": entry, "status_history": {"status": new_status, "at": now_iso, "by": by}}},
+    )
+    return {"status": "logged", "new_status": new_status}
+
+
+@api_router.patch("/admin/demandes/{category}/{demand_id}/phone")
+async def update_phone(category: str, demand_id: str, body: PhoneUpdateRequest, user=Depends(get_current_admin)):
+    """Corrige le numéro de téléphone d'une demande — protégé par le code de sécurité, journalisé."""
+    if body.code != DELETE_CODE:
+        raise HTTPException(status_code=403, detail="Code de sécurité incorrect")
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    by = (body.by or "").strip()
+    if not by:
+        raise HTTPException(status_code=400, detail="Identité manquante")
+    new_phone = (body.phone or "").strip()
+    if not new_phone:
+        raise HTTPException(status_code=400, detail="Numéro de téléphone requis")
+
+    doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    entry = {"at": now_iso, "by": by, "old_phone": doc.get("phone"), "new_phone": new_phone}
+    await db[col_name].update_one(
+        {"id": demand_id},
+        {"$set": {"phone": new_phone}, "$push": {"phone_changes": entry}},
+    )
+    return {"status": "updated"}
 
 @api_router.delete("/admin/demandes/{category}/{demand_id}")
 async def delete_demand(category: str, demand_id: str, body: DeleteRequest, user=Depends(get_current_admin)):
@@ -1096,10 +1463,11 @@ async def get_latest_demands(store: Optional[str] = Query(None), user=Depends(ge
 
 @api_router.get("/admin/to-call")
 async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_current_admin)):
-    """Qui appeler maintenant — agrège les 4 catégories, applique la règle
-    métier (S19) et renvoie une liste triée prête à afficher dans l'onglet
-    "📞 À appeler". Ne modifie jamais de données — lecture seule."""
+    """Qui appeler maintenant — agrège devis/contact/rachat (jamais Entreprise,
+    hors CRM), applique les 9 groupes métier (S20) répartis en 3 sections
+    (maintenant / plus tard aujourd'hui / à classer). Lecture seule."""
     now_utc = datetime.now(timezone.utc)
+    today_paris = now_utc.astimezone(PARIS_TZ).date()
     query = {"status": {"$nin": list(NON_CALLABLE_STATUSES)}}
     if store == TEST_STORE_ID:
         query["is_test"] = True
@@ -1109,6 +1477,9 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
         query["store"] = {"$ne": TEST_STORE_ID}
         if store:
             query["store"] = store
+
+    GROUP_SECTION = {1: "maintenant", 2: "maintenant", 3: "maintenant", 7: "maintenant", 8: "maintenant",
+                      5: "plus_tard", 9: "plus_tard", 4: "a_classer", 6: "a_classer"}
 
     items = []
     for category, col_name in COLLECTIONS.items():
@@ -1124,47 +1495,103 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
             except Exception:
                 continue
 
-            call_attempts = d.get("call_attempts") or []
-            last_call = call_attempts[-1] if call_attempts else None
             status = d.get("status") or "nouveau"
+            call_attempts = d.get("call_attempts") or []
+            next_callback_at = d.get("next_callback_at")
             group, label = None, None
 
-            if last_call and last_call.get("outcome") == "joint" and last_call.get("detail") == "rappeler" and last_call.get("callback_at"):
+            if status in ("a_rappeler", "reflechit") and next_callback_at:
                 try:
-                    cb_dt = datetime.fromisoformat(last_call["callback_at"])
+                    cb_dt = datetime.fromisoformat(next_callback_at)
                     if cb_dt <= now_utc:
                         group, label = 1, f"Rappel prévu à {_format_paris_hhmm(cb_dt)}"
+                    elif cb_dt.astimezone(PARIS_TZ).date() == today_paris:
+                        group, label = 5, f"Rappel prévu plus tard — {_format_paris_hhmm(cb_dt)}"
                 except Exception:
                     pass
 
             if group is None and status == "nouveau":
-                group = 2
-                label = f"Nouvelle demande — attend depuis {_format_waiting_since(created_dt, now_utc)}"
+                group, label = 2, f"Nouvelle demande — attend depuis {_format_waiting_since(created_dt, now_utc)}"
 
-            if group is None and last_call and last_call.get("outcome") == "pas_de_reponse":
-                if _unreachable_rule_satisfied(d):
-                    group, label = 4, "3 appels sans réponse — classer Injoignable ?"
-                else:
+            if group is None and status == "pas_de_reponse":
+                count_pdr = sum(1 for c in call_attempts if c.get("outcome") == "pas_de_reponse")
+                if count_pdr >= 6:
+                    group, label = 4, f"{count_pdr} appels sans réponse — à classer"
+                elif call_attempts:
                     try:
-                        last_call_dt = datetime.fromisoformat(last_call["at"])
+                        last_call_dt = datetime.fromisoformat(call_attempts[-1]["at"])
                         if _business_minutes_elapsed(last_call_dt, now_utc) > 180:
-                            group, label = 3, f"Relance — {len(call_attempts) + 1}e appel"
+                            group, label = 3, f"Relance — {count_pdr + 1}e appel"
                     except Exception:
                         pass
+
+            if group is None and status == "reflechit":
+                count_r = sum(1 for c in call_attempts if c.get("detail") == "reflechit")
+                if count_r >= 3:
+                    group, label = 6, f"Réfléchit depuis {count_r} appels — à classer"
+
+            if group is None and status in ("devis_accepte", "rdv_pris") and d.get("appt_end_at") and d.get("appt_date"):
+                try:
+                    end_dt = datetime.fromisoformat(d["appt_end_at"])
+                    is_rdv = status == "rdv_pris"
+                    date_short = _format_fr_date_short(datetime.strptime(d["appt_date"], "%Y-%m-%d").date())
+                    if (now_utc - end_dt) >= timedelta(hours=1):
+                        if is_rdv:
+                            slot_short = APPT_SLOT_SHORT.get(d.get("appt_slot"), d.get("appt_slot") or "")
+                            group, label = 8, f"RDV du {date_short} ({slot_short}) passé : le client est-il venu ?"
+                        else:
+                            group, label = 7, f"Il devait passer le {date_short} : est-il venu ?"
+                    elif d["appt_date"] == today_paris.isoformat():
+                        if is_rdv:
+                            slot_short = APPT_SLOT_SHORT.get(d.get("appt_slot"), d.get("appt_slot") or "")
+                            group, label = 9, f"RDV aujourd'hui, {slot_short}"
+                        else:
+                            group, label = 9, "Passe au magasin aujourd'hui"
+                except Exception:
+                    pass
 
             if group is None:
                 continue
 
             item = dict(d)
             item["category"] = category
+            item["section"] = GROUP_SECTION[group]
             item["group"] = group
             item["label"] = label
             item["call_attempts_count"] = len(call_attempts)
             item["store_name"] = STORE_NAMES.get(d.get("store"), d.get("store") or "")
             items.append(item)
 
-    items.sort(key=lambda it: (it["group"], it.get("created_at") or ""))
+    SECTION_ORDER = {"maintenant": 0, "plus_tard": 1, "a_classer": 2}
+    items.sort(key=lambda it: (SECTION_ORDER[it["section"]], it["group"], it.get("created_at") or ""))
     return items
+
+
+@api_router.get("/admin/transfo")
+async def get_transfo(store: Optional[str] = Query(None), user=Depends(get_current_admin)):
+    """Taux de conversion (facturé / total) sur 30 jours glissants — devis,
+    contact/RDV, rachat uniquement (jamais Entreprise, hors CRM)."""
+    days = 30
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    total = 0
+    facture = 0
+    for cat in ("devis", "contact", "rachat"):
+        col_name = COLLECTIONS[cat]
+        query = {"created_at": {"$gte": since}}
+        if store == TEST_STORE_ID:
+            query["is_test"] = True
+            query["store"] = TEST_STORE_ID
+        else:
+            query["is_test"] = {"$ne": True}
+            if store:
+                query["store"] = store
+        docs = await db[col_name].find(query, {"_id": 0, "status": 1}).to_list(20000)
+        for d in docs:
+            total += 1
+            if d.get("status") == "facture":
+                facture += 1
+    rate = round((facture / total) * 100) if total else 0
+    return {"days": days, "total": total, "facture": facture, "rate": rate}
 
 @api_router.post("/demandes/{category}/{demand_id}/survey")
 async def submit_customer_survey(category: str, demand_id: str, body: CustomerSurveyRequest):
@@ -1245,7 +1672,7 @@ async def push_sms_single(category: str, demand_id: str, body: DeleteRequest, us
     if not doc:
         raise HTTPException(status_code=404, detail="Demande non trouvée")
     store_id = doc.get("store", "")
-    primary_number = STORE_PRIMARY_SMS.get(store_id)
+    primary_number = TEST_RECIPIENT_SMS if doc.get("is_test") else STORE_PRIMARY_SMS.get(store_id)
     if not primary_number:
         raise HTTPException(status_code=400, detail="Aucun numéro SMS configuré pour ce magasin")
     entry = await send_sms(primary_number, build_sms_recall_message(doc, category), kind="primary")
@@ -1264,7 +1691,7 @@ async def push_sms_rattrapage(body: DeleteRequest, user=Depends(get_current_admi
         docs = await db[col_name].find({"status": "nouveau"}, {"_id": 0}).to_list(500)
         for doc in docs:
             store_id = doc.get("store", "")
-            primary_number = STORE_PRIMARY_SMS.get(store_id)
+            primary_number = TEST_RECIPIENT_SMS if doc.get("is_test") else STORE_PRIMARY_SMS.get(store_id)
             if not primary_number:
                 continue
             message = build_sms_recall_message(doc, category)
@@ -1388,6 +1815,9 @@ async def create_test_lead(body: TestLeadCreateRequest, user=Depends(get_current
         "status_history": [{"status": "nouveau", "at": now_str, "by": "system"}],
         "call_attempts": [], "assigned_to": None, "first_contact_at": None,
         "lost_reason_code": None, "tracking_since": now_str,
+        "passages": [], "phone_changes": [], "client_sms": [],
+        "appt_type": None, "appt_date": None, "appt_slot": None,
+        "appt_start_at": None, "appt_end_at": None, "next_callback_at": None,
     }
     if body.category == "devis":
         doc.update({"device_type": "smartphone", "brand": "Apple", "model": "iPhone TEST", "issue_types": ["Test"], "other_issue": None, "preferred_time": None})
@@ -1493,7 +1923,7 @@ async def get_admin_stats(
 
     stats = {}
     total_all = 0
-    by_status = {"nouveau": 0, "contacte": 0, "pris_en_charge": 0, "facture": 0, "refus_devis": 0, "client_perdu": 0}
+    by_status = {s: 0 for s in ALLOWED_STATUSES}
     by_category_status = {}
     for key, col_name in COLLECTIONS.items():
         count = await db[col_name].count_documents(base_query)
@@ -1506,12 +1936,7 @@ async def get_admin_stats(
             cat_statuses[st] = c
         by_category_status[key] = cat_statuses
     stats["total"] = total_all
-    stats["nouveau"] = by_status["nouveau"]
-    stats["contacte"] = by_status["contacte"]
-    stats["pris_en_charge"] = by_status["pris_en_charge"]
-    stats["facture"] = by_status["facture"]
-    stats["refus_devis"] = by_status["refus_devis"]
-    stats["client_perdu"] = by_status["client_perdu"]
+    stats.update(by_status)
     stats["by_category_status"] = by_category_status
     return stats
 
@@ -2096,6 +2521,18 @@ async def _migrate_call_journal_fields():
     if total:
         logger.info(f"[CALL JOURNAL] Migrated {total} legacy leads with base tracking fields (tracking_since={deployment_ts})")
 
+async def _migrate_refactor_fields_v2():
+    """One-shot, idempotent: backfill the S20 refactor fields (passage, téléphone,
+    SMS client, RDV) on leads created before this refactor. Never overwrites
+    existing values — only fills missing ones."""
+    new_fields = {
+        "passages": [], "phone_changes": [], "client_sms": [],
+        "appt_type": None, "appt_date": None, "appt_slot": None,
+        "appt_start_at": None, "appt_end_at": None, "next_callback_at": None,
+    }
+    for col_name in COLLECTIONS.values():
+        await db[col_name].update_many({"passages": {"$exists": False}}, {"$set": new_fields})
+
 @app.on_event("startup")
 async def startup():
     await seed_admin()
@@ -2103,6 +2540,7 @@ async def startup():
     await migrate_legacy_statuses()
     await _migrate_skip_stale_escalations()
     await _migrate_call_journal_fields()
+    await _migrate_refactor_fields_v2()
     asyncio.create_task(_background_scheduler())
 
 @app.on_event("shutdown")

@@ -38,7 +38,7 @@ def test_quote_lattes_returns_200_fast():
     payload = {
         "device_type": "smartphone", "brand": "Apple", "model": "iPhone 12",
         "issue_types": ["Ecran"], "name": "TEST_Quote", "phone": "0600000001",
-        "email": _rand_email(), "store": "lattes",
+        "email": _rand_email(), "store": "test",
     }
     t0 = time.time()
     r = requests.post(f"{API}/quote", json=payload, timeout=15)
@@ -53,7 +53,7 @@ def test_quote_lattes_returns_200_fast():
 def test_contact_lattes_returns_200():
     payload = {
         "name": "TEST_Contact", "email": _rand_email(), "phone": "0600000002",
-        "subject": "Question", "store": "lattes", "message": "Test message",
+        "subject": "Question", "store": "test", "message": "Test message",
     }
     r = requests.post(f"{API}/contact", json=payload, timeout=15)
     assert r.status_code == 200, r.text
@@ -63,7 +63,7 @@ def test_contact_lattes_returns_200():
 def test_buyback_lattes_returns_200():
     payload = {
         "brand": "Apple", "model": "iPhone 11", "condition": "good",
-        "name": "TEST_Buyback", "phone": "0600000003", "store": "lattes",
+        "name": "TEST_Buyback", "phone": "0600000003", "store": "test",
     }
     r = requests.post(f"{API}/buyback", json=payload, timeout=15)
     assert r.status_code == 200, r.text
@@ -141,11 +141,11 @@ def test_notifications_test_lattes_fast(auth_headers):
     it eventually returns."""
     t0 = time.time()
     r = requests.post(f"{API}/admin/notifications/test", headers=auth_headers,
-                      json={"store": "lattes"}, timeout=180)
+                      json={"store": "test"}, timeout=180)
     elapsed = time.time() - t0
     assert r.status_code == 200, r.text
     data = r.json()
-    assert data.get("store") == "lattes"
+    assert data.get("store") == "test"
     assert "email" in data and "sms" in data
     # SMS_ENABLED=false → skipped
     assert data["sms"].get("status") == "skipped"

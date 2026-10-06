@@ -64,18 +64,18 @@ def test_contact_beziers_rejected(client):
     assert r.json().get("detail") == CLOSED_MSG
 
 
-# --- Non-regression: lattes (open) must succeed ---
+# --- Non-regression: magasin "test" (ouvert, isolé is_test) doit réussir ---
 
-def test_quote_lattes_succeeds(client):
-    r = client.post(f"{BASE_URL}/api/quote", json=quote_payload("lattes"))
+def test_quote_test_store_succeeds(client):
+    r = client.post(f"{BASE_URL}/api/quote", json=quote_payload("test"))
     assert r.status_code == 200, r.text
     data = r.json()
     assert data.get("status") == "success"
     assert isinstance(data.get("id"), str) and len(data["id"]) > 0
 
 
-def test_buyback_lattes_succeeds(client):
-    r = client.post(f"{BASE_URL}/api/buyback", json=buyback_payload("lattes"))
+def test_buyback_test_store_succeeds(client):
+    r = client.post(f"{BASE_URL}/api/buyback", json=buyback_payload("test"))
     assert r.status_code == 200, r.text
     data = r.json()
     assert data.get("status") == "success"
@@ -83,7 +83,7 @@ def test_buyback_lattes_succeeds(client):
 
 
 def test_contact_without_store_succeeds(client):
-    payload = contact_payload("lattes")
+    payload = contact_payload("test")
     payload.pop("store")
     r = client.post(f"{BASE_URL}/api/contact", json=payload)
     assert r.status_code == 200, r.text
