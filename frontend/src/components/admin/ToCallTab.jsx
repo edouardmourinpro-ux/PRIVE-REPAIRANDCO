@@ -165,14 +165,14 @@ const PassageFlow = ({ itemId, onSubmit }) => {
 // serveur via onRefresh() pour rester la source de vérité (aucun page reload).
 export const ToCallTab = ({
   items, loading, requireIdentity, onLogCall, onStatusChange, onLogPassage,
-  onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onRefresh, DemandCard,
+  onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onLogRelance, onUpdatePhone, onRefresh, DemandCard,
 }) => {
   const [callPanelItem, setCallPanelItem] = useState(null);
   const [confirmingId, setConfirmingId] = useState(null);
   const [lostMenuId, setLostMenuId] = useState(null);
 
   const openCallPanel = (item) => {
-    requireIdentity(() => setCallPanelItem({ id: item.id, category: item.category, phone: item.phone }));
+    requireIdentity(() => setCallPanelItem(item));
   };
 
   const handleCallSubmit = async (payload) => {
@@ -334,6 +334,8 @@ export const ToCallTab = ({
                       onSaveStaffFeedback={(id, payload) => onSaveStaffFeedback(id, payload, item.category)}
                       onSaveQuotedPrice={(id, price) => onSaveQuotedPrice(id, price, item.category)}
                       onDelete={(id, code) => onDelete(id, code, item.category)}
+                      onLogRelance={(id, channel) => onLogRelance(id, channel, item.category)}
+                      onUpdatePhone={(id, phone, code) => onUpdatePhone(id, phone, code, item.category)}
                       requireIdentity={requireIdentity}
                       onLogCall={(id, payload) => onLogCall(id, payload, item.category)}
                     />
@@ -348,9 +350,9 @@ export const ToCallTab = ({
       <CallLogPanel
         open={!!callPanelItem}
         onClose={() => setCallPanelItem(null)}
-        itemId={callPanelItem?.id || 'to-call'}
-        phone={callPanelItem?.phone}
+        item={callPanelItem}
         onSubmit={handleCallSubmit}
+        onSaveQuotedPrice={(id, price) => onSaveQuotedPrice(id, price, callPanelItem?.category)}
       />
     </div>
   );

@@ -1392,9 +1392,20 @@ async def log_passage(category: str, demand_id: str, body: PassageRequest, user=
     return {"status": "logged", "new_status": new_status}
 
 
+def _is_valid_fr_phone(phone: str) -> bool:
+    """Accepte un numéro français (fixe ou mobile) au format national ou international."""
+    digits = re.sub(r"\D", "", phone or "")
+    if digits.startswith("0") and len(digits) == 10:
+        return True
+    if digits.startswith("33") and len(digits) == 11:
+        return True
+    return False
+
 @api_router.patch("/admin/demandes/{category}/{demand_id}/phone")
 async def update_phone(category: str, demand_id: str, body: PhoneUpdateRequest, user=Depends(get_current_admin)):
-    """Corrige le numéro de téléphone d'une demande — protégé par le code de sécurité, journalisé."""
+    """Corrige le numéro de téléphone d'une demande — protégé par le code de sécurité, journalisé.
+    Si la demande avait été classée perdue pour numéro invalide, elle revient automatiquement
+    dans « À appeler » (statut nouveau)."""
     if body.code != DELETE_CODE:
         raise HTTPException(status_code=403, detail="Code de sécurité incorrect")
     col_name = COLLECTIONS.get(category)
@@ -1406,6 +1417,8 @@ async def update_phone(category: str, demand_id: str, body: PhoneUpdateRequest, 
     new_phone = (body.phone or "").strip()
     if not new_phone:
         raise HTTPException(status_code=400, detail="Numéro de téléphone requis")
+    if not _is_valid_fr_phone(new_phone):
+        raise HTTPException(status_code=400, detail="Numéro de téléphone invalide (10 chiffres, ex: 06 12 34 56 78)")
 
     doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0})
     if not doc:
@@ -1413,11 +1426,20 @@ async def update_phone(category: str, demand_id: str, body: PhoneUpdateRequest, 
 
     now_iso = datetime.now(timezone.utc).isoformat()
     entry = {"at": now_iso, "by": by, "old_phone": doc.get("phone"), "new_phone": new_phone}
+    set_fields = {"phone": new_phone}
+    new_status = None
+    if doc.get("status") == "client_perdu" and doc.get("lost_reason_code") == "numero_invalide":
+        new_status = "nouveau"
+        set_fields["status"] = new_status
+        set_fields["lost_reason_code"] = None
+    push_op = {"phone_changes": entry}
+    if new_status:
+        push_op["status_history"] = {"status": new_status, "at": now_iso, "by": by}
     await db[col_name].update_one(
         {"id": demand_id},
-        {"$set": {"phone": new_phone}, "$push": {"phone_changes": entry}},
+        {"$set": set_fields, "$push": push_op},
     )
-    return {"status": "updated"}
+    return {"status": "updated", "new_status": new_status}
 
 @api_router.delete("/admin/demandes/{category}/{demand_id}")
 async def delete_demand(category: str, demand_id: str, body: DeleteRequest, user=Depends(get_current_admin)):

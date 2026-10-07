@@ -23,8 +23,9 @@ import { ToCallTab } from '../components/admin/ToCallTab';
 import { LOST_REASON_LABELS } from '../data/lostReasons';
 import {
   STATUS_META, STATUS_FILTER_ORDER, LEGACY_STATUS_ORDER, FACTURABLE_STATUSES,
-  getStatusDisplay, getPreviousStatusBeforeFacture,
+  getStatusDisplay, getPreviousStatusBeforeFacture, APPT_SLOT_SHORT, formatApptDateShort, formatCallbackShort,
 } from '../lib/statusDisplay';
+import { getRelanceMailtoUrl, getRelanceWaUrl } from '../lib/relanceText';
 import { STAFF_IDENTITY_STORE_MAP, STAFF_IDENTITIES } from '../data/staffIdentities';
 import { DEVICE_TYPE_LABELS, parseRdvMessage, formatLeadTitle } from '../lib/leadFormat';
 
@@ -43,19 +44,37 @@ const DIRECTION_IDENTITIES = STAFF_IDENTITIES.filter(n => !n.startsWith('Équipe
 const CALL_DETAIL_LABELS = {
   rdv_pris: 'RDV pris', vient_magasin: 'Vient en magasin',
   devis_accepte: 'Devis accepté', rappeler: 'À rappeler', refus: 'Refus',
+  reflechit: 'Réfléchit',
 };
+
+const CLIENT_SMS_TYPE_LABELS = { creation: 'nouvelle demande', rdv: 'confirmation RDV', passage: 'confirmation passage' };
 
 const callResultLabel = (c) => {
   if (!c) return '';
   if (c.outcome === 'joint') {
     let l = CALL_DETAIL_LABELS[c.detail] || c.detail || '';
     if (c.detail === 'refus' && c.refus_reason) l += ` (${LOST_REASON_LABELS[c.refus_reason] || c.refus_reason})`;
-    if (c.detail === 'rappeler' && c.callback_at) {
-      try { l += ` — ${new Date(c.callback_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`; } catch { /* ignore */ }
+    if ((c.detail === 'rdv_pris' || c.detail === 'devis_accepte' || c.detail === 'vient_magasin') && c.appt_date) {
+      const dateTxt = formatApptDateShort(c.appt_date);
+      l += c.appt_slot ? ` — RDV ${dateTxt}, ${APPT_SLOT_SHORT[c.appt_slot] || c.appt_slot}` : ` — passage ${dateTxt}`;
+    }
+    if (c.detail === 'rappeler' && c.callback_at) l += ` — rappel prévu ${formatCallbackShort(c.callback_at)}`;
+    if (c.detail === 'reflechit') {
+      if (c.callback_at) l += ` — relance prévue ${formatCallbackShort(c.callback_at)}`;
+      if (c.quoted_price) l += ` — prix annoncé ${c.quoted_price} €`;
     }
     return l;
   }
-  if (c.outcome === 'pas_de_reponse') return c.message_laisse ? 'Pas de réponse — message laissé' : 'Pas de réponse — sans message';
+  if (c.outcome === 'pas_de_reponse') {
+    const parts = [c.message_laisse ? 'message laissé' : 'sans message'];
+    if (c.rappel_2e === false) parts.push(`pas rappelé 2x (${c.rappel_2e_raison || '—'})`);
+    if (c.message_laisse === false && c.message_laisse_raison) parts.push(`pas de message (${c.message_laisse_raison})`);
+    if (c.mail_envoye === false && c.mail_envoye_raison) parts.push(`pas de mail (${c.mail_envoye_raison})`);
+    else if (c.mail_envoye) parts.push('mail envoyé');
+    if (c.message_envoye === false && c.message_envoye_raison) parts.push(`pas de WhatsApp (${c.message_envoye_raison})`);
+    else if (c.message_envoye) parts.push('WhatsApp envoyé');
+    return `Pas de réponse — ${parts.join(', ')}`;
+  }
   if (c.outcome === 'numero_invalide') return 'Numéro invalide';
   return c.outcome || '';
 };
@@ -308,8 +327,11 @@ const AdminPage = () => {
     const nowIso = new Date().toISOString();
     setData(prev => prev.map(d => {
       if (d.id !== id) return d;
-      const entry = { at: nowIso, by: payload.by, outcome: payload.outcome, detail: payload.detail, refus_reason: payload.refus_reason, message_laisse: payload.message_laisse, note: payload.note, callback_at: payload.callback_at };
+      const entry = { ...payload, at: nowIso };
       const statusChanged = res.data.new_status && res.data.new_status !== d.status;
+      const apptFields = payload.appt_date
+        ? { appt_date: payload.appt_date, appt_slot: payload.appt_slot || null, appt_type: payload.appt_slot ? 'rdv' : 'passage' }
+        : {};
       return {
         ...d,
         call_attempts: [...(d.call_attempts || []), entry],
@@ -317,6 +339,9 @@ const AdminPage = () => {
         status_history: statusChanged
           ? [...(d.status_history || []), { status: res.data.new_status, at: nowIso, by: payload.by }]
           : (d.status_history || []),
+        next_callback_at: payload.callback_at || d.next_callback_at,
+        ...apptFields,
+        ...(payload.quoted_price ? { quoted_price: payload.quoted_price } : {}),
         first_contact_at: d.first_contact_at || nowIso,
         assigned_to: d.assigned_to || payload.by,
       };
@@ -353,6 +378,25 @@ const AdminPage = () => {
     setData(prev => prev.filter(d => d.id !== id));
     loadToCall();
     loadStats();
+  };
+
+  const logRelance = async (id, channel, category = activeTab) => {
+    const by = localStorage.getItem('admin_identity') || '';
+    await axios.post(`${API_URL}/api/admin/demandes/${category}/${id}/relance`, { by, channel }, { headers: authHeaders });
+    const nowIso = new Date().toISOString();
+    setData(prev => prev.map(d => d.id === id ? { ...d, relances: [...(d.relances || []), { at: nowIso, by, channel }] } : d));
+  };
+
+  const updatePhone = async (id, phone, code, category = activeTab) => {
+    const by = localStorage.getItem('admin_identity') || '';
+    const res = await axios.patch(`${API_URL}/api/admin/demandes/${category}/${id}/phone`, { phone, code, by }, { headers: authHeaders });
+    setData(prev => prev.map(d => d.id === id ? {
+      ...d, phone,
+      ...(res.data.new_status ? { status: res.data.new_status, lost_reason_code: null } : {}),
+    } : d));
+    loadToCall();
+    loadStats();
+    return res.data;
   };
 
   const handleRattrapage = async () => {
@@ -781,6 +825,8 @@ const AdminPage = () => {
             onSaveStaffFeedback={saveStaffFeedback}
             onSaveQuotedPrice={saveQuotedPrice}
             onDelete={handleDeleteDemand}
+            onLogRelance={logRelance}
+            onUpdatePhone={updatePhone}
             onRefresh={loadToCall}
             DemandCard={DemandCard}
           />
@@ -853,6 +899,8 @@ const AdminPage = () => {
                 onSaveStaffFeedback={saveStaffFeedback}
                 onSaveQuotedPrice={saveQuotedPrice}
                 onDelete={handleDeleteDemand}
+                onLogRelance={logRelance}
+                onUpdatePhone={updatePhone}
                 requireIdentity={requireIdentity}
                 onLogCall={logCall}
               />
@@ -1224,7 +1272,7 @@ const NotifTestPanel = ({ authHeaders, onOpenRattrapage }) => {
   );
 };
 
-const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, requireIdentity, onLogCall }) => {
+const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onLogRelance, onUpdatePhone, requireIdentity, onLogCall }) => {
   const [open, setOpen] = useState(false);
   const feedbackRef = useRef(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -1232,6 +1280,11 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   const [deleteError, setDeleteError] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showCallPanel, setShowCallPanel] = useState(false);
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [phoneDraft, setPhoneDraft] = useState('');
+  const [phoneCode, setPhoneCode] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [phoneLoading, setPhoneLoading] = useState(false);
 
   const handleDeleteSubmit = async () => {
     setDeleteLoading(true);
@@ -1247,41 +1300,26 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
 
   const handleCallSubmit = (payload) => onLogCall(item.id, { ...payload, by: localStorage.getItem('admin_identity') || '' });
 
-  const getPrenom = () => item.first_name || (item.name || '').split(' ')[0] || '';
-  const getNom = () => item.name || item.last_name || '';
-  const getStore = () => STORES.find(s => s.id === item.store) || null;
-  const getStoreName = () => getStore()?.name || item.store || '';
-  const getStorePhone = () => getStore()?.phone || '04 67 71 67 69';
+  const handleRelanceEmail = () => requireIdentity(() => {
+    onLogRelance(item.id, 'email');
+    window.open(getRelanceMailtoUrl(item));
+  });
 
-  const buildRelanceText = () => {
-    const prenom = getPrenom();
-    const nom = getNom();
-    const storeName = getStoreName();
-    const storePhone = getStorePhone();
-    return (
-      `Bonjour ${prenom} ${nom},\n\n` +
-      `Nous avons bien pris en compte votre demande de réparation.\n\n` +
-      `Afin de vous répondre le plus finement possible, nous aurions besoin de vous poser quelques questions techniques.\n\n` +
-      `Pourriez-vous nous rappeler s'il vous plaît ? Toute l'équipe sera à votre disposition au ${storePhone}.\n\n` +
-      `À l'aide de ces précisions, nous vous indiquerons le prix le plus juste, en tenant compte notamment :\n` +
-      `- Des pièces les plus adaptées,\n` +
-      `- De la réduction Qualirepar pour laquelle nous sommes labellisés 💪.\n\n` +
-      `Bon à savoir aussi : un paiement en 3 ou 4 fois vous sera proposé.\n\n` +
-      `À très bientôt,\n` +
-      `L'équipe Repair & Co ${storeName}`
-    );
-  };
+  const handleRelanceWA = () => requireIdentity(() => {
+    onLogRelance(item.id, 'whatsapp');
+    window.open(getRelanceWaUrl(item));
+  });
 
-  const handleRelanceEmail = () => {
-    const subject = encodeURIComponent('Votre demande de réparation chez Repair & Co');
-    const body = encodeURIComponent(buildRelanceText());
-    window.open(`mailto:${item.email}?subject=${subject}&body=${body}`);
-  };
-
-  const handleRelanceWA = () => {
-    const phone = (item.phone || '').replace(/[\s\-().]/g, '').replace(/^0/, '33');
-    const text = encodeURIComponent(buildRelanceText());
-    window.open(`https://wa.me/${phone}?text=${text}`);
+  const handlePhoneSubmit = async () => {
+    setPhoneLoading(true);
+    setPhoneError('');
+    try {
+      await onUpdatePhone(item.id, phoneDraft.trim(), phoneCode);
+      setShowPhoneModal(false);
+    } catch (err) {
+      setPhoneError(err.response?.data?.detail || 'Erreur');
+    }
+    setPhoneLoading(false);
   };
 
   const date = item.created_at ? new Date(item.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
@@ -1311,6 +1349,9 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   const timeline = [
     ...(item.status_history || []).map(h => ({ at: h.at, by: h.by, note: null, label: `Statut → ${STATUS_META[h.status]?.label || h.status}` })),
     ...callAttempts.map(c => ({ at: c.at, by: c.by, note: c.note, label: `Appel — ${callResultLabel(c)}` })),
+    ...(item.relances || []).map(r => ({ at: r.at, by: r.by, note: null, label: `Relance ${r.channel === 'email' ? 'email' : 'WhatsApp'} envoyée` })),
+    ...(item.client_sms || []).filter(s => s.status === 'sent').map(s => ({ at: s.at, by: 'Système', note: null, label: `SMS client envoyé (${CLIENT_SMS_TYPE_LABELS[s.type] || s.type})` })),
+    ...(item.passages || []).map(p => ({ at: p.at, by: p.by, note: p.note, label: p.venu ? (p.facture ? 'Est-il venu ? — Oui, facturé' : 'Est-il venu ? — Oui, non facturé') : 'Est-il venu ? — Non' })),
   ].sort((a, b) => new Date(a.at) - new Date(b.at));
 
 
@@ -1529,6 +1570,13 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
                   <ExternalLink size={12} /> Voir dans Hiboutik
                 </button>
               )}
+              <button
+                onClick={() => { setPhoneDraft(item.phone || ''); setPhoneCode(''); setPhoneError(''); setShowPhoneModal(true); }}
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-[#E8F5EE] rounded-full text-xs text-[#1A1A2E] font-medium hover:bg-[#E8F5EE] transition-colors"
+                data-testid={`demand-fix-phone-${item.id}`}
+              >
+                <Phone size={12} /> Corriger le numéro
+              </button>
             </div>
 
             {/* Actions rapides suggérées après un appel */}
@@ -1595,10 +1643,52 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
       <CallLogPanel
         open={showCallPanel}
         onClose={() => setShowCallPanel(false)}
-        itemId={item.id}
-        phone={item.phone}
+        item={item}
         onSubmit={handleCallSubmit}
+        onSaveQuotedPrice={onSaveQuotedPrice}
       />
+
+      {/* Corriger le numéro */}
+      <Dialog open={showPhoneModal} onOpenChange={o => { setShowPhoneModal(o); if (!o) setPhoneCode(''); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-[#1A1A2E] flex items-center gap-2"><Phone size={16} className="text-[#1A5C3A]" /> Corriger le numéro</DialogTitle>
+            <DialogDescription>Entrez le nouveau numéro et le code de sécurité pour confirmer.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <Input
+              type="text"
+              placeholder="Nouveau numéro"
+              value={phoneDraft}
+              onChange={e => setPhoneDraft(e.target.value)}
+              className="form-input"
+              data-testid={`phone-fix-input-${item.id}`}
+            />
+            <Input
+              type="password"
+              placeholder="Code de sécurité"
+              value={phoneCode}
+              onChange={e => setPhoneCode(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && phoneDraft && phoneCode && handlePhoneSubmit()}
+              className="form-input"
+              data-testid={`phone-fix-code-${item.id}`}
+            />
+            {phoneError && <p className="text-red-600 text-sm" data-testid={`phone-fix-error-${item.id}`}>{phoneError}</p>}
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowPhoneModal(false)} className="text-xs rounded-full">Annuler</Button>
+              <Button
+                onClick={handlePhoneSubmit}
+                disabled={phoneLoading || !phoneDraft.trim() || !phoneCode}
+                className="bg-[#1A5C3A] hover:bg-[#2ECC71] text-white text-xs rounded-full"
+                data-testid={`phone-fix-submit-${item.id}`}
+              >
+                {phoneLoading ? <Loader2 className="animate-spin mr-1" size={14} /> : null}
+                Enregistrer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation dialog */}
       <Dialog open={showDeleteModal} onOpenChange={o => { setShowDeleteModal(o); if (!o) setDeleteCode(''); }}>
