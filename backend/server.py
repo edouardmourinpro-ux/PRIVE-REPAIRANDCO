@@ -884,14 +884,18 @@ def _format_paris_hhmm(dt: datetime) -> str:
 
 def _unreachable_rule_satisfied(doc: dict) -> bool:
     """« Injoignable » exige >= 6 appels "pas de réponse" — mais SEULEMENT
-    pour les leads créés après le début du suivi complet (tracking_since).
-    Un lead plus ancien (créé avant tracking_since) a pu recevoir de vrais
-    appels jamais journalisés avant le déploiement : la règle ne s'applique pas."""
+    pour les leads réellement suivis : un lead ancien (créé avant
+    tracking_since) ET jamais encore appelé depuis le déploiement est
+    bypassé (de vrais appels ont pu être faits avant d'être journalisés).
+    Dès qu'un premier appel est journalisé sur ce lead, il rejoint le suivi
+    normal et la règle des 6 appels s'applique comme pour les autres."""
     created_at = doc.get("created_at")
     tracking_since = doc.get("tracking_since")
-    if created_at and tracking_since and created_at < tracking_since:
+    call_attempts = doc.get("call_attempts") or []
+    is_tracked = bool(created_at and tracking_since and created_at >= tracking_since)
+    if not is_tracked and not call_attempts:
         return True
-    count = sum(1 for c in (doc.get("call_attempts") or []) if c.get("outcome") == "pas_de_reponse")
+    count = sum(1 for c in call_attempts if c.get("outcome") == "pas_de_reponse")
     return count >= 6
 
 def _resolve_callback_at(choice: Optional[str], custom_at: Optional[str]) -> Optional[str]:
@@ -1590,8 +1594,13 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
         for d in docs:
             created_at = d.get("created_at")
             tracking_since = d.get("tracking_since")
-            # Seulement les leads créés après le début du suivi complet.
-            if not created_at or not tracking_since or created_at < tracking_since:
+            call_attempts = d.get("call_attempts") or []
+            is_tracked = bool(created_at and tracking_since and created_at >= tracking_since)
+            # Une demande entre dans le suivi si elle est postérieure au début du
+            # suivi complet, OU si une équipe l'a déjà appelée au moins une fois
+            # (journal non vide) — dès ce premier appel, elle rejoint les mêmes
+            # règles que les autres (rappel à l'heure, relance 3h, 6 appels).
+            if not created_at or not (is_tracked or call_attempts):
                 continue
             try:
                 created_dt = datetime.fromisoformat(created_at)
@@ -1599,7 +1608,6 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
                 continue
 
             status = d.get("status") or "nouveau"
-            call_attempts = d.get("call_attempts") or []
             next_callback_at = d.get("next_callback_at")
             group, label = None, None
 
@@ -1675,8 +1683,9 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
 @api_router.get("/admin/to-call/older-open-count")
 async def get_older_open_count(store: Optional[str] = Query(None), user=Depends(get_current_admin)):
     """Demandes encore ouvertes (nouveau/contacte/pris_en_charge) créées avant
-    le début du suivi complet — donc absentes de « À appeler ». Lecture seule,
-    sert uniquement au message affiché quand la liste est vide."""
+    le début du suivi complet ET jamais appelées — donc absentes de « À
+    appeler ». Lecture seule, sert uniquement au message affiché quand la
+    liste est vide."""
     query = {"status": {"$in": ["nouveau", "contacte", "pris_en_charge"]}}
     if store == TEST_STORE_ID:
         query["is_test"] = True
@@ -1689,11 +1698,13 @@ async def get_older_open_count(store: Optional[str] = Query(None), user=Depends(
 
     count = 0
     for col_name in COLLECTIONS.values():
-        docs = await db[col_name].find(query, {"_id": 0, "created_at": 1, "tracking_since": 1}).to_list(5000)
+        docs = await db[col_name].find(query, {"_id": 0, "created_at": 1, "tracking_since": 1, "call_attempts": 1}).to_list(5000)
         for d in docs:
             created_at = d.get("created_at")
             tracking_since = d.get("tracking_since")
-            if not created_at or not tracking_since or created_at < tracking_since:
+            call_attempts = d.get("call_attempts") or []
+            is_tracked = bool(created_at and tracking_since and created_at >= tracking_since)
+            if not is_tracked and not call_attempts:
                 count += 1
     return {"count": count}
 
