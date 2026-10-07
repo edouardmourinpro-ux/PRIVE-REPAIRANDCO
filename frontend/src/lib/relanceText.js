@@ -7,8 +7,14 @@ const getNom = (item) => item.name || item.last_name || '';
 const getStore = (item) => STORES.find(s => s.id === item.store) || null;
 // `getStore(item).name` contient déjà "Repair&Co" (ex: "Repair&Co Lattes") —
 // ne jamais préfixer à nouveau "Repair & Co" dans la signature.
-const getStoreName = (item) => getStore(item)?.name || item.store || '';
-const getStorePhone = (item) => getStore(item)?.phone || '04 67 71 67 69';
+const getStoreName = (item) => {
+  if (item.store === 'test') return 'Repair&Co TEST';
+  return getStore(item)?.name || item.store || '';
+};
+const getStorePhone = (item) => {
+  if (item.store === 'test') return item.phone || '00 00 00 00 00';
+  return getStore(item)?.phone || '04 67 71 67 69';
+};
 
 export const buildRelanceText = (item) => {
   const prenom = getPrenom(item);

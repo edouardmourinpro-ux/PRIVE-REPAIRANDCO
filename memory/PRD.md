@@ -278,3 +278,14 @@ Frontend only, rien publié (pas de deploy) — attente feu vert utilisateur.
 - Testé via testing_agent (iteration_20.json) : 100% frontend (7/7 groupes de fonctionnalités), aucune régression trouvée (3 sections/9 groupes de "À appeler" toujours fonctionnels avec le nouveau DemandCard dessous). Remarque non bloquante : `stats.total`/pastilles excluent `store=test` par design pré-existant (peut prêter à confusion visuelle sur Magasin TEST, pas un bug de cette session).
 - **P0 restant / à valider avec l'utilisateur** : adapter la fenêtre de détails standard pour aussi utiliser `/relance` ; décider du moment de publication (StoreGateModal + RulesBanner + ToCallTab S22 + refonte ligne S23 — rien n'est encore déployé).
 
+### S24 (07/10/2026) — Refonte fenêtre d'Appel + fiche de demande
+Frontend + 1 endpoint backend, rien publié (pas de deploy) — attente feu vert utilisateur.
+- **`CallLogPanel.jsx` réécrit entièrement** : wizard par étapes (root → joint/pas_de_reponse/numero_invalide). "Client joint" ouvre 4 réponses (Oui devis accepté → prix + Valider/Passer → "Quand vient-il ?" avec date + 3 créneaux + "Sans RDV, il passe dans la journée" ; Pas encore réfléchit → prix → "Quand le relancer ?" ; Pas dispo à rappeler → "Quand le rappeler ?" ; Refus → motifs 1-clic). "Pas de réponse" enchaîne 4 questions Oui/Non séquentielles (rappel 2e fois, message vocal, email avec lien mailto, WhatsApp avec lien wa.me) — un "Non" exige une raison obligatoire avant de continuer, avec le bon titre de constat. Numéro en très grand, **non cliquable** (aucun `tel:`), mention "À composer sur le téléphone du magasin" + ligne SMS conditionnelle. Pré-remplissage date/créneau RDV si la demande vient du formulaire Rendez-vous.
+- **Bug "texte inversé" anticipé et évité** : le champ "Pourquoi ? (obligatoire)" est un `<textarea>` inline (pas un sous-composant déclaré dans le parent) — testé en frappe rapide, aucune inversion/saut de curseur.
+- **Nouveau `frontend/src/lib/relanceText.js`** : partagé entre la fiche et le CallLogPanel. Bug corrigé : signature "L'équipe Repair & Co Repair&Co Lattes" (doublon) → "L'équipe Repair&Co Lattes".
+- **Fiche de demande enrichie** : timeline fusionne status_history + call_attempts (détails riches) + relances + client_sms + passages, triée chronologiquement. Relance Email/WhatsApp tracent via `POST /relance`. Nouveau bouton "Corriger le numéro" (modal + code sécurité).
+- **Backend `PATCH /phone`** : validation format FR + auto-requeue (client_perdu/numero_invalide → nouveau après correction).
+- **Fix régression testing_agent** : `Layout.jsx` masque Navbar/Footer/CookieBanner publics sur `/admin/*` (fuite d'un `<a href="tel:">` dans le menu mobile).
+- Testé : backend 7/7 pytest, frontend 14/15 + 1 régression corrigée et revérifiée. **Rien publié**.
+- **P0 restant** : attendre les prochaines consignes précises de l'utilisateur.
+

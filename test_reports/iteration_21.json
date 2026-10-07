@@ -1,0 +1,29 @@
+{
+  "summary": "Full validation (backend + frontend) of the CallLogPanel rewrite + fiche enrichie + PATCH /phone endpoint. Backend 7/7 pytest tests PASS (wrong code, invalid format, valid national/intl, auto-requeue from client_perdu/numero_invalide, missing by, cleanup). Frontend 15/15 Playwright checks PASS except [CHECK1]: 1 regression spec violation found — a <a href='tel:0466848079'> survives in the DOM of /admin (mobile menu of public Navbar leaking via Layout.jsx). All other UI flows validated: phone displayed large/non-cliquable in panel, 'À composer sur le téléphone du magasin' present, SMS line correctly hidden (mobile FR without creation_sms), 3 root options (joint/no-answer/invalid), joint sub-flow devis_accepte → price (89€) → when (date + 3 slots + 'Sans RDV'), reflechit/rappeler flows exist, refus has reasons chips, back button works, pas_de_reponse 4-questions flow with correct constat 'Vous n'avez pas rappelé une 2ème fois', fast-typed accentuated text 'occupé au téléphone pendant 30 minutes' preserved IN ORDER (no reversal, no cursor jump), Validate button disabled when reason empty / enabled with text. Fiche demande shows Relance Email, Relance WhatsApp, Corriger le numéro buttons + Historique section with status_history entries including 'Appel — à rappeler ...'. Phone correction modal opens with code field.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Navbar (public shell) / Layout.jsx wrapping AdminPage", "issue": "Le DOM de /admin contient encore 1 balise <a href='tel:0466848079'> dans le menu mobile de la Navbar publique (Navbar.jsx:61). La spec exige explicitement AUCUNE balise tel: sur /admin. Même si le lien est caché visuellement en desktop, il est dans le DOM et actif en mobile.", "selector": "a[href^='tel:']", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_phone_update.py", "/app/test_reports/pytest/phone_update.xml"],
+  "action_items": [
+    "Supprimer/retirer la balise <a href='tel:'> de /app/frontend/src/components/layout/Navbar.jsx uniquement sur la route /admin (soit cacher la Navbar entière sur /admin via Layout.jsx, soit remplacer ce <a> par un <span> quand on est sur /admin). Spec: 'il n'y a AUCUNE balise <a href=tel:...> nulle part sur la page /admin'.",
+    "(Mineur) data/stores.js n'inclut pas de store id='test'; getStoreName(item) retombe sur item.store='test' pour les leads TEST → signature email devient 'L'équipe test'. Pas de duplication 'Repair & Co' (OK vis-à-vis de la spec), mais le texte est peu propre pour les tests. Ajouter STORES.test = {id:'test', name:'Repair&Co TEST', phone:'...'} ou désactiver les boutons Relance pour store=test."
+  ],
+  "critical_code_review_comments": [
+    "CallLogPanel.jsx:230 — Object.keys(APPT_SLOT_SHORT) itère sur l'ordre d'insertion ; vérifier dans statusDisplay.js que l'ordre est bien Matin/Après-midi/Fin de journée (actuellement constaté correct).",
+    "relanceText.js:33 — subject de l'email contient 'Repair & Co' (hardcoded, PAS le nom du magasin), ce qui est OK vu la signature ne contient que le storeName. Mais si item.store n'est pas dans STORES (ex: store='test'), getStorePhone retourne un numéro par défaut (04 67 71 67 69) qui est celui de Lattes — risque de confusion pour les leads TEST.",
+    "CallLogPanel useEffect sur [open] remet step='root' ; si item change pendant que la modale est ouverte, les states (apptDate initialisé depuis item?.rdv_date) ne sont pas resynchronisés — non bloquant car on utilise le composant par item."
+  ],
+  "updated_files": ["/app/backend/tests/test_phone_update.py (nouveau)"],
+  "success_rate": {"backend": "100% (7/7 pytest)", "frontend": "93% (14/15 checks — 1 tel: link résiduel dans la Navbar sur /admin)"},
+  "test_credentials": "david.m@repairandco.fr / Repair2025Admin! · Magasin TEST (store=test) · DELETE_CODE=MOUR1",
+  "seed_data_creation": "Relancé /app/backend/scripts/seed_demo_to_call.py (9 groupes TEST recréés).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend endpoint PATCH /api/admin/demandes/{category}/{id}/phone pleinement couvert par /app/backend/tests/test_phone_update.py (7 cas). Le CallLogPanel refondu est 100% opérationnel côté UI (tous les data-testid attendus présents, flux Joint/PdR validés en profondeur, le texte accentué saisi rapidement reste dans le bon ordre — pas de régression du bug précédent de 'texte inversé'). Le seul point à corriger est le <a href='tel:0466848079'> hérité de la Navbar publique qui s'affiche aussi sur /admin via Layout.jsx — c'est un oneliner côté main agent (conditionner la Navbar ou remplacer par un span sur /admin). Les éléments 'Relance Email/WhatsApp/Corriger le numéro' sont présents sur la fiche (toggle). La modale 'Corriger le numéro' s'ouvre bien. Flux complet 'wrong code → 403', 'format invalide → 400', 'valide → 200 + persistance', 'client_perdu/numero_invalide → requeue nouveau' tous validés via API.",
+  "rca of the issue": "Regression tel: link — Navbar.jsx ligne 61 contient `<a href='tel:0466848079'>` dans un bloc mobile menu (classe pt-6 border-t). Layout.jsx wrap toutes les routes incluant /admin avec cette Navbar. Fix proposé : conditionner le rendu dans Layout.jsx `const isAdmin = location.pathname.startsWith('/admin'); return <>{!isAdmin && <Navbar/>}{children}{!isAdmin && <Footer/>}</>` OU retirer le <a href='tel:'> ciblé si Navbar doit rester."
+}
