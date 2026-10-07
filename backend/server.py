@@ -163,6 +163,21 @@ def _store_address(store_id: str) -> str:
         return ", ".join(parts)
     return ""
 
+def _store_phone(store_id: str) -> str:
+    """Lit frontend/src/data/stores.js (source unique) pour obtenir le numéro
+    public d'un magasin — injecté dans les SMS clients de confirmation."""
+    try:
+        stores_js = (ROOT_DIR.parent / "frontend" / "src" / "data" / "stores.js").read_text(encoding="utf-8")
+    except Exception:
+        return ""
+    for block in re.findall(r"\{([^{}]*)\}", stores_js):
+        m_id = re.search(r'id:\s*"([^"]+)"', block)
+        if not m_id or m_id.group(1) != store_id:
+            continue
+        m_phone = re.search(r'phone:\s*"([^"]*)"', block)
+        return m_phone.group(1) if m_phone else ""
+    return ""
+
 # Magasins qui n'acceptent pas de demande (fermés / en travaux) + magasin technique de test.
 # Doit rester aligné avec acceptsLeads dans frontend/src/data/stores.js.
 CLOSED_STORES = {"beziers"}
@@ -365,13 +380,24 @@ def _normalize_fr_mobile(phone: str) -> Optional[str]:
         return None
     return digits if _is_french_mobile(digits) else None
 
+_SMS_KEEP_ACCENTED = {"é", "è", "à", "ù"}
+
 def _strip_accents(text: str) -> str:
-    """SMS content must be pure ASCII — any accent flips encoding to UCS-2 and
-    drops the segment limit from 160 to 70 characters."""
+    """SMS content must stay GSM-7 compatible. Only é/è/à/ù are kept as-is ;
+    every other accented character (ô, ê, î, û, â, ç, À, É, etc.) is folded
+    back to its unaccented form — any one of them flips Brevo's encoding to
+    UCS-2 and drops the segment limit from 160 to 70 characters."""
     if not text:
         return ""
-    nfkd = unicodedata.normalize('NFKD', text)
-    return ''.join(c for c in nfkd if not unicodedata.combining(c))
+    out = []
+    for ch in text:
+        if ch in _SMS_KEEP_ACCENTED:
+            out.append(ch)
+            continue
+        nfkd = unicodedata.normalize('NFKD', ch)
+        base = ''.join(c for c in nfkd if not unicodedata.combining(c))
+        out.append(base if base else ch)
+    return ''.join(out)
 
 def _is_business_hours(now_paris: datetime = None) -> bool:
     now_paris = now_paris or datetime.now(PARIS_TZ)
@@ -765,12 +791,29 @@ def _is_client_creation_daytime(now_paris: datetime = None) -> bool:
     now_paris = now_paris or datetime.now(PARIS_TZ)
     return now_paris.weekday() != 6 and 9 <= now_paris.hour < 18
 
-def _build_client_creation_sms(store_name: str) -> str:
+def _finalize_client_sms(core: str, closing: str, closing_short: str = "") -> str:
+    """Assemble le SMS avec sa formule de politesse finale. Si le total dépasse
+    160 caractères, on raccourcit UNIQUEMENT cette formule (voire on la
+    retire) — jamais le magasin, l'adresse, le téléphone ou la date, qui
+    restent entiers quoi qu'il arrive."""
+    text = _strip_accents(core + closing)
+    if len(text) <= 160:
+        return text
+    if closing_short:
+        text_short = _strip_accents(core + closing_short)
+        if len(text_short) <= 160:
+            return text_short
+    return _strip_accents(core)
+
+def _build_client_creation_sms(store_id: str) -> str:
+    store_name = STORE_NAMES.get(store_id, store_id or "")
+    phone = _store_phone(store_id)
+    phone_clause = f" depuis le {phone}" if phone else ""
     if _is_client_creation_daytime():
-        text = f"Repair&Co : demande bien recue. Le magasin de {store_name} vous rappelle aujourd'hui. Merci de garder votre telephone a portee."
+        core = f"Bonjour, Repair&Co {store_name}. Votre demande est bien arrivée ! On vous rappelle aujourd'hui{phone_clause}."
     else:
-        text = f"Repair&Co : demande bien recue. Le magasin de {store_name} vous rappelle des l'ouverture a 9h. Merci de garder votre telephone a portee."
-    return _strip_accents(text)[:160]
+        core = f"Bonjour, Repair&Co {store_name}. Votre demande est bien arrivée ! On vous rappelle dès l'ouverture à 9h{phone_clause}."
+    return _finalize_client_sms(core, " Merci de rester joignable !", " Restez joignable !")
 
 def _build_client_appt_sms(appt_type: str, appt_date: str, appt_slot: Optional[str], store_name: str, store_address: str) -> str:
     d = datetime.strptime(appt_date, "%Y-%m-%d").date()
@@ -778,10 +821,10 @@ def _build_client_appt_sms(appt_type: str, appt_date: str, appt_slot: Optional[s
     where = f"{store_name}, {store_address}" if store_address else store_name
     if appt_type == "rdv":
         slot_text = APPT_SLOT_SMS_TEXT.get(appt_slot, "")
-        text = f"Repair&Co : votre RDV est confirme le {date_short} {slot_text} au magasin de {where}. A bientot !"
-    else:
-        text = f"Repair&Co : nous vous attendons le {date_short} au magasin de {where}. A bientot !"
-    return _strip_accents(text)[:160]
+        core = f"Bonjour, votre RDV Repair&Co est confirmé le {date_short} {slot_text} au magasin de {where}."
+        return _finalize_client_sms(core, " On vous attend !")
+    core = f"Bonjour, on vous attend le {date_short} au magasin Repair&Co de {where}."
+    return _strip_accents(core)
 
 async def _send_client_sms(collection_name: str, demand_id: str, phone: str, sms_type: str, text: str) -> None:
     """Envoie un SMS de service au client (jamais de promo/lien), avec garde
@@ -812,10 +855,10 @@ async def _send_client_sms(collection_name: str, demand_id: str, phone: str, sms
     except Exception as e:
         logger.error(f"[CLIENT SMS] Échec persistance ({collection_name}/{demand_id}): {e}")
 
-async def _send_client_creation_sms(collection_name: str, demand_id: str, phone: Optional[str], store_name: str) -> None:
+async def _send_client_creation_sms(collection_name: str, demand_id: str, phone: Optional[str], store_id: str) -> None:
     if not phone:
         return
-    await _send_client_sms(collection_name, demand_id, phone, "creation", _build_client_creation_sms(store_name))
+    await _send_client_sms(collection_name, demand_id, phone, "creation", _build_client_creation_sms(store_id))
 
 async def _send_client_appt_sms(collection_name: str, demand_id: str, phone: Optional[str], appt_type: str, appt_date: str, appt_slot: Optional[str], store_id: str) -> None:
     if not phone:
@@ -960,7 +1003,7 @@ async def create_quote(input: QuoteRequestCreate):
         ),
         doc, "devis",
     ))
-    asyncio.ensure_future(_send_client_creation_sms("demandes_devis", doc["id"], doc.get("phone"), store_name))
+    asyncio.ensure_future(_send_client_creation_sms("demandes_devis", doc["id"], doc.get("phone"), doc.get("store")))
     return {"status": "success", "id": doc["id"]}
 
 @api_router.post("/contact")
@@ -1015,7 +1058,7 @@ async def create_contact(input: ContactRequestCreate):
         ),
         doc, "contact",
     ))
-    asyncio.ensure_future(_send_client_creation_sms("demandes_contact", doc["id"], doc.get("phone"), store_name))
+    asyncio.ensure_future(_send_client_creation_sms("demandes_contact", doc["id"], doc.get("phone"), doc.get("store")))
     return {"status": "success", "id": doc["id"]}
 
 @api_router.post("/b2b")
@@ -1111,7 +1154,7 @@ async def create_buyback(input: BuybackRequestCreate):
         ),
         doc, "rachat",
     ))
-    asyncio.ensure_future(_send_client_creation_sms("demandes_rachat", doc["id"], doc.get("phone"), store_name))
+    asyncio.ensure_future(_send_client_creation_sms("demandes_rachat", doc["id"], doc.get("phone"), doc.get("store")))
     return {"status": "success", "id": doc["id"]}
 
 
