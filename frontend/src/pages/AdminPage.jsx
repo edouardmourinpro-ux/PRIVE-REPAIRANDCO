@@ -250,9 +250,8 @@ const AdminPage = () => {
   useEffect(() => {
     if (isLoggedIn) {
       loadStats();
-      if (activeTab === 'a_appeler') {
-        loadToCall();
-      } else {
+      loadToCall();
+      if (activeTab !== 'a_appeler') {
         loadData(activeTab);
       }
     }
@@ -291,7 +290,7 @@ const AdminPage = () => {
         ...(extra.lostReasonCode ? { lost_reason_code: extra.lostReasonCode } : {}),
         ...(extra.lostReasonText ? { lost_reason: extra.lostReasonText } : {}),
       } : d));
-      if (activeTab === 'a_appeler') loadToCall();
+      loadToCall();
       loadStats();
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Erreur lors de la mise à jour du statut');
@@ -316,33 +315,41 @@ const AdminPage = () => {
         assigned_to: d.assigned_to || payload.by,
       };
     }));
-    if (activeTab === 'a_appeler') loadToCall();
+    loadToCall();
     loadStats();
     toast.success('Appel enregistré');
   };
 
-  const saveStaffFeedback = async (id, payload) => {
-    await axios.patch(`${API_URL}/api/admin/demandes/${activeTab}/${id}/feedback`, payload, { headers: authHeaders });
+  const logPassage = async (id, payload, category = activeTab) => {
+    await axios.post(`${API_URL}/api/admin/demandes/${category}/${id}/passage`, payload, { headers: authHeaders });
+    loadToCall();
+    loadStats();
+    toast.success('Passage enregistré');
+  };
+
+  const saveStaffFeedback = async (id, payload, category = activeTab) => {
+    await axios.patch(`${API_URL}/api/admin/demandes/${category}/${id}/feedback`, payload, { headers: authHeaders });
     setData(prev => prev.map(d => d.id === id ? { ...d, ...payload } : d));
   };
 
-  const saveQuotedPrice = async (id, price) => {
+  const saveQuotedPrice = async (id, price, category = activeTab) => {
     await axios.patch(
-      `${API_URL}/api/admin/demandes/${activeTab}/${id}/quoted-price`,
+      `${API_URL}/api/admin/demandes/${category}/${id}/quoted-price`,
       { quoted_price: price },
       { headers: authHeaders },
     );
     setData(prev => prev.map(d => d.id === id ? { ...d, quoted_price: price } : d));
   };
 
-  const handleDeleteDemand = async (id, code) => {
-    await axios.delete(`${API_URL}/api/admin/demandes/${activeTab}/${id}`, { headers: authHeaders, data: { code } });
+  const handleDeleteDemand = async (id, code, category = activeTab) => {
+    await axios.delete(`${API_URL}/api/admin/demandes/${category}/${id}`, { headers: authHeaders, data: { code } });
     setData(prev => prev.filter(d => d.id !== id));
+    loadToCall();
     loadStats();
   };
 
-  const handlePushSMSDemand = async (id, code) => {
-    await axios.post(`${API_URL}/api/admin/demandes/${activeTab}/${id}/push-sms`, { code }, { headers: authHeaders });
+  const handlePushSMSDemand = async (id, code, category = activeTab) => {
+    await axios.post(`${API_URL}/api/admin/demandes/${category}/${id}/push-sms`, { code }, { headers: authHeaders });
   };
 
   const handleRattrapage = async () => {
@@ -590,8 +597,10 @@ const AdminPage = () => {
     );
   }
 
+  const toCallBadgeCount = toCallData.filter(it => it.section === 'maintenant' || it.section === 'a_classer').length;
+
   const tabs = [
-    { id: 'a_appeler', label: 'À appeler', icon: Phone, count: toCallData.length },
+    { id: 'a_appeler', label: 'À appeler', icon: Phone, count: toCallBadgeCount },
     { id: 'devis', label: 'Devis', icon: FileText, count: stats?.devis },
     { id: 'contact', label: 'Contact / RDV', icon: MessageSquare, count: stats?.contact },
     { id: 'entreprise', label: 'Entreprise', icon: Building2, count: stats?.entreprise },
@@ -611,7 +620,7 @@ const AdminPage = () => {
           <h1 className="text-lg font-bold">Admin — Repair&Co</h1>
           <div className="flex items-center gap-3">
             <span className="text-white/80 text-sm hidden sm:inline" data-testid="admin-total-count">
-              {stats?.total || 0} demandes · <span className="text-red-300 font-semibold">{stats?.nouveau || 0} à traiter</span>
+              {stats?.total || 0} demandes · <span className="text-red-300 font-semibold">{toCallBadgeCount} à appeler</span>
             </span>
             <button
               onClick={() => setShowStoreGate(true)}
@@ -750,7 +759,13 @@ const AdminPage = () => {
             requireIdentity={requireIdentity}
             onLogCall={logCall}
             onStatusChange={updateStatus}
+            onLogPassage={logPassage}
+            onSaveStaffFeedback={saveStaffFeedback}
+            onSaveQuotedPrice={saveQuotedPrice}
+            onDelete={handleDeleteDemand}
+            onPushSMS={handlePushSMSDemand}
             onRefresh={loadToCall}
+            DemandCard={DemandCard}
           />
         ) : (
         <>
