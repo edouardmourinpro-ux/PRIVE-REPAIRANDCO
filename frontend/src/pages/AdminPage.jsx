@@ -26,6 +26,7 @@ import {
   getStatusDisplay, getPreviousStatusBeforeFacture, APPT_SLOT_SHORT, formatApptDateShort, formatCallbackShort,
 } from '../lib/statusDisplay';
 import { getRelanceMailtoUrl, getRelanceWaUrl } from '../lib/relanceText';
+import { sanitizePriceInput } from '../lib/priceInput';
 import { STAFF_IDENTITY_STORE_MAP, STAFF_IDENTITIES } from '../data/staffIdentities';
 import { DEVICE_TYPE_LABELS, parseRdvMessage, formatLeadTitle } from '../lib/leadFormat';
 
@@ -123,6 +124,7 @@ const AdminPage = () => {
   const [dataLoading, setDataLoading] = useState(false);
   const [toCallData, setToCallData] = useState([]);
   const [toCallLoading, setToCallLoading] = useState(false);
+  const [olderOpenCount, setOlderOpenCount] = useState(0);
   const [transfo, setTransfo] = useState(null);
 
   // "Toutes les demandes" déplie Devis/Contact/Rachat — replié par défaut,
@@ -135,6 +137,15 @@ const AdminPage = () => {
     setShowAllTabs(next);
     try { localStorage.setItem('admin_tabs_expanded', next ? '1' : '0'); } catch { /* ignore */ }
     if (!next && activeTab !== 'a_appeler') setActiveTab('a_appeler');
+  };
+
+  // Bouton "Toutes les demandes" du message "À appeler" vide — déplie
+  // directement l'onglet Devis filtré sur "Nouveau".
+  const showOlderDemandsInDevis = () => {
+    setShowAllTabs(true);
+    try { localStorage.setItem('admin_tabs_expanded', '1'); } catch { /* ignore */ }
+    setActiveTab('devis');
+    setStatusFilter('nouveau');
   };
 
   // ---- "Quel magasin ?" fenêtre obligatoire à chaque connexion (S21) ----
@@ -259,6 +270,15 @@ const AdminPage = () => {
     setToCallLoading(false);
   }, [storeFilter, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const loadOlderOpenCount = useCallback(async () => {
+    try {
+      const params = {};
+      if (storeFilter) params.store = storeFilter;
+      const r = await axios.get(`${API_URL}/api/admin/to-call/older-open-count`, { headers: authHeaders, params });
+      setOlderOpenCount(r.data.count || 0);
+    } catch { setOlderOpenCount(0); }
+  }, [storeFilter, token]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const loadTransfo = useCallback(async () => {
     try {
       const params = {};
@@ -272,12 +292,13 @@ const AdminPage = () => {
     if (isLoggedIn) {
       loadStats();
       loadToCall();
+      loadOlderOpenCount();
       loadTransfo();
       if (activeTab !== 'a_appeler') {
         loadData(activeTab);
       }
     }
-  }, [isLoggedIn, activeTab, storeFilter, dateFrom, dateTo, statusFilter, loadStats, loadData, loadToCall, loadTransfo]);
+  }, [isLoggedIn, activeTab, storeFilter, dateFrom, dateTo, statusFilter, loadStats, loadData, loadToCall, loadOlderOpenCount, loadTransfo]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -827,6 +848,8 @@ const AdminPage = () => {
             onLogRelance={logRelance}
             onUpdatePhone={updatePhone}
             onRefresh={loadToCall}
+            olderOpenCount={olderOpenCount}
+            onShowOlderDemands={showOlderDemandsInDevis}
             DemandCard={DemandCard}
           />
         ) : (
@@ -1074,8 +1097,10 @@ const QuotedPriceInput = ({ itemId, initialValue, onSave }) => {
       <Euro size={13} className="text-[#1A5C3A] flex-shrink-0" />
       <input
         type="text"
+        inputMode="decimal"
+        maxLength={6}
         value={value}
-        onChange={e => setValue(e.target.value)}
+        onChange={e => setValue(sanitizePriceInput(e.target.value))}
         onClick={e => e.stopPropagation()}
         onMouseDown={e => e.stopPropagation()}
         onKeyDown={e => {

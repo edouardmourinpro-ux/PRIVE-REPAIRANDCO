@@ -164,7 +164,8 @@ const PassageFlow = ({ itemId, onSubmit }) => {
 // serveur via onRefresh() pour rester la source de vérité (aucun page reload).
 export const ToCallTab = ({
   items, loading, requireIdentity, onLogCall, onStatusChange, onLogPassage,
-  onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onLogRelance, onUpdatePhone, onRefresh, DemandCard,
+  onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onLogRelance, onUpdatePhone, onRefresh,
+  olderOpenCount, onShowOlderDemands, DemandCard,
 }) => {
   const [confirmingId, setConfirmingId] = useState(null);
   const [lostMenuId, setLostMenuId] = useState(null);
@@ -208,6 +209,22 @@ export const ToCallTab = ({
   }
 
   if (!items.length) {
+    if (olderOpenCount > 0) {
+      return (
+        <div className="text-center py-12 text-[#1A1A2E]/60" data-testid="to-call-empty-state-older">
+          Rien à appeler dans le suivi du jour. En revanche, ce magasin a encore{' '}
+          <strong className="text-[#1A1A2E]">{olderOpenCount} demande{olderOpenCount > 1 ? 's' : ''} plus ancienne{olderOpenCount > 1 ? 's' : ''}</strong>{' '}
+          jamais traitée{olderOpenCount > 1 ? 's' : ''}. Elles sont dans{' '}
+          <button
+            onClick={onShowOlderDemands}
+            className="text-[#1A5C3A] underline font-medium hover:text-[#2ECC71]"
+            data-testid="to-call-show-older-btn"
+          >
+            « Toutes les demandes »
+          </button>.
+        </div>
+      );
+    }
     return (
       <div className="text-center py-12 text-[#1A1A2E]/50" data-testid="to-call-empty-state">
         Aucun appel à faire pour le moment 🎉

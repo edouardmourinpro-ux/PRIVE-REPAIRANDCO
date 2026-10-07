@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { REFUS_REASON_OPTIONS } from '../../data/lostReasons';
 import { APPT_SLOT_SHORT } from '../../lib/statusDisplay';
 import { getRelanceMailtoUrl, getRelanceWaUrl, isFrenchMobilePhone } from '../../lib/relanceText';
+import { sanitizePriceInput } from '../../lib/priceInput';
 
 const Chip = ({ children, onClick, testId, variant = 'default', disabled = false }) => (
   <button
@@ -196,8 +197,10 @@ export const CallLogPanel = ({ open, onClose, item, onSubmit, onSaveQuotedPrice 
               <div className="flex gap-2 items-center">
                 <input
                   type="text"
+                  inputMode="decimal"
+                  maxLength={6}
                   value={priceDraft}
-                  onChange={e => setPriceDraft(e.target.value)}
+                  onChange={e => setPriceDraft(sanitizePriceInput(e.target.value))}
                   placeholder="Ex: 89"
                   className="flex-1 px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm min-h-[44px]"
                   data-testid={`call-price-input-${itemId}`}

@@ -1618,6 +1618,32 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
     return items
 
 
+@api_router.get("/admin/to-call/older-open-count")
+async def get_older_open_count(store: Optional[str] = Query(None), user=Depends(get_current_admin)):
+    """Demandes encore ouvertes (nouveau/contacte/pris_en_charge) créées avant
+    le début du suivi complet — donc absentes de « À appeler ». Lecture seule,
+    sert uniquement au message affiché quand la liste est vide."""
+    query = {"status": {"$in": ["nouveau", "contacte", "pris_en_charge"]}}
+    if store == TEST_STORE_ID:
+        query["is_test"] = True
+        query["store"] = TEST_STORE_ID
+    else:
+        query["is_test"] = {"$ne": True}
+        query["store"] = {"$ne": TEST_STORE_ID}
+        if store:
+            query["store"] = store
+
+    count = 0
+    for col_name in COLLECTIONS.values():
+        docs = await db[col_name].find(query, {"_id": 0, "created_at": 1, "tracking_since": 1}).to_list(5000)
+        for d in docs:
+            created_at = d.get("created_at")
+            tracking_since = d.get("tracking_since")
+            if not created_at or not tracking_since or created_at < tracking_since:
+                count += 1
+    return {"count": count}
+
+
 @api_router.get("/admin/transfo")
 async def get_transfo(store: Optional[str] = Query(None), user=Depends(get_current_admin)):
     """Taux de conversion (facturé / total) sur 30 jours glissants — devis,
