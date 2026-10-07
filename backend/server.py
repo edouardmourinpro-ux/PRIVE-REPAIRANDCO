@@ -82,6 +82,11 @@ SUPERVISION_EMAIL = os.environ.get('SUPERVISION_EMAIL', '')
 # SMS de service au CLIENT (confirmation création / RDV / passage) — distinct de
 # SMS_ENABLED qui gère les SMS vers les magasins/RPV.
 CLIENT_SMS_ENABLED = os.environ.get('CLIENT_SMS_ENABLED', 'false').lower() == 'true'
+# Interrupteur séparé pour le SMS de confirmation RDV/passage (après un appel
+# "Oui, devis accepté"/"RDV pris") — reste à false tant que non validé par
+# l'utilisateur, indépendamment de CLIENT_SMS_ENABLED (qui ne gère plus que le
+# SMS de création). Code prêt, à rallumer en changeant cette seule variable.
+CLIENT_SMS_RDV_ENABLED = os.environ.get('CLIENT_SMS_RDV_ENABLED', 'false').lower() == 'true'
 
 # Destinataire PRIMAIRE du SMS : le mobile du magasin, un seul responsable par lead.
 # RÈGLE : uniquement des mobiles francais (33 6.. ou 33 7..).
@@ -829,9 +834,10 @@ def _build_client_appt_sms(appt_type: str, appt_date: str, appt_slot: Optional[s
 async def _send_client_sms(collection_name: str, demand_id: str, phone: str, sms_type: str, text: str) -> None:
     """Envoie un SMS de service au client (jamais de promo/lien), avec garde
     anti-doublon (1 confirmation du même type par demande et par 24h) et
-    persistance dans client_sms[]. Tâche de fond — ne lève jamais."""
-    if not CLIENT_SMS_ENABLED:
-        return
+    persistance dans client_sms[]. Tâche de fond — ne lève jamais. Le ou les
+    interrupteurs (CLIENT_SMS_ENABLED / CLIENT_SMS_RDV_ENABLED) sont vérifiés
+    par l'appelant, pas ici, pour que chaque type de SMS client ait son propre
+    interrupteur indépendant."""
     number = _normalize_fr_mobile(phone)
     if not number:
         return
@@ -856,12 +862,12 @@ async def _send_client_sms(collection_name: str, demand_id: str, phone: str, sms
         logger.error(f"[CLIENT SMS] Échec persistance ({collection_name}/{demand_id}): {e}")
 
 async def _send_client_creation_sms(collection_name: str, demand_id: str, phone: Optional[str], store_id: str) -> None:
-    if not phone:
+    if not CLIENT_SMS_ENABLED or not phone:
         return
     await _send_client_sms(collection_name, demand_id, phone, "creation", _build_client_creation_sms(store_id))
 
 async def _send_client_appt_sms(collection_name: str, demand_id: str, phone: Optional[str], appt_type: str, appt_date: str, appt_slot: Optional[str], store_id: str) -> None:
-    if not phone:
+    if not CLIENT_SMS_RDV_ENABLED or not phone:
         return
     store_name = STORE_NAMES.get(store_id, store_id or "")
     store_address = _store_address(store_id)

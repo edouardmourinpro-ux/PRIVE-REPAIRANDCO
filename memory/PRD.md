@@ -289,6 +289,17 @@ Frontend + 1 endpoint backend, rien publié (pas de deploy) — attente feu vert
 - Testé : backend 7/7 pytest, frontend 14/15 + 1 régression corrigée et revérifiée. **Rien publié**.
 - **P0 restant** : attendre les prochaines consignes précises de l'utilisateur.
 
+### S27 (07/10/2026) — Politique SMS resserrée : un seul SMS, au client, à la création
+Backend only, rien publié/déployé (consigne maintenue).
+- **Découplage des interrupteurs** : `SMS_ENABLED` ne gouverne plus QUE les SMS internes (alerte magasin, relances 15min/30min RPV, alerte direction 2h) via `send_sms()`. Le SMS client (`_send_client_sms`, via `_brevo_send_sms_sync` direct) n'a jamais dépendu de `SMS_ENABLED` — confirmé par audit de code, aucun changement nécessaire sur ce point.
+- **Nouvel interrupteur `CLIENT_SMS_RDV_ENABLED`** (défaut `false`) : le check `CLIENT_SMS_ENABLED` a été retiré de `_send_client_sms` (mutualisée) et déplacé dans les 2 appelants : `_send_client_creation_sms` vérifie `CLIENT_SMS_ENABLED`, `_send_client_appt_sms` (RDV/passage) vérifie désormais `CLIENT_SMS_RDV_ENABLED` — totalement indépendant, prêt à rallumer en changeant une seule variable.
+- **Emails inchangés** : `send_email_tracked`/`_notify_lead`/digest 8h ne dépendent jamais de `SMS_ENABLED` — confirmé, aucune régression.
+- **Valeurs finales (.env)** : `CLIENT_SMS_ENABLED=true`, `SMS_ENABLED=false`, `CLIENT_SMS_RDV_ENABLED=false`.
+- Vérifié en direct sur Magasin TEST (store="test", sans toucher à un vrai magasin) :
+  1. `POST /api/quote` → `notifications[]` contient **1 seul email** (aucune entrée SMS interne, `send_sms()` retourne `None` car `SMS_ENABLED=false`) ; `client_sms[]` contient **exactement 1 SMS** type `creation`, envoyé réellement au numéro de test.
+  2. `POST /admin/.../call` avec `outcome=joint, detail=rdv_pris` (+ date/créneau) → statut passe à `rdv_pris`, mais **aucun SMS RDV ajouté** à `client_sms[]` (toujours 1 seule entrée `creation`) car `CLIENT_SMS_RDV_ENABLED=false`.
+- Pas de testing_agent sur ce point (vérification directe par curl sur Magasin TEST, périmètre restreint et déjà couvert par iteration_22). **Rien publié/déployé.**
+
 ### S26 (fork actuel) — Refonte des 4 SMS clients (GSM-7 strict)
 Backend only, rien publié/déployé (toujours attente du feu vert utilisateur).
 - `_strip_accents` ne strip plus tous les accents : garde désormais `é è à ù` tels quels, replie tout le reste (`ô ê î û â ç À É` et tout autre accent) vers sa forme ASCII — toujours pour rester en GSM-7 (160 car./segment) et éviter l'UCS-2 (70 car./segment).
