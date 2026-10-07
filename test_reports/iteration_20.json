@@ -1,0 +1,28 @@
+{
+  "summary": "Frontend-only validation of S23 refonte (DemandCard 7-col row + tabs restructure + TransfoPill + Rattrapage move). All 7 feature groups from the review request validated via Playwright on magasin TEST. No frontend regressions found.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "AdminPage header counter", "issues": ["Compteur 'X demandes' affiche 0 alors que 9 cartes sont visibles sur l'onglet Devis en magasin TEST — stats.total exclut probablement store=test, mais l'affichage peut prêter à confusion. Même observation sur les pastilles de filtre de statut (Tous 0, Nouveau 0, RDV pris 0...) alors qu'il existe clairement des demandes au statut RDV pris / Devis accepté dans les données TEST. Suspicion de dérive stats/data pour le store TEST — à confirmer côté backend si cela doit refléter aussi les leads TEST."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optionnel / non bloquant) Clarifier/corriger la cohérence des compteurs sur l'onglet Devis quand storeFilter=test — les cartes s'affichent mais stats.devis et by_category_status.devis.* restent à 0. Si c'est volontaire (stats exclut TEST), au moins afficher un badge explicatif pour éviter la confusion."
+  ],
+  "critical_code_review_comments": [
+    "AdminPage.jsx est maintenant 1727 lignes — dépasse largement la ligne directrice de 700 ; envisager d'extraire DemandCard, TransfoPill, NotifTestPanel, QuotedPriceInput dans /components/admin/.",
+    "DemandCard a 2 data-testid qui se chevauchent par préfixe: 'facture-checkbox-label-{id}' (label wrapper) et 'facture-checkbox-{id}' (input). Un sélecteur [data-testid^=\"facture-checkbox-\"] matche les deux et peut induire en erreur les tests automatisés — envisager de renommer le label en 'facture-label-{id}' ou d'utiliser 'facture-checkbox-wrapper-{id}'.",
+    "updateStatus() dans AdminPage.jsx (ligne 285) pousse localement dans status_history pour le tableau 'data', ce qui est OK pour les onglets Devis/Contact/Rachat, mais depuis l'onglet 'À appeler', 'data' est vide — on repose sur loadToCall() pour rafraîchir. Fonctionne correctement en pratique (vérifié), mais getPreviousStatusBeforeFacture() lit item.status_history depuis le prop item ; si loadToCall() n'avait pas eu le temps de rafraîchir avant un décochage très rapide, le fallback 'devis_accepte' serait appliqué. Un test de régression ciblé pourrait être utile."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (not tested per request)", "frontend": "100% (7/7 feature groups validés)"},
+  "test_credentials": "david.m@repairandco.fr / Repair2025Admin! — Magasin TEST (store=test)",
+  "seed_data_creation": "Aucune. Les 9 cartes TEST déjà seedées via /app/backend/scripts/seed_demo_to_call.py (iteration précédente) étaient encore présentes et suffisantes.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Validé en profondeur sur magasin TEST : (1) la ligne de demande à 7 colonnes est présente et correctement rendue dans tous les onglets (Devis/Contact/Rachat et sous les barres colorées de À appeler) — demand-toggle, quoted-price-input, demand-status-badge, facture-checkbox (conditionnel), call-count, call-log-open, demand-delete tous présents avec les bons data-testid. (2) ABSENCE confirmée des éléments retirés : aucun data-testid commençant par 'demand-status-select-', 'demand-push-' ou 'notif-badge-'. (3) Checkbox Facturé round-trip OK : 'RDV mer. 7/10, 17h-19h30' → 'Facturé' (checked, feedback form visible, transfo 0% · 0/9 → 11% · 1/9) → décochage → retour EXACT au statut précédent 'RDV mer. 7/10, 17h-19h30' et transfo revient à 0% · 0/9. getPreviousStatusBeforeFacture() fonctionne correctement. (4) TransfoPill 'admin-transfo-pill' présent et se met à jour en live sans reload. (5) Structure des onglets OK : seul 'À appeler' visible par défaut, bouton 'Toutes les demandes' (admin-toggle-all-tabs) déplie Devis/Contact/Rachat. Pas d'onglet 'Entreprise'. DateRangePicker + Exporter CSV cachés sur À appeler, visibles sur Devis après dépliage. (6) Pastilles de filtre de statut : exactement les 10 attendues (Tous, Nouveau, Pas de réponse, À rappeler, Réfléchit, Devis accepté, RDV pris, Facturé, Refus, Perdu). Legacy Contacté/Pris en charge absents quand count=0. (7) Rattrapage : admin-rattrapage-btn ABSENT du header (0 en DOM avant ouverture), apparaît uniquement dans la carte 'admin-rattrapage-panel' après avoir ouvert 'Tester les notifications'. Clic ouvre bien la modale avec input code de sécurité. Point d'attention mineur (non bloquant) : stats.total et pastilles affichent 0 sur store=test mais 9 cartes sont rendues — vraisemblablement voulu (stats exclut TEST) mais prête à confusion ; cf. design_issues ci-dessus.",
+  "rca of the issue": "Aucun bug trouvé lors de ce run. Un faux positif initial de mon script Playwright (sélecteur [data-testid^=\"facture-checkbox-\"] matchait aussi le label wrapper 'facture-checkbox-label-{id}') a été corrigé en ciblant input[type=checkbox]. Recommandation incluse dans critical_code_review_comments."
+}

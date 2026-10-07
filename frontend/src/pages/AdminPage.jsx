@@ -1421,7 +1421,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
           {/* Col 4 — case "Facturé" (visible seulement si le client a dit oui) */}
           <div className="flex items-center justify-center">
             {showFactureCheckbox && (
-              <label className="flex items-center gap-1.5 text-xs font-medium text-[#1A5C3A] cursor-pointer" data-testid={`facture-checkbox-label-${item.id}`}>
+              <label className="flex items-center gap-1.5 text-xs font-medium text-[#1A5C3A] cursor-pointer" data-testid={`facture-label-${item.id}`}>
                 <input
                   type="checkbox"
                   checked={item.status === 'facture'}
