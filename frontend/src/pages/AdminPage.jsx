@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
 import {
-  LogOut, FileText, MessageSquare, Building2, Recycle,
+  LogOut, FileText, MessageSquare, Recycle,
   Loader2, ChevronDown, ChevronUp, Clock, Phone, Mail,
   Download, Filter, Sparkles, MessageCircle, Save, Trash2, UserX, RefreshCw, ExternalLink,
   Bell, BellOff, Euro, Check,
@@ -20,7 +20,11 @@ import { StoreGateModal } from '../components/admin/StoreGateModal';
 import { RulesBanner } from '../components/admin/RulesBanner';
 import { CallLogPanel } from '../components/admin/CallLogPanel';
 import { ToCallTab } from '../components/admin/ToCallTab';
-import { LOST_REASON_OPTIONS, LOST_REASON_LABELS } from '../data/lostReasons';
+import { LOST_REASON_LABELS } from '../data/lostReasons';
+import {
+  STATUS_META, STATUS_FILTER_ORDER, LEGACY_STATUS_ORDER, FACTURABLE_STATUSES,
+  getStatusDisplay, getPreviousStatusBeforeFacture,
+} from '../lib/statusDisplay';
 import { STAFF_IDENTITY_STORE_MAP, STAFF_IDENTITIES } from '../data/staffIdentities';
 import { DEVICE_TYPE_LABELS, parseRdvMessage, formatLeadTitle } from '../lib/leadFormat';
 
@@ -55,30 +59,6 @@ const callResultLabel = (c) => {
   if (c.outcome === 'numero_invalide') return 'Numéro invalide';
   return c.outcome || '';
 };
-
-// « Injoignable » exige >= 3 « pas de réponse » sur >= 2 jours distincts (Paris),
-// mais seulement pour les leads créés après le début du suivi complet (tracking_since).
-const canMarkUnreachable = (item) => {
-  if (item.created_at && item.tracking_since && item.created_at < item.tracking_since) return true;
-  const days = new Set();
-  let count = 0;
-  (item.call_attempts || []).forEach(c => {
-    if (c.outcome === 'pas_de_reponse') {
-      count += 1;
-      try { days.add(new Date(c.at).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })); } catch { /* ignore */ }
-    }
-  });
-  return count >= 3 && days.size >= 2;
-};
-
-const STATUS_OPTIONS = [
-  { value: 'nouveau',        label: 'Nouveau client',     color: 'bg-red-100 text-red-700' },
-  { value: 'contacte',       label: 'Client contacté',    color: 'bg-orange-100 text-orange-700' },
-  { value: 'pris_en_charge', label: 'Pris en charge',     color: 'bg-blue-100 text-blue-700' },
-  { value: 'facture',        label: 'Client Facturé',     color: 'bg-[#E8F5EE] text-[#1A5C3A]' },
-  { value: 'refus_devis',    label: 'Refus devis client', color: 'bg-gray-100 text-gray-700' },
-  { value: 'client_perdu',   label: 'Client Perdu',       color: 'bg-gray-200 text-gray-900' },
-];
 
 const SOURCE_LABELS = {
   google: 'Google',
@@ -124,6 +104,19 @@ const AdminPage = () => {
   const [dataLoading, setDataLoading] = useState(false);
   const [toCallData, setToCallData] = useState([]);
   const [toCallLoading, setToCallLoading] = useState(false);
+  const [transfo, setTransfo] = useState(null);
+
+  // "Toutes les demandes" déplie Devis/Contact/Rachat — replié par défaut,
+  // seul "À appeler" est visible (S23). Le choix est mémorisé.
+  const [showAllTabs, setShowAllTabs] = useState(
+    () => (typeof window !== 'undefined' && localStorage.getItem('admin_tabs_expanded') === '1')
+  );
+  const toggleShowAllTabs = () => {
+    const next = !showAllTabs;
+    setShowAllTabs(next);
+    try { localStorage.setItem('admin_tabs_expanded', next ? '1' : '0'); } catch { /* ignore */ }
+    if (!next && activeTab !== 'a_appeler') setActiveTab('a_appeler');
+  };
 
   // ---- "Quel magasin ?" fenêtre obligatoire à chaque connexion (S21) ----
   const [showStoreGate, setShowStoreGate] = useState(false);
@@ -247,15 +240,25 @@ const AdminPage = () => {
     setToCallLoading(false);
   }, [storeFilter, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const loadTransfo = useCallback(async () => {
+    try {
+      const params = {};
+      if (storeFilter) params.store = storeFilter;
+      const r = await axios.get(`${API_URL}/api/admin/transfo`, { headers: authHeaders, params });
+      setTransfo(r.data);
+    } catch { setTransfo(null); }
+  }, [storeFilter, token]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (isLoggedIn) {
       loadStats();
       loadToCall();
+      loadTransfo();
       if (activeTab !== 'a_appeler') {
         loadData(activeTab);
       }
     }
-  }, [isLoggedIn, activeTab, storeFilter, dateFrom, dateTo, statusFilter, loadStats, loadData, loadToCall]);
+  }, [isLoggedIn, activeTab, storeFilter, dateFrom, dateTo, statusFilter, loadStats, loadData, loadToCall, loadTransfo]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -285,13 +288,16 @@ const AdminPage = () => {
       if (extra.lostReasonCode) payload.lost_reason_code = extra.lostReasonCode;
       if (extra.lostReasonText) payload.lost_reason = extra.lostReasonText;
       await axios.patch(`${API_URL}/api/admin/demandes/${category}/${id}/status`, payload, { headers: authHeaders });
+      const nowIso = new Date().toISOString();
       setData(prev => prev.map(d => d.id === id ? {
         ...d, status: newStatus,
+        status_history: [...(d.status_history || []), { status: newStatus, at: nowIso, by: payload.by }],
         ...(extra.lostReasonCode ? { lost_reason_code: extra.lostReasonCode } : {}),
         ...(extra.lostReasonText ? { lost_reason: extra.lostReasonText } : {}),
       } : d));
       loadToCall();
       loadStats();
+      loadTransfo();
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Erreur lors de la mise à jour du statut');
     }
@@ -324,6 +330,7 @@ const AdminPage = () => {
     await axios.post(`${API_URL}/api/admin/demandes/${category}/${id}/passage`, payload, { headers: authHeaders });
     loadToCall();
     loadStats();
+    loadTransfo();
     toast.success('Passage enregistré');
   };
 
@@ -346,10 +353,6 @@ const AdminPage = () => {
     setData(prev => prev.filter(d => d.id !== id));
     loadToCall();
     loadStats();
-  };
-
-  const handlePushSMSDemand = async (id, code, category = activeTab) => {
-    await axios.post(`${API_URL}/api/admin/demandes/${category}/${id}/push-sms`, { code }, { headers: authHeaders });
   };
 
   const handleRattrapage = async () => {
@@ -599,13 +602,12 @@ const AdminPage = () => {
 
   const toCallBadgeCount = toCallData.filter(it => it.section === 'maintenant' || it.section === 'a_classer').length;
 
-  const tabs = [
-    { id: 'a_appeler', label: 'À appeler', icon: Phone, count: toCallBadgeCount },
+  const EXTRA_TABS = [
     { id: 'devis', label: 'Devis', icon: FileText, count: stats?.devis },
     { id: 'contact', label: 'Contact / RDV', icon: MessageSquare, count: stats?.contact },
-    { id: 'entreprise', label: 'Entreprise', icon: Building2, count: stats?.entreprise },
     { id: 'rachat', label: 'Rachat', icon: Recycle, count: stats?.rachat },
   ];
+  const openRattrapageModal = () => { setRattrapageCode(''); setRattrapageError(''); setRattrapageResult(null); setShowRattrapageModal(true); };
 
   const filteredData = notifFailedOnly
     ? data.filter(d => d.notify_status === 'failed' || d.notify_status === 'partial')
@@ -635,13 +637,6 @@ const AdminPage = () => {
               data-testid="admin-identity-change-link"
             >
               👤 {currentIdentity || 'Non défini'} · changer
-            </button>
-            <button
-              onClick={() => { setRattrapageCode(''); setRattrapageError(''); setRattrapageResult(null); setShowRattrapageModal(true); }}
-              className="hidden sm:flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/30 rounded-full text-xs text-white font-medium transition-colors"
-              data-testid="admin-rattrapage-btn"
-            >
-              <RefreshCw size={13} /> Rattrapage
             </button>
             <Button onClick={handleLogout} variant="outline" size="sm" className="border-white text-white hover:bg-white/10 rounded-full text-xs" data-testid="admin-logout">
               <LogOut size={14} className="mr-1" /> Déconnexion
@@ -691,8 +686,6 @@ const AdminPage = () => {
             ))}
             <option value="test">Magasin TEST</option>
           </select>
-          </>
-          )}
 
           <DateRangePicker
             onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
@@ -705,6 +698,8 @@ const AdminPage = () => {
           >
             <Download size={14} className="mr-1" /> Exporter CSV
           </Button>
+          </>
+          )}
           <AlertsToggle
             enabled={alertsEnabled}
             soundArmed={soundArmed}
@@ -734,22 +729,45 @@ const AdminPage = () => {
           />
         </div>
 
-        {/* Tabs */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {tabs.map(t => (
+        {/* Tabs — seul "À appeler" visible par défaut (S23) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex flex-wrap gap-2">
             <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
+              onClick={() => setActiveTab('a_appeler')}
               className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                activeTab === t.id ? 'bg-[#1A5C3A] text-white' : 'bg-white text-[#1A1A2E] hover:bg-[#E8F5EE] border border-[#E8F5EE]'
+                activeTab === 'a_appeler' ? 'bg-[#1A5C3A] text-white' : 'bg-white text-[#1A1A2E] hover:bg-[#E8F5EE] border border-[#E8F5EE]'
               }`}
-              data-testid={`admin-tab-${t.id}`}
+              data-testid="admin-tab-a_appeler"
             >
-              <t.icon size={16} />
-              {t.label}
-              {t.count !== undefined && <span className={`ml-1 px-2 py-0.5 rounded-full text-xs ${activeTab === t.id ? 'bg-white/20' : 'bg-[#E8F5EE]'}`}>{t.count}</span>}
+              <Phone size={16} />
+              À appeler
+              <span className={`ml-1 px-2 py-0.5 rounded-full text-xs ${activeTab === 'a_appeler' ? 'bg-white/20' : 'bg-[#E8F5EE]'}`}>{toCallBadgeCount}</span>
             </button>
-          ))}
+            <button
+              onClick={toggleShowAllTabs}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+                showAllTabs ? 'bg-[#1A1A2E] text-white border-transparent' : 'bg-white text-[#1A1A2E] border-[#E8F5EE] hover:bg-[#E8F5EE]'
+              }`}
+              data-testid="admin-toggle-all-tabs"
+            >
+              Toutes les demandes {showAllTabs ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            {showAllTabs && EXTRA_TABS.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                  activeTab === t.id ? 'bg-[#1A5C3A] text-white' : 'bg-white text-[#1A1A2E] hover:bg-[#E8F5EE] border border-[#E8F5EE]'
+                }`}
+                data-testid={`admin-tab-${t.id}`}
+              >
+                <t.icon size={16} />
+                {t.label}
+                {t.count !== undefined && <span className={`ml-1 px-2 py-0.5 rounded-full text-xs ${activeTab === t.id ? 'bg-white/20' : 'bg-[#E8F5EE]'}`}>{t.count}</span>}
+              </button>
+            ))}
+          </div>
+          <TransfoPill transfo={transfo} />
         </div>
 
         {activeTab === 'a_appeler' ? (
@@ -763,7 +781,6 @@ const AdminPage = () => {
             onSaveStaffFeedback={saveStaffFeedback}
             onSaveQuotedPrice={saveQuotedPrice}
             onDelete={handleDeleteDemand}
-            onPushSMS={handlePushSMSDemand}
             onRefresh={loadToCall}
             DemandCard={DemandCard}
           />
@@ -775,13 +792,9 @@ const AdminPage = () => {
             const catStats = stats?.by_category_status?.[activeTab] || {};
             const totalCat = stats?.[activeTab] || 0;
             const statusTabs = [
-              { value: 'all',            label: 'Tous',                count: totalCat,                       activeBg: 'bg-[#1A1A2E]',   activeText: 'text-white', idleBg: 'bg-white',     idleText: 'text-[#1A1A2E]',  border: 'border-[#E8F5EE]' },
-              { value: 'nouveau',        label: 'Nouveau client',      count: catStats.nouveau || 0,          activeBg: 'bg-red-500',     activeText: 'text-white', idleBg: 'bg-red-50',    idleText: 'text-red-700',    border: 'border-red-100' },
-              { value: 'contacte',       label: 'Client contacté',     count: catStats.contacte || 0,         activeBg: 'bg-orange-500',  activeText: 'text-white', idleBg: 'bg-orange-50', idleText: 'text-orange-700', border: 'border-orange-100' },
-              { value: 'pris_en_charge', label: 'Pris en charge',      count: catStats.pris_en_charge || 0,   activeBg: 'bg-blue-500',    activeText: 'text-white', idleBg: 'bg-blue-50',   idleText: 'text-blue-700',   border: 'border-blue-100' },
-              { value: 'facture',        label: 'Client Facturé',      count: catStats.facture || 0,          activeBg: 'bg-[#1A5C3A]',   activeText: 'text-white', idleBg: 'bg-[#E8F5EE]', idleText: 'text-[#1A5C3A]',  border: 'border-[#E8F5EE]' },
-              { value: 'refus_devis',    label: 'Refus devis',         count: catStats.refus_devis || 0,      activeBg: 'bg-gray-500',    activeText: 'text-white', idleBg: 'bg-gray-50',   idleText: 'text-gray-700',   border: 'border-gray-200' },
-              { value: 'client_perdu',   label: 'Client Perdu',        count: catStats.client_perdu || 0,     activeBg: 'bg-gray-800',    activeText: 'text-white', idleBg: 'bg-gray-100',  idleText: 'text-gray-900',   border: 'border-gray-300' },
+              { value: 'all', label: 'Tous', count: totalCat, activeBg: 'bg-[#1A1A2E]', activeText: 'text-white', idleBg: 'bg-white', idleText: 'text-[#1A1A2E]', border: 'border-[#E8F5EE]' },
+              ...STATUS_FILTER_ORDER.map(v => ({ value: v, count: catStats[v] || 0, activeText: 'text-white', ...STATUS_META[v] })),
+              ...LEGACY_STATUS_ORDER.filter(v => (catStats[v] || 0) > 0).map(v => ({ value: v, count: catStats[v] || 0, activeText: 'text-white', ...STATUS_META[v] })),
             ];
             return statusTabs.map(st => {
               const active = statusFilter === st.value;
@@ -822,7 +835,7 @@ const AdminPage = () => {
           </button>
         </div>
 
-        {showNotifTestPanel && <NotifTestPanel authHeaders={authHeaders} />}
+        {showNotifTestPanel && <NotifTestPanel authHeaders={authHeaders} onOpenRattrapage={openRattrapageModal} />}
 
         {/* Content */}
         {dataLoading ? (
@@ -840,7 +853,6 @@ const AdminPage = () => {
                 onSaveStaffFeedback={saveStaffFeedback}
                 onSaveQuotedPrice={saveQuotedPrice}
                 onDelete={handleDeleteDemand}
-                onPushSMS={handlePushSMSDemand}
                 requireIdentity={requireIdentity}
                 onLogCall={logCall}
               />
@@ -959,6 +971,21 @@ const AlertsToggle = ({ enabled, soundArmed, onToggle }) => {
   );
 };
 
+// Pastille "Taux de transfo 30 j" — à droite de la ligne des onglets (S23).
+const TransfoPill = ({ transfo }) => {
+  if (!transfo) return null;
+  const { rate, facture, total } = transfo;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#E8F5EE] text-[#1A5C3A] border border-[#1A5C3A]/20"
+      title={`${facture} demande${facture === 1 ? '' : 's'} facturée${facture === 1 ? '' : 's'} sur ${total} reçue${total === 1 ? '' : 's'} ces 30 derniers jours`}
+      data-testid="admin-transfo-pill"
+    >
+      Taux de transfo 30 j · {rate}% · {facture}/{total}
+    </span>
+  );
+};
+
 // Compact inline input for the phone-quoted repair price.  Auto-saves on blur
 // or Enter (only if the value changed).  stopPropagation on all events so
 // clicking / typing does not toggle the parent DemandCard.
@@ -1026,38 +1053,10 @@ const QuotedPriceInput = ({ itemId, initialValue, onSave }) => {
   );
 };
 
-// Small colored dot showing whether SMS+email actually reached the store for
-// this lead — 🟢 ok / 🟠 partial / 🔴 failed / — no data (pre-dates this feature).
-const NotifBadge = ({ item }) => {
-  const status = item.notify_status;
-  if (!status) {
-    return <span className="text-xs text-gray-300" data-testid={`notif-badge-${item.id}`} title="Pas de suivi (lead antérieur)">—</span>;
-  }
-  const cfg = {
-    ok: { color: 'bg-green-500', label: 'Notification envoyée' },
-    partial: { color: 'bg-orange-500', label: 'Notification partielle' },
-    failed: { color: 'bg-red-500', label: 'Notification en échec' },
-  }[status] || { color: 'bg-gray-300', label: status };
-  const details = (item.notifications || []).map(n => {
-    const chan = n.channel === 'sms' ? 'SMS' : 'Email';
-    const when = n.at ? new Date(n.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
-    return n.status === 'sent'
-      ? `${chan} → ${n.to} (${when})`
-      : `${chan} → ${n.to} : ÉCHEC — ${n.error || 'inconnu'}`;
-  }).join('\n') || 'Aucune tentative enregistrée';
-  return (
-    <span
-      className={`inline-block w-2.5 h-2.5 rounded-full flex-shrink-0 ${cfg.color}`}
-      title={`${cfg.label}\n${details}`}
-      data-testid={`notif-badge-${item.id}`}
-    />
-  );
-};
-
 // Admin panel to manually test the SMS + email flow against a store's real
 // recipients, without creating a fake lead — and to create real is_test
 // leads that exercise the full escalation flow safely (TEST_RECIPIENT_* only).
-const NotifTestPanel = ({ authHeaders }) => {
+const NotifTestPanel = ({ authHeaders, onOpenRattrapage }) => {
   const [store, setStore] = useState(STORES[0]?.id || '');
   const [sendReal, setSendReal] = useState(false);
   const [confirmReal, setConfirmReal] = useState(false);
@@ -1209,25 +1208,29 @@ const NotifTestPanel = ({ authHeaders }) => {
           {digestResult && <p className="text-xs text-[#1A5C3A] w-full" data-testid="digest-test-result">✅ Digest [TEST] envoyé à {digestResult.to}</p>}
         </CardContent>
       </Card>
+
+      <Card className="bg-white border border-[#E8F5EE]" data-testid="admin-rattrapage-panel">
+        <CardContent className="p-4 flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <p className="text-sm font-semibold text-[#1A1A2E] flex items-center gap-2"><RefreshCw size={15} className="text-[#1A5C3A]" /> Rattrapage leads Nouveau</p>
+            <p className="text-xs text-[#1A1A2E]/60 mt-0.5">Renvoie un SMS au magasin pour tous les leads au statut « Nouveau ».</p>
+          </div>
+          <Button onClick={onOpenRattrapage} variant="outline" className="border-[#1A5C3A] text-[#1A5C3A] text-xs rounded-full" data-testid="admin-rattrapage-btn">
+            <RefreshCw size={14} className="mr-1" /> Rattrapage
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 };
 
-const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onPushSMS, requireIdentity, onLogCall }) => {
+const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, requireIdentity, onLogCall }) => {
   const [open, setOpen] = useState(false);
   const feedbackRef = useRef(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteCode, setDeleteCode] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [showLostModal, setShowLostModal] = useState(false);
-  const [lostReasonCode, setLostReasonCode] = useState('');
-  const [lostReasonText, setLostReasonText] = useState('');
-  const [showPushModal, setShowPushModal] = useState(false);
-  const [pushCode, setPushCode] = useState('');
-  const [pushError, setPushError] = useState('');
-  const [pushLoading, setPushLoading] = useState(false);
-  const [pushSuccess, setPushSuccess] = useState(false);
   const [showCallPanel, setShowCallPanel] = useState(false);
 
   const handleDeleteSubmit = async () => {
@@ -1242,27 +1245,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
     setDeleteLoading(false);
   };
 
-  const handleLostSubmit = () => {
-    if (!lostReasonCode) return;
-    requireIdentity(() => {
-      onStatusChange(item.id, 'client_perdu', { lostReasonCode, lostReasonText: lostReasonText.trim() || undefined });
-      setShowLostModal(false);
-    });
-  };
-
   const handleCallSubmit = (payload) => onLogCall(item.id, { ...payload, by: localStorage.getItem('admin_identity') || '' });
-
-  const handlePushSubmit = async () => {
-    setPushLoading(true);
-    setPushError('');
-    try {
-      await onPushSMS(item.id, pushCode);
-      setPushSuccess(true);
-    } catch (err) {
-      setPushError(err.response?.data?.detail || 'Code incorrect');
-    }
-    setPushLoading(false);
-  };
 
   const getPrenom = () => item.first_name || (item.name || '').split(' ')[0] || '';
   const getNom = () => item.name || item.last_name || '';
@@ -1302,23 +1285,21 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   };
 
   const date = item.created_at ? new Date(item.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-  const currentStatus = STATUS_OPTIONS.find(s => s.value === (item.status || 'nouveau')) || STATUS_OPTIONS[0];
   const isClosed = (item.status || 'nouveau') === 'facture';
   const hasCustomerSurvey = item.customer_source || item.customer_feedback;
+  const statusDisplay = getStatusDisplay(item);
+  const showFactureCheckbox = FACTURABLE_STATUSES.includes(item.status || 'nouveau');
 
-  const handleStatusChange = async (newStatus) => {
+  const handleFactureToggle = (checked) => {
     requireIdentity(() => {
-      if (newStatus === 'client_perdu') {
-        setLostReasonCode(''); setLostReasonText('');
-        setShowLostModal(true);
-        return;
-      }
-      if (newStatus === 'facture') setOpen(true);
-      onStatusChange(item.id, newStatus);
-      if (newStatus === 'facture') {
+      if (checked) {
+        setOpen(true);
+        onStatusChange(item.id, 'facture');
         setTimeout(() => {
           feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 350);
+      } else {
+        onStatusChange(item.id, getPreviousStatusBeforeFacture(item));
       }
     });
   };
@@ -1327,11 +1308,11 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   const lastCall = callAttempts.length ? callAttempts[callAttempts.length - 1] : null;
   const showRefusAction = lastCall?.outcome === 'joint' && lastCall?.detail === 'refus' && !['refus_devis', 'client_perdu', 'facture'].includes(item.status);
   const showInvalidAction = lastCall?.outcome === 'numero_invalide' && !['client_perdu', 'facture'].includes(item.status);
-  const unreachableAllowed = canMarkUnreachable(item);
   const timeline = [
-    ...(item.status_history || []).map(h => ({ at: h.at, by: h.by, note: null, label: `Statut → ${STATUS_OPTIONS.find(s => s.value === h.status)?.label || h.status}` })),
+    ...(item.status_history || []).map(h => ({ at: h.at, by: h.by, note: null, label: `Statut → ${STATUS_META[h.status]?.label || h.status}` })),
     ...callAttempts.map(c => ({ at: c.at, by: c.by, note: c.note, label: `Appel — ${callResultLabel(c)}` })),
   ].sort((a, b) => new Date(a.at) - new Date(b.at));
+
 
   const getTitle = () => formatLeadTitle(item, type);
 
@@ -1402,8 +1383,8 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   return (
     <Card className="bg-white border border-gray-100 hover:shadow-sm transition-shadow" data-testid={`demand-card-${item.id}`}>
       <CardContent className="p-4">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <button onClick={() => setOpen(!open)} className="flex-1 flex items-center justify-between text-left min-w-0" data-testid={`demand-toggle-${item.id}`}>
+        <div className="flex flex-col gap-3 sm:grid sm:grid-cols-[minmax(0,1fr)_110px_190px_90px_50px_90px_32px] sm:items-center sm:gap-3">
+          <button onClick={() => setOpen(!open)} className="flex items-center justify-between text-left min-w-0" data-testid={`demand-toggle-${item.id}`}>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="font-medium text-[#1A1A2E] truncate">{getTitle()}</p>
@@ -1422,54 +1403,65 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             {open ? <ChevronUp size={20} className="text-[#1A5C3A] flex-shrink-0 ml-2" /> : <ChevronDown size={20} className="text-[#1A1A2E]/40 flex-shrink-0 ml-2" />}
           </button>
 
-          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
-            <QuotedPriceInput
-              itemId={item.id}
-              initialValue={item.quoted_price || ''}
-              onSave={onSaveQuotedPrice}
-            />
-            <span className={`text-xs px-2 py-1 rounded-full font-medium hidden sm:inline ${currentStatus.color}`} data-testid={`demand-status-badge-${item.id}`}>
-              {currentStatus.label}
-            </span>
-            <NotifBadge item={item} />
+          {/* Col 2 — prix annoncé */}
+          <QuotedPriceInput
+            itemId={item.id}
+            initialValue={item.quoted_price || ''}
+            onSave={onSaveQuotedPrice}
+          />
+
+          {/* Col 3 — statut / prochaine action */}
+          <span
+            className={`text-xs px-2.5 py-1.5 rounded-full font-medium text-center ${statusDisplay.idleBg} ${statusDisplay.idleText} border ${statusDisplay.border}`}
+            data-testid={`demand-status-badge-${item.id}`}
+          >
+            {statusDisplay.text}
+          </span>
+
+          {/* Col 4 — case "Facturé" (visible seulement si le client a dit oui) */}
+          <div className="flex items-center justify-center">
+            {showFactureCheckbox && (
+              <label className="flex items-center gap-1.5 text-xs font-medium text-[#1A5C3A] cursor-pointer" data-testid={`facture-checkbox-label-${item.id}`}>
+                <input
+                  type="checkbox"
+                  checked={item.status === 'facture'}
+                  onChange={e => { e.stopPropagation(); handleFactureToggle(e.target.checked); }}
+                  onClick={e => e.stopPropagation()}
+                  className="w-4 h-4 accent-[#1A5C3A] cursor-pointer"
+                  data-testid={`facture-checkbox-${item.id}`}
+                />
+                Facturé
+              </label>
+            )}
+          </div>
+
+          {/* Col 5 — nombre d'appels */}
+          <div className="flex items-center justify-center">
             {callAttempts.length > 0 && (
               <span className="flex items-center gap-1 text-xs text-[#1A5C3A] font-semibold" data-testid={`call-count-${item.id}`}>
                 <Phone size={12} /> {callAttempts.length}
               </span>
             )}
-            <button
-              onClick={e => { e.stopPropagation(); requireIdentity(() => setShowCallPanel(true)); }}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-[#1A5C3A] rounded-full text-xs text-white font-medium hover:bg-[#2ECC71] transition-colors min-h-[30px]"
-              data-testid={`call-log-open-${item.id}`}
-            >
-              <Phone size={12} /> Appel
-            </button>
-            <select
-              value={item.status || 'nouveau'}
-              onChange={e => handleStatusChange(e.target.value)}
-              onClick={e => e.stopPropagation()}
-              className="px-2 py-1.5 border border-[#E8F5EE] rounded-lg text-xs text-[#1A1A2E] bg-white focus:outline-none focus:border-[#2ECC71]"
-              data-testid={`demand-status-select-${item.id}`}
-            >
-              {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-            <button
-              onClick={e => { e.stopPropagation(); setPushCode(''); setPushError(''); setPushSuccess(false); setShowPushModal(true); }}
-              className="p-1.5 rounded text-gray-300 hover:text-[#2ECC71] hover:bg-[#E8F5EE] transition-colors"
-              title="Push SMS magasin"
-              data-testid={`demand-push-${item.id}`}
-            >
-              <RefreshCw size={13} />
-            </button>
-            <button
-              onClick={e => { e.stopPropagation(); setDeleteCode(''); setDeleteError(''); setShowDeleteModal(true); }}
-              className="p-1.5 rounded text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
-              title="Supprimer"
-              data-testid={`demand-delete-${item.id}`}
-            >
-              <Trash2 size={13} />
-            </button>
           </div>
+
+          {/* Col 6 — bouton Appel */}
+          <button
+            onClick={e => { e.stopPropagation(); requireIdentity(() => setShowCallPanel(true)); }}
+            className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-[#1A5C3A] rounded-full text-xs text-white font-medium hover:bg-[#2ECC71] transition-colors min-h-[30px]"
+            data-testid={`call-log-open-${item.id}`}
+          >
+            <Phone size={12} /> Appel
+          </button>
+
+          {/* Col 7 — corbeille */}
+          <button
+            onClick={e => { e.stopPropagation(); setDeleteCode(''); setDeleteError(''); setShowDeleteModal(true); }}
+            className="flex items-center justify-center p-1.5 rounded text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+            title="Supprimer"
+            data-testid={`demand-delete-${item.id}`}
+          >
+            <Trash2 size={13} />
+          </button>
         </div>
 
         {open && (
@@ -1599,44 +1591,6 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
         )}
       </CardContent>
 
-      {/* Push WhatsApp dialog */}
-      <Dialog open={showPushModal} onOpenChange={o => { setShowPushModal(o); if (!o) { setPushCode(''); setPushSuccess(false); } }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-[#1A1A2E] flex items-center gap-2">
-              <RefreshCw size={16} className="text-[#1A5C3A]" /> Push SMS magasin
-            </DialogTitle>
-            <DialogDescription>
-              Renvoie l'alerte SMS au magasin pour cette demande. Entrez le code de sécurité.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 mt-2">
-            {!pushSuccess ? (
-              <>
-                <Input type="password" placeholder="Code de sécurité" value={pushCode}
-                  onChange={e => setPushCode(e.target.value)}
-                  onKeyDown={async e => { if (e.key === 'Enter' && pushCode) await handlePushSubmit(); }}
-                  autoFocus data-testid={`push-code-input-${item.id}`} />
-                {pushError && <p className="text-red-600 text-sm">{pushError}</p>}
-                <div className="flex gap-2 justify-end">
-                  <Button variant="outline" onClick={() => setShowPushModal(false)} className="text-xs rounded-full">Annuler</Button>
-                  <Button onClick={handlePushSubmit} disabled={pushLoading || !pushCode}
-                    className="bg-[#1A5C3A] hover:bg-[#2ECC71] text-white text-xs rounded-full" data-testid={`push-confirm-${item.id}`}>
-                    {pushLoading ? <Loader2 className="animate-spin mr-1" size={14} /> : <RefreshCw size={14} className="mr-1" />}
-                    Envoyer
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-4">
-                <p className="text-[#1A5C3A] font-semibold">SMS envoyé !</p>
-                <Button onClick={() => setShowPushModal(false)} className="mt-3 bg-[#1A5C3A] text-white rounded-full text-xs">Fermer</Button>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Journal d'appel */}
       <CallLogPanel
         open={showCallPanel}
@@ -1645,72 +1599,6 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
         phone={item.phone}
         onSubmit={handleCallSubmit}
       />
-
-      {/* Client perdu — motif fixe en un clic */}
-      <Dialog open={showLostModal} onOpenChange={o => { setShowLostModal(o); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-[#1A1A2E] flex items-center gap-2">
-              <UserX size={18} className="text-red-500" /> Client perdu
-            </DialogTitle>
-            <DialogDescription>
-              Choisissez le motif (1 clic).
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 mt-2">
-            <div className="grid gap-1.5 max-h-64 overflow-y-auto">
-              {LOST_REASON_OPTIONS.map(r => {
-                const disabled = r.value === 'injoignable' && !unreachableAllowed;
-                const selected = lostReasonCode === r.value;
-                const passDeReponseCount = callAttempts.filter(c => c.outcome === 'pas_de_reponse').length;
-                return (
-                  <div key={r.value}>
-                    <button
-                      disabled={disabled}
-                      onClick={() => setLostReasonCode(r.value)}
-                      title={disabled ? 'Nécessite 3 appels « Pas de réponse » sur 2 jours différents' : ''}
-                      className={`w-full min-h-[44px] px-3 rounded-lg text-sm border text-left transition-colors ${
-                        selected ? 'bg-red-600 text-white border-red-600'
-                          : disabled ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
-                          : 'bg-white border-gray-200 text-[#1A1A2E] hover:bg-red-50'
-                      }`}
-                      data-testid={`lost-reason-chip-${r.value}-${item.id}`}
-                    >
-                      {r.label}
-                    </button>
-                    {r.value === 'injoignable' && disabled && (
-                      <p className="text-[11px] text-gray-400 mt-1 px-1" data-testid={`lost-reason-injoignable-hint-${item.id}`}>
-                        {passDeReponseCount}/3 appels — il faut 3 appels sans réponse sur 2 jours différents
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <textarea
-              value={lostReasonText}
-              onChange={e => setLostReasonText(e.target.value)}
-              placeholder="Détail facultatif..."
-              rows={2}
-              className="form-textarea w-full text-sm"
-              data-testid={`lost-reason-detail-${item.id}`}
-            />
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setShowLostModal(false)} className="text-xs rounded-full">
-                Annuler
-              </Button>
-              <Button
-                onClick={handleLostSubmit}
-                disabled={!lostReasonCode}
-                className="bg-red-600 hover:bg-red-700 text-white text-xs rounded-full"
-                data-testid="lost-reason-confirm"
-              >
-                Confirmer
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete confirmation dialog */}
       <Dialog open={showDeleteModal} onOpenChange={o => { setShowDeleteModal(o); if (!o) setDeleteCode(''); }}>

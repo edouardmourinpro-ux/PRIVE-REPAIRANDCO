@@ -165,7 +165,7 @@ const PassageFlow = ({ itemId, onSubmit }) => {
 // serveur via onRefresh() pour rester la source de vérité (aucun page reload).
 export const ToCallTab = ({
   items, loading, requireIdentity, onLogCall, onStatusChange, onLogPassage,
-  onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onPushSMS, onRefresh, DemandCard,
+  onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onRefresh, DemandCard,
 }) => {
   const [callPanelItem, setCallPanelItem] = useState(null);
   const [confirmingId, setConfirmingId] = useState(null);
@@ -334,7 +334,6 @@ export const ToCallTab = ({
                       onSaveStaffFeedback={(id, payload) => onSaveStaffFeedback(id, payload, item.category)}
                       onSaveQuotedPrice={(id, price) => onSaveQuotedPrice(id, price, item.category)}
                       onDelete={(id, code) => onDelete(id, code, item.category)}
-                      onPushSMS={(id, code) => onPushSMS(id, code, item.category)}
                       requireIdentity={requireIdentity}
                       onLogCall={(id, payload) => onLogCall(id, payload, item.category)}
                     />
