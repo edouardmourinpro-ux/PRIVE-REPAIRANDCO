@@ -289,6 +289,15 @@ Frontend + 1 endpoint backend, rien publié (pas de deploy) — attente feu vert
 - Testé : backend 7/7 pytest, frontend 14/15 + 1 régression corrigée et revérifiée. **Rien publié**.
 - **P0 restant** : attendre les prochaines consignes précises de l'utilisateur.
 
+### S29 (07/10/2026) — Correctif règle d'entrée « À appeler » pour les anciens leads touchés
+Backend only, rien publié/déployé (en attente, S20-S28 + migration déjà en prod).
+- **Nouvelle règle** (`_is_in_tracked_pipeline`, nouveau helper factorisé) : un lead rejoint le suivi complet (« À appeler », relance 3h, 6 appels avant Injoignable) s'il est postérieur à `tracking_since` OU s'il a déjà au moins un appel journalisé (`call_attempts` non vide) — avant, un lead sans `tracking_since` (ou antérieur) ne remontait JAMAIS même après un appel, empêchant tout rappel programmé de ressurgir.
+- Appliqué de façon cohérente à `GET /admin/to-call` (boucle principale) et `GET /admin/to-call/older-open-count` (le compteur "jamais traité" exclut désormais aussi les leads déjà touchés, pour ne pas les compter en double).
+- **`_unreachable_rule_satisfied`** mis à jour en cohérence : le bypass "Injoignable immédiat" ne s'applique plus que si le lead n'est PAS suivi ET n'a AUCUN appel ; dès le premier appel journalisé, la règle normale des 6 appels "pas de réponse" s'applique — même pour un lead ancien.
+- Vérifié manuellement (curl, Magasin TEST) : ancien lead non suivi → absent de « À appeler », compté dans older-open-count ; après 1 appel → disparaît d'older-open-count, reste absent de « À appeler » tant que <3h ouvrées (comportement normal) ; après recul de l'horodatage à 2 jours → apparaît en groupe 3 avec le bon libellé.
+- Testé via testing_agent (iteration_24.json, nouveau fichier `backend/tests/test_to_call_entry_rule.py`, 9/9) : règle d'entrée + interaction avec le verrou Injoignable validées. 2 fichiers de tests existants (`test_to_call.py`, `test_unreachable_bypass.py`) avaient des assertions obsolètes (ancien libellé pré-S28, ancienne règle pré-S29) — mis à jour, suite complète 36/36 verte après coup.
+- **Rien publié/déployé** pour ce correctif — en attente de la prochaine consigne de publication de l'utilisateur.
+
 ### S28 (07/10/2026) — 4 ajustements d'affichage admin (retour maquette)
 Frontend (+ 1 endpoint backend pour les libellés), rien publié (l'utilisateur publiera lui-même).
 - **En-tête : une seule pastille** : la pastille identité (`👤 ... · changer`) est masquée quand l'identité correspond exactement à l'équipe du magasin choisi (`!storeFilter || !currentIdentity.startsWith('Équipe ')`). Ne reste que `🏪 {magasin} · changer` dans ce cas ; les 2 pastilles restent visibles pour "Tous les magasins" ou une identité prénom (direction).

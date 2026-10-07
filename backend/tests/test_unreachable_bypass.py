@@ -48,10 +48,20 @@ class TestUnreachableBypass:
         }
         assert _unreachable_rule_satisfied(doc) is True
 
-    def test_missing_tracking_since_uses_standard_rule(self):
-        """No tracking_since -> standard rule applies (0 attempts -> False)."""
+    def test_missing_tracking_since_no_calls_bypasses_rule(self):
+        """No tracking_since AND zero call_attempts -> truly untouched old lead,
+        rule bypassed (S29: same gating as the to-call entry rule)."""
         doc = {
             "created_at": "2025-01-01T00:00:00+00:00",
             "call_attempts": [],
+        }
+        assert _unreachable_rule_satisfied(doc) is True
+
+    def test_missing_tracking_since_but_touched_uses_standard_rule(self):
+        """No tracking_since but at least 1 call_attempts -> lead has been
+        touched, standard 6-call rule applies (S29)."""
+        doc = {
+            "created_at": "2025-01-01T00:00:00+00:00",
+            "call_attempts": [{"outcome": "pas_de_reponse", "at": "2025-10-02T09:00:00+00:00"}],
         }
         assert _unreachable_rule_satisfied(doc) is False

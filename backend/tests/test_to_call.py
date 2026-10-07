@@ -76,7 +76,7 @@ def test_group2_nouveau_test_lead(headers):
         assert len(ours) == 1, f"lead should appear in to-call list: {items}"
         it = ours[0]
         assert it["group"] == 2
-        assert it["label"].startswith("Nouvelle demande — attend depuis")
+        assert it["label"].startswith("Nouvelle demande, attend depuis")
         assert "min" in it["label"] or "h" in it["label"] or "jour" in it["label"]
         assert it["category"] == "devis"
 
@@ -113,7 +113,7 @@ def test_group1_rappel_pret(headers, db):
         assert it["label"].startswith("Rappel prévu à "), it["label"]
         # HHhMM pattern
         import re
-        assert re.search(r"Rappel prévu à \d{2}h\d{2}$", it["label"]), it["label"]
+        assert re.search(r"Rappel prévu à \d{2}h\d{2} \(en retard\)$", it["label"]), it["label"]
     finally:
         _delete(headers, "devis", lead_id)
 
@@ -138,7 +138,7 @@ def test_group3_relance(headers, db):
         assert len(items) == 1
         it = items[0]
         assert it["group"] == 3, it
-        assert it["label"] == "Relance — 2e appel", it["label"]
+        assert it["label"].startswith("2e appel (pas de réponse le "), it["label"]
     finally:
         _delete(headers, "devis", lead_id)
 

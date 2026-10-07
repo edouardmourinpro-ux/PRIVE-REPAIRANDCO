@@ -1,0 +1,24 @@
+{
+  "summary": "Validated the new to-call entry rule (OR with call_attempts) and the Injoignable 6-call gate interaction. Created /app/backend/tests/test_to_call_entry_rule.py with 9 focused tests covering all scenarios requested by the main agent. All 9/9 pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_to_call_entry_rule.py",
+    "/app/test_reports/pytest/to_call_entry_rule.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 2759 lines — well above the 700-line guideline; should be split into modules (routers/, services/) in a future refactor.",
+    "The to-call main loop (lines 1592-1676) and older-open-count loop (1700-1708) both duplicate the is_tracked-or-call_attempts gating logic. Consider extracting a helper `_is_in_tracked_pipeline(doc) -> bool` to prevent future drift between the two endpoints."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_to_call_entry_rule.py"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "not tested (backend-only request)"},
+  "test_credentials": "david.m@repairandco.fr / Repair2025Admin! (admin)",
+  "seed_data_creation": "Each test creates its own test lead via POST /api/admin/notifications/test-lead (store=test, is_test=true) and deletes it in a finally block. No persistent test data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The new to-call entry rule is: `if not created_at or not (is_tracked or call_attempts): continue` — mirrored in both GET /admin/to-call and GET /admin/to-call/older-open-count. _unreachable_rule_satisfied bypasses the 6-call rule ONLY when not is_tracked AND zero call_attempts. All 9 scenarios from the review request are now covered by test_to_call_entry_rule.py (old lead excluded from to-call, counted in older-open, decremented after 1 call, group 3 after backdated call, callback group 1 flow, injoignable bypass with 0 calls, injoignable blocked after 1 call, injoignable allowed after 6 pas_de_reponse, regression check tracked lead=group 2).",
+  "rca of the issue": "N/A — this iteration validates a backend rule fix the main agent already deployed. No bugs found."
+}

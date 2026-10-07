@@ -882,6 +882,16 @@ def _format_paris_hhmm(dt: datetime) -> str:
     p = dt.astimezone(PARIS_TZ)
     return f"{p.hour:02d}h{p.minute:02d}"
 
+def _is_in_tracked_pipeline(doc: dict) -> bool:
+    """Un lead rejoint le suivi complet (« À appeler », règle des 6 appels,
+    etc.) s'il est postérieur au début du suivi (tracking_since), OU s'il a
+    déjà au moins un appel journalisé (une équipe l'a touché) — dès ce
+    premier appel il suit les mêmes règles que tous les autres leads."""
+    created_at = doc.get("created_at")
+    tracking_since = doc.get("tracking_since")
+    is_tracked = bool(created_at and tracking_since and created_at >= tracking_since)
+    return is_tracked or bool(doc.get("call_attempts"))
+
 def _unreachable_rule_satisfied(doc: dict) -> bool:
     """« Injoignable » exige >= 6 appels "pas de réponse" — mais SEULEMENT
     pour les leads réellement suivis : un lead ancien (créé avant
@@ -889,13 +899,9 @@ def _unreachable_rule_satisfied(doc: dict) -> bool:
     bypassé (de vrais appels ont pu être faits avant d'être journalisés).
     Dès qu'un premier appel est journalisé sur ce lead, il rejoint le suivi
     normal et la règle des 6 appels s'applique comme pour les autres."""
-    created_at = doc.get("created_at")
-    tracking_since = doc.get("tracking_since")
-    call_attempts = doc.get("call_attempts") or []
-    is_tracked = bool(created_at and tracking_since and created_at >= tracking_since)
-    if not is_tracked and not call_attempts:
+    if not _is_in_tracked_pipeline(doc):
         return True
-    count = sum(1 for c in call_attempts if c.get("outcome") == "pas_de_reponse")
+    count = sum(1 for c in (doc.get("call_attempts") or []) if c.get("outcome") == "pas_de_reponse")
     return count >= 6
 
 def _resolve_callback_at(choice: Optional[str], custom_at: Optional[str]) -> Optional[str]:
@@ -1593,14 +1599,8 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
         docs = await db[col_name].find(query, {"_id": 0}).to_list(2000)
         for d in docs:
             created_at = d.get("created_at")
-            tracking_since = d.get("tracking_since")
             call_attempts = d.get("call_attempts") or []
-            is_tracked = bool(created_at and tracking_since and created_at >= tracking_since)
-            # Une demande entre dans le suivi si elle est postérieure au début du
-            # suivi complet, OU si une équipe l'a déjà appelée au moins une fois
-            # (journal non vide) — dès ce premier appel, elle rejoint les mêmes
-            # règles que les autres (rappel à l'heure, relance 3h, 6 appels).
-            if not created_at or not (is_tracked or call_attempts):
+            if not created_at or not _is_in_tracked_pipeline(d):
                 continue
             try:
                 created_dt = datetime.fromisoformat(created_at)
@@ -1700,11 +1700,7 @@ async def get_older_open_count(store: Optional[str] = Query(None), user=Depends(
     for col_name in COLLECTIONS.values():
         docs = await db[col_name].find(query, {"_id": 0, "created_at": 1, "tracking_since": 1, "call_attempts": 1}).to_list(5000)
         for d in docs:
-            created_at = d.get("created_at")
-            tracking_since = d.get("tracking_since")
-            call_attempts = d.get("call_attempts") or []
-            is_tracked = bool(created_at and tracking_since and created_at >= tracking_since)
-            if not is_tracked and not call_attempts:
+            if not _is_in_tracked_pipeline(d):
                 count += 1
     return {"count": count}
 
