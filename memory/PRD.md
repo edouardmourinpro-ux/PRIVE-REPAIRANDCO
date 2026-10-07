@@ -289,6 +289,9 @@ Frontend + 1 endpoint backend, rien publié (pas de deploy) — attente feu vert
 - Testé : backend 7/7 pytest, frontend 14/15 + 1 régression corrigée et revérifiée. **Rien publié**.
 - **P0 restant** : attendre les prochaines consignes précises de l'utilisateur.
 
+### S30 (07/10/2026) — Alertes sonores plus fortes
+Frontend only, `frontend/src/lib/alertSounds.js`. Gain de chaque note des 3 presets ("Bip classique", "Chime zen", "Tri-tone") relevé d'environ ~0.30-0.36 à 0.8-0.9 (gain par défaut 0.18→0.45) — volume perçu nettement plus fort pour les 3 sons, sans toucher à la logique de déclenchement (polling, toggle, notification navigateur). Vérifié par compilation sans erreur ; changement numérique isolé, non testé via testing_agent (hors périmètre, pur réglage de gain audio Web Audio).
+
 ### S29 (07/10/2026) — Correctif règle d'entrée « À appeler » pour les anciens leads touchés
 Backend only, rien publié/déployé (en attente, S20-S28 + migration déjà en prod).
 - **Nouvelle règle** (`_is_in_tracked_pipeline`, nouveau helper factorisé) : un lead rejoint le suivi complet (« À appeler », relance 3h, 6 appels avant Injoignable) s'il est postérieur à `tracking_since` OU s'il a déjà au moins un appel journalisé (`call_attempts` non vide) — avant, un lead sans `tracking_since` (ou antérieur) ne remontait JAMAIS même après un appel, empêchant tout rappel programmé de ressurgir.
