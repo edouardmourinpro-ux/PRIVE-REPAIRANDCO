@@ -1603,32 +1603,34 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
             if status in ("a_rappeler", "reflechit") and next_callback_at:
                 try:
                     cb_dt = datetime.fromisoformat(next_callback_at)
+                    cb_label = "Relance du devis prévue" if status == "reflechit" else "Rappel prévu"
                     if cb_dt <= now_utc:
-                        group, label = 1, f"Rappel prévu à {_format_paris_hhmm(cb_dt)}"
+                        group, label = 1, f"{cb_label} à {_format_paris_hhmm(cb_dt)} (en retard)"
                     elif cb_dt.astimezone(PARIS_TZ).date() == today_paris:
-                        group, label = 5, f"Rappel prévu plus tard — {_format_paris_hhmm(cb_dt)}"
+                        group, label = 5, f"{cb_label} à {_format_paris_hhmm(cb_dt)}"
                 except Exception:
                     pass
 
             if group is None and status == "nouveau":
-                group, label = 2, f"Nouvelle demande — attend depuis {_format_waiting_since(created_dt, now_utc)}"
+                group, label = 2, f"Nouvelle demande, attend depuis {_format_waiting_since(created_dt, now_utc)}"
 
             if group is None and status == "pas_de_reponse":
                 count_pdr = sum(1 for c in call_attempts if c.get("outcome") == "pas_de_reponse")
                 if count_pdr >= 6:
-                    group, label = 4, f"{count_pdr} appels sans réponse — à classer"
+                    group, label = 4, f"{count_pdr} appels sans réponse"
                 elif call_attempts:
                     try:
                         last_call_dt = datetime.fromisoformat(call_attempts[-1]["at"])
                         if _business_minutes_elapsed(last_call_dt, now_utc) > 180:
-                            group, label = 3, f"Relance — {count_pdr + 1}e appel"
+                            last_date_short = last_call_dt.astimezone(PARIS_TZ).strftime('%d/%m')
+                            group, label = 3, f"{count_pdr + 1}e appel (pas de réponse le {last_date_short} à {_format_paris_hhmm(last_call_dt)})"
                     except Exception:
                         pass
 
             if group is None and status == "reflechit":
                 count_r = sum(1 for c in call_attempts if c.get("detail") == "reflechit")
                 if count_r >= 3:
-                    group, label = 6, f"Réfléchit depuis {count_r} appels — à classer"
+                    group, label = 6, f"Réfléchit toujours après {count_r - 1} relances"
 
             if group is None and status in ("devis_accepte", "rdv_pris") and d.get("appt_end_at") and d.get("appt_date"):
                 try:

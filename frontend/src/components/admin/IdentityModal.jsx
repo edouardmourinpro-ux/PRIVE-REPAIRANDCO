@@ -21,7 +21,7 @@ export const IdentityModal = ({ open, currentIdentity, onConfirm, onClose, optio
         <DialogHeader>
           <DialogTitle className="text-[#1A1A2E]">Qui êtes-vous ?</DialogTitle>
           <DialogDescription>
-            Le compte admin est partagé — précisez votre identité avant d'appeler ou de changer un statut.
+            Le compte admin est partagé, précisez votre identité avant d'appeler ou de changer un statut.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 mt-2">

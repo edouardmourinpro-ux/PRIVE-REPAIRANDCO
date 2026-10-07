@@ -57,24 +57,24 @@ const callResultLabel = (c) => {
     if (c.detail === 'refus' && c.refus_reason) l += ` (${LOST_REASON_LABELS[c.refus_reason] || c.refus_reason})`;
     if ((c.detail === 'rdv_pris' || c.detail === 'devis_accepte' || c.detail === 'vient_magasin') && c.appt_date) {
       const dateTxt = formatApptDateShort(c.appt_date);
-      l += c.appt_slot ? ` — RDV ${dateTxt}, ${APPT_SLOT_SHORT[c.appt_slot] || c.appt_slot}` : ` — passage ${dateTxt}`;
+      l += c.appt_slot ? ` (RDV ${dateTxt}, ${APPT_SLOT_SHORT[c.appt_slot] || c.appt_slot})` : ` (passage ${dateTxt})`;
     }
-    if (c.detail === 'rappeler' && c.callback_at) l += ` — rappel prévu ${formatCallbackShort(c.callback_at)}`;
+    if (c.detail === 'rappeler' && c.callback_at) l += ` (rappel prévu ${formatCallbackShort(c.callback_at)})`;
     if (c.detail === 'reflechit') {
-      if (c.callback_at) l += ` — relance prévue ${formatCallbackShort(c.callback_at)}`;
-      if (c.quoted_price) l += ` — prix annoncé ${c.quoted_price} €`;
+      if (c.callback_at) l += ` (relance prévue ${formatCallbackShort(c.callback_at)})`;
+      if (c.quoted_price) l += ` (prix annoncé ${c.quoted_price} €)`;
     }
     return l;
   }
   if (c.outcome === 'pas_de_reponse') {
     const parts = [c.message_laisse ? 'message laissé' : 'sans message'];
-    if (c.rappel_2e === false) parts.push(`pas rappelé 2x (${c.rappel_2e_raison || '—'})`);
+    if (c.rappel_2e === false) parts.push(`pas rappelé 2x (${c.rappel_2e_raison || 'non précisée'})`);
     if (c.message_laisse === false && c.message_laisse_raison) parts.push(`pas de message (${c.message_laisse_raison})`);
     if (c.mail_envoye === false && c.mail_envoye_raison) parts.push(`pas de mail (${c.mail_envoye_raison})`);
     else if (c.mail_envoye) parts.push('mail envoyé');
     if (c.message_envoye === false && c.message_envoye_raison) parts.push(`pas de WhatsApp (${c.message_envoye_raison})`);
     else if (c.message_envoye) parts.push('WhatsApp envoyé');
-    return `Pas de réponse — ${parts.join(', ')}`;
+    return `Pas de réponse : ${parts.join(', ')}`;
   }
   if (c.outcome === 'numero_invalide') return 'Numéro invalide';
   return c.outcome || '';
@@ -577,14 +577,14 @@ const AdminPage = () => {
           if (fresh.length === 1) {
             const it = fresh[0];
             const typeLabel = { devis: 'Devis', contact: 'Contact/RDV', rachat: 'Rachat', entreprise: 'Entreprise' }[it.type] || it.type;
-            const n = new Notification(`Nouveau lead — ${storeLabel}`, {
+            const n = new Notification(`Nouveau lead, ${storeLabel}`, {
               body: `${typeLabel} · ${it.label || 'Client'}`,
               tag: 'repairco-lead',
               renotify: true,
             });
             n.onclick = () => { window.focus(); n.close(); };
           } else {
-            const n = new Notification(`${fresh.length} nouveaux leads — ${storeLabel}`, {
+            const n = new Notification(`${fresh.length} nouveaux leads, ${storeLabel}`, {
               body: 'Ouvrez l’admin pour les consulter.',
               tag: 'repairco-lead',
               renotify: true,
@@ -696,13 +696,15 @@ const AdminPage = () => {
             >
               🏪 {storeFilter === 'test' ? 'Magasin TEST' : (storeFilter ? (STORE_NAME_MAP[storeFilter] || storeFilter).replace('Repair&Co ', '') : 'Tous les magasins')} · changer
             </button>
-            <button
-              onClick={() => { pendingActionRef.current = null; setShowIdentityModal(true); }}
-              className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/30 rounded-full text-xs text-white font-medium transition-colors"
-              data-testid="admin-identity-change-link"
-            >
-              👤 {currentIdentity || 'Non défini'} · changer
-            </button>
+            {(!storeFilter || !currentIdentity.startsWith('Équipe ')) && (
+              <button
+                onClick={() => { pendingActionRef.current = null; setShowIdentityModal(true); }}
+                className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/30 rounded-full text-xs text-white font-medium transition-colors"
+                data-testid="admin-identity-change-link"
+              >
+                👤 {currentIdentity || 'Non défini'} · changer
+              </button>
+            )}
             <Button onClick={handleLogout} variant="outline" size="sm" className="border-white text-white hover:bg-white/10 rounded-full text-xs" data-testid="admin-logout">
               <LogOut size={14} className="mr-1" /> Déconnexion
             </Button>
@@ -1047,11 +1049,13 @@ const TransfoPill = ({ transfo }) => {
   const { rate, facture, total } = transfo;
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#E8F5EE] text-[#1A5C3A] border border-[#1A5C3A]/20"
+      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#E8F5EE] border border-[#1A5C3A]/20"
       title={`${facture} demande${facture === 1 ? '' : 's'} facturée${facture === 1 ? '' : 's'} sur ${total} reçue${total === 1 ? '' : 's'} ces 30 derniers jours`}
       data-testid="admin-transfo-pill"
     >
-      Taux de transfo 30 j · {rate}% · {facture}/{total}
+      <span className="text-[11px] text-gray-500 font-medium">Taux de transfo 30 j</span>
+      <span className="text-base font-bold text-[#1A5C3A]">{rate}%</span>
+      <span className="text-[11px] text-gray-500 font-medium">{facture}/{total}</span>
     </span>
   );
 };
@@ -1192,7 +1196,7 @@ const NotifTestPanel = ({ authHeaders, onOpenRattrapage }) => {
     if (!entry) return <p className="text-xs text-gray-400">{label} : aucune tentative</p>;
     if (entry.status === 'sent') return <p className="text-xs text-[#1A5C3A]" data-testid={`notif-test-${label.toLowerCase()}-result`}>{label} : ✅ envoyé à {entry.to}</p>;
     if (entry.status === 'skipped') return <p className="text-xs text-gray-500" data-testid={`notif-test-${label.toLowerCase()}-result`}>{label} : ⏭ ignoré ({entry.error})</p>;
-    return <p className="text-xs text-red-600" data-testid={`notif-test-${label.toLowerCase()}-result`}>{label} : ❌ échec — {entry.error}</p>;
+    return <p className="text-xs text-red-600" data-testid={`notif-test-${label.toLowerCase()}-result`}>{label} : ❌ échec ({entry.error})</p>;
   };
 
   return (
@@ -1263,7 +1267,7 @@ const NotifTestPanel = ({ authHeaders, onOpenRattrapage }) => {
           {leadError && <p className="text-red-600 text-xs mt-2">{leadError}</p>}
           {leadResult && (
             <p className="text-xs text-[#1A5C3A] mt-2" data-testid="test-lead-result">
-              ✅ Lead {leadResult.category} créé (id {leadResult.id.slice(0, 8)}…) — notifications envoyées à TEST_RECIPIENT_EMAIL, visible dans l'onglet {leadResult.category === 'devis' ? 'Devis' : 'Contact / RDV'} (magasin TEST). Supprimé automatiquement après 48h.
+              ✅ Lead {leadResult.category} créé (id {leadResult.id.slice(0, 8)}…), notifications envoyées à TEST_RECIPIENT_EMAIL, visible dans l'onglet {leadResult.category === 'devis' ? 'Devis' : 'Contact / RDV'} (magasin TEST). Supprimé automatiquement après 48h.
             </p>
           )}
         </CardContent>
@@ -1371,11 +1375,11 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   const showRefusAction = lastCall?.outcome === 'joint' && lastCall?.detail === 'refus' && !['refus_devis', 'client_perdu', 'facture'].includes(item.status);
   const showInvalidAction = lastCall?.outcome === 'numero_invalide' && !['client_perdu', 'facture'].includes(item.status);
   const timeline = [
-    ...(item.status_history || []).map(h => ({ at: h.at, by: h.by, note: null, label: `Statut → ${STATUS_META[h.status]?.label || h.status}` })),
-    ...callAttempts.map(c => ({ at: c.at, by: c.by, note: c.note, label: `Appel — ${callResultLabel(c)}` })),
+    ...(item.status_history || []).map(h => ({ at: h.at, by: h.by, note: null, label: `Statut : ${STATUS_META[h.status]?.label || h.status}` })),
+    ...callAttempts.map(c => ({ at: c.at, by: c.by, note: c.note, label: `Appel : ${callResultLabel(c)}` })),
     ...(item.relances || []).map(r => ({ at: r.at, by: r.by, note: null, label: `Relance ${r.channel === 'email' ? 'email' : 'WhatsApp'} envoyée` })),
     ...(item.client_sms || []).filter(s => s.status === 'sent').map(s => ({ at: s.at, by: 'Système', note: null, label: `SMS client envoyé (${CLIENT_SMS_TYPE_LABELS[s.type] || s.type})` })),
-    ...(item.passages || []).map(p => ({ at: p.at, by: p.by, note: p.note, label: p.venu ? (p.facture ? 'Est-il venu ? — Oui, facturé' : 'Est-il venu ? — Oui, non facturé') : 'Est-il venu ? — Non' })),
+    ...(item.passages || []).map(p => ({ at: p.at, by: p.by, note: p.note, label: p.venu ? (p.facture ? 'Est-il venu ? Oui, facturé' : 'Est-il venu ? Oui, non facturé') : 'Est-il venu ? Non' })),
   ].sort((a, b) => new Date(a.at) - new Date(b.at));
 
 
@@ -1585,7 +1589,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
                     const id = String(item.hiboutik_customer_id);
                     try { navigator.clipboard.writeText(id); } catch { /* clipboard blocked */ }
                     window.open('https://repairandco3475.hiboutik.com/', '_blank');
-                    toast.success(`ID #${id} copié — colle-le dans la barre de recherche Hiboutik (Cmd+V)`);
+                    toast.success(`ID #${id} copié, colle-le dans la barre de recherche Hiboutik (Cmd+V)`);
                   }}
                   title={`Client Hiboutik #${item.hiboutik_customer_id}`}
                   className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#1A5C3A] rounded-full text-xs text-white font-medium hover:bg-[#154a30] transition-colors"
@@ -1621,7 +1625,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
                     className="px-3 py-2 rounded-full text-xs font-medium bg-gray-200 text-gray-900 hover:bg-gray-300 min-h-[36px]"
                     data-testid={`quick-action-perdu-invalide-${item.id}`}
                   >
-                    Passer en perdu — numéro invalide
+                    Passer en perdu (numéro invalide)
                   </button>
                 )}
               </div>
@@ -1634,7 +1638,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
                 <ul className="space-y-1.5">
                   {timeline.map((t, i) => (
                     <li key={i} className="text-xs text-[#1A1A2E]/80 flex flex-col sm:flex-row sm:justify-between gap-1">
-                      <span>{t.label}{t.note ? ` — « ${t.note} »` : ''}</span>
+                      <span>{t.label}{t.note ? ` (« ${t.note} »)` : ''}</span>
                       <span className="text-[#1A1A2E]/40 whitespace-nowrap">
                         {new Date(t.at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · {t.by}
                       </span>
