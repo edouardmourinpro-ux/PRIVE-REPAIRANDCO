@@ -1,0 +1,23 @@
+{
+  "summary": "Scoped backend testing of the 4 client SMS templates refactor. 47/47 pytest tests passed covering _strip_accents fold rules, _build_client_creation_sms day/off-hours variants for all 9 real stores with store phone injected from frontend/src/data/stores.js, closing-only truncation (confirmed montpellier-nord off-hours falls back to short closing to stay <=160 chars with store/phone intact), _build_client_appt_sms rdv/passage wording with no phone injected, and non-regression on public form endpoints /api/quote /api/contact /api/buyback with store='test' (new _send_client_creation_sms signature works). Dry-run audit script executed cleanly, outputs 4 templates x 9 stores with GSM-7 classification, char count, segment count and warning line when closing was shortened. No real SMS sent.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_sms_templates_refactor.py",
+    "/app/test_reports/pytest/sms_templates_refactor.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is ~2700 lines — would benefit from being split into modules (sms, stores, routes, admin) in a future refactor, out of scope here.",
+    "_store_phone / _store_address re-read and regex-parse frontend/src/data/stores.js on every call — fine at current traffic but easy to cache (lru_cache on file mtime) if ever hot.",
+    "Confirmation 'hors horaires' is 160 chars exact for several stores (montpellier-sud, nimes-costieres) — one extra char in a store name/phone in the future would silently drop the courtesy phrase. Consider adding a startup assert that logs when any store overflows."
+  ],
+  "updated_files": ["/app/backend/tests/test_sms_templates_refactor.py"],
+  "success_rate": {"backend": "100%", "frontend": "not tested (per request)"},
+  "test_credentials": "not needed — public form endpoints on store='test'",
+  "seed_data_creation": "3 test demands created with store='test' (is_test=True, isolated, routes SMS only to TEST_RECIPIENT_SMS if enabled, never to real customers).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "SMS refactor fully validated. test_sms_templates_refactor.py is a reusable regression suite — includes parametrized tests over all 9 real stores for both daytime variants, GSM-7 compliance checks, and public form endpoint smoke tests. Audit script at /app/backend/scripts/audit_sms_templates.py prints human-readable report of all 4x9 templates with length/segment/encoding — useful if store names/addresses/phones change in frontend/src/data/stores.js.",
+  "rca of the issue": "n/a — no bug found. Dev-reported montpellier-nord 161-char overflow is correctly handled: fallback short closing produces a 152-char GSM-7 SMS with store name and phone intact."
+}

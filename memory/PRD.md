@@ -289,6 +289,21 @@ Frontend + 1 endpoint backend, rien publié (pas de deploy) — attente feu vert
 - Testé : backend 7/7 pytest, frontend 14/15 + 1 régression corrigée et revérifiée. **Rien publié**.
 - **P0 restant** : attendre les prochaines consignes précises de l'utilisateur.
 
+### S26 (fork actuel) — Refonte des 4 SMS clients (GSM-7 strict)
+Backend only, rien publié/déployé (toujours attente du feu vert utilisateur).
+- `_strip_accents` ne strip plus tous les accents : garde désormais `é è à ù` tels quels, replie tout le reste (`ô ê î û â ç À É` et tout autre accent) vers sa forme ASCII — toujours pour rester en GSM-7 (160 car./segment) et éviter l'UCS-2 (70 car./segment).
+- Nouveau `_store_phone(store_id)` (même pattern que `_store_address`) : lit `frontend/src/data/stores.js` pour injecter le numéro public du magasin dans les 2 SMS de confirmation (pas dans RDV/passage, qui affichent l'adresse à la place).
+- 4 textes exacts (validés par l'utilisateur après 3 corrections : "bien arrivée" au lieu de "reçue" (ç interdit), début par "Bonjour", suppression de la répétition "on vous attend") :
+  - *Confirmation jour* : "Bonjour, Repair&Co {store}. Votre demande est bien arrivée ! On vous rappelle aujourd'hui depuis le {tel}. Merci de rester joignable !"
+  - *Confirmation hors horaires* : idem avec "dès l'ouverture à 9h depuis le {tel}."
+  - *RDV avec créneau* : "Bonjour, votre RDV Repair&Co est confirmé le {date} {créneau} au magasin de {store}, {adresse}. On vous attend !"
+  - *Passage sans créneau* : "Bonjour, on vous attend le {date} au magasin Repair&Co de {store}, {adresse}."
+- Nouveau `_finalize_client_sms(core, closing, closing_short)` : si > 160 car., raccourcit/retire UNIQUEMENT la formule finale de politesse — ne touche jamais magasin/adresse/téléphone/date. Vérifié en pratique : seul "Montpellier Nord hors horaires" bascule sur la formule courte "Restez joignable !" (161→152 car.).
+- `_send_client_creation_sms`/call sites (`/api/quote`, `/api/contact`, `/api/buyback`) passent désormais `store_id` au lieu de `store_name` pré-calculé.
+- Nouveau script `backend/scripts/audit_sms_templates.py` (dry-run, **aucun SMS envoyé**) : génère les 4 textes × 9 magasins réels, affiche longueur/encodage GSM-7 ou UCS-2/nb de segments/avertissements. Résultat : **100% GSM-7, 1 segment partout, 0 UCS-2**, 1 seul avertissement attendu (formule raccourcie Montpellier Nord).
+- Testé via testing_agent (iteration_22.json, scope volontairement limité à cette seule logique sur demande utilisateur pour préserver les crédits) : 47/47 pytest (`backend/tests/test_sms_templates_refactor.py`), aucune régression sur `/api/quote`/`/api/contact`/`/api/buyback` (store="test"). **Aucun SMS réel envoyé.**
+- **Rien publié/déployé** (consigne utilisateur maintenue).
+
 ### S25 (07/10/2026) — 4 corrections admin relevées en preview
 Rien publié.
 - **Compteurs Magasin TEST** : `/admin/stats` excluait toujours `is_test` → corrigé pour suivre la même règle que `/admin/transfo` (si `store=test`, compte les demandes de test ; sinon les exclut toujours). Vérifié via curl : `store=test` → 9 devis, sans store → 32 (test exclu).
