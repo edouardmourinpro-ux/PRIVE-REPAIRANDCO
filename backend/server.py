@@ -1961,9 +1961,14 @@ async def get_admin_stats(
     date_to: Optional[str] = Query(None),
     user=Depends(get_current_admin),
 ):
-    base_query = {"is_test": {"$ne": True}}
-    if store:
-        base_query["store"] = store
+    base_query = {}
+    if store == TEST_STORE_ID:
+        base_query["is_test"] = True
+        base_query["store"] = TEST_STORE_ID
+    else:
+        base_query["is_test"] = {"$ne": True}
+        if store:
+            base_query["store"] = store
     if date_from or date_to:
         date_filter = {}
         if date_from:

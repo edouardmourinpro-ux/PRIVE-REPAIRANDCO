@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Phone, Loader2, ChevronDown } from 'lucide-react';
-import { CallLogPanel } from './CallLogPanel';
+import { Loader2, ChevronDown } from 'lucide-react';
 import { LOST_REASON_OPTIONS } from '../../data/lostReasons';
 
 // Styles par groupe (S22) — repris du libellé renvoyé par /admin/to-call.
@@ -167,19 +166,8 @@ export const ToCallTab = ({
   items, loading, requireIdentity, onLogCall, onStatusChange, onLogPassage,
   onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onLogRelance, onUpdatePhone, onRefresh, DemandCard,
 }) => {
-  const [callPanelItem, setCallPanelItem] = useState(null);
   const [confirmingId, setConfirmingId] = useState(null);
   const [lostMenuId, setLostMenuId] = useState(null);
-
-  const openCallPanel = (item) => {
-    requireIdentity(() => setCallPanelItem(item));
-  };
-
-  const handleCallSubmit = async (payload) => {
-    if (!callPanelItem) return;
-    await onLogCall(callPanelItem.id, { ...payload, by: localStorage.getItem('admin_identity') || '' }, callPanelItem.category);
-    onRefresh();
-  };
 
   const confirmInjoignable = (item) => {
     requireIdentity(() => {
@@ -271,12 +259,6 @@ export const ToCallTab = ({
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap justify-end">
-                      {item.call_attempts_count > 0 && (
-                        <span className="flex items-center gap-1 text-xs text-[#1A1A2E]/60 font-medium" data-testid={`to-call-count-${item.id}`}>
-                          <Phone size={12} /> {item.call_attempts_count}
-                        </span>
-                      )}
-
                       {item.group === 4 && (
                         isConfirming ? (
                           <>
@@ -317,12 +299,6 @@ export const ToCallTab = ({
                           onSubmit={(payload) => submitPassage(item, payload)}
                         />
                       )}
-
-                      {![4, 6, 7, 8].includes(item.group) && (
-                        <ActionBtn onClick={() => openCallPanel(item)} testId={`to-call-call-btn-${item.id}`}>
-                          <Phone size={13} className="inline mr-1.5" /> Appel
-                        </ActionBtn>
-                      )}
                     </div>
                   </div>
 
@@ -346,14 +322,6 @@ export const ToCallTab = ({
           </div>
         </div>
       ))}
-
-      <CallLogPanel
-        open={!!callPanelItem}
-        onClose={() => setCallPanelItem(null)}
-        item={callPanelItem}
-        onSubmit={handleCallSubmit}
-        onSaveQuotedPrice={(id, price) => onSaveQuotedPrice(id, price, callPanelItem?.category)}
-      />
     </div>
   );
 };

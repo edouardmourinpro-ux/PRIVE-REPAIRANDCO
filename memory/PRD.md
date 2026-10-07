@@ -289,3 +289,11 @@ Frontend + 1 endpoint backend, rien publié (pas de deploy) — attente feu vert
 - Testé : backend 7/7 pytest, frontend 14/15 + 1 régression corrigée et revérifiée. **Rien publié**.
 - **P0 restant** : attendre les prochaines consignes précises de l'utilisateur.
 
+### S25 (07/10/2026) — 4 corrections admin relevées en preview
+Rien publié.
+- **Compteurs Magasin TEST** : `/admin/stats` excluait toujours `is_test` → corrigé pour suivre la même règle que `/admin/transfo` (si `store=test`, compte les demandes de test ; sinon les exclut toujours). Vérifié via curl : `store=test` → 9 devis, sans store → 32 (test exclu).
+- **Bouton Appel en double dans "À appeler"** : le bandeau coloré de `ToCallTab.jsx` ne montre plus le bouton "Appel" générique ni le compteur d'appels (supprimés, devenus redondants avec la ligne) — ne restent que les boutons de classement propres au groupe (Injoignable groupe 4, Classer perdu groupe 6, Oui/Non groupes 7/8). Le `CallLogPanel` dédié au cas générique dans `ToCallTab.jsx` était devenu mort (la ligne `DemandCard` a son propre bouton Appel) → supprimé.
+- **Retour impossible après un "Non"** dans `CallLogPanel.jsx` : ajout de 2 boutons "Retour"/"Valider" sous le champ raison (Retour annule le Non et réaffiche Oui/Non) ; le lien "Retour" du haut gère maintenant aussi la navigation question-par-question dans le flux "Pas de réponse" (au lieu de sauter direct à la racine).
+- **Barre d'onglets** : "À appeler" reste la seule pastille verte mise en avant ; "Toutes les demandes" n'est plus un bouton-pilule mais un petit lien texte gris discret avec chevron, placé après les onglets, devenant "Ranger les demandes" une fois déplié.
+- Vérifié manuellement (curl + screenshots) sur Magasin TEST : les 4 points de la section "✅ Vérification" du cahier des charges sont confirmés.
+

@@ -132,6 +132,11 @@ export const CallLogPanel = ({ open, onClose, item, onSubmit, onSaveQuotedPrice 
     if (['devis_price', 'reflechit_price', 'rappeler_when', 'refus'].includes(step)) setStep('joint');
     else if (step === 'devis_when') setStep('devis_price');
     else if (step === 'reflechit_when') setStep('reflechit_price');
+    else if (step === 'pas_de_reponse') {
+      if (pdrAwaitingReason) { setPdrAwaitingReason(false); setPdrReason(''); }
+      else if (pdrIndex > 0) setPdrIndex(pdrIndex - 1);
+      else setStep('root');
+    }
     else setStep('root');
   };
 
@@ -300,14 +305,24 @@ export const CallLogPanel = ({ open, onClose, item, onSubmit, onSaveQuotedPrice 
                       className="w-full px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm focus:outline-none focus:border-[#2ECC71] resize-none"
                       data-testid={`pdr-reason-input-${q.field}-${itemId}`}
                     />
-                    <Button
-                      onClick={() => handlePdrAnswer(false)}
-                      disabled={!pdrReason.trim() || submitting}
-                      className="bg-[#1A5C3A] hover:bg-[#2ECC71] text-white text-xs rounded-full w-full"
-                      data-testid={`pdr-reason-validate-${q.field}-${itemId}`}
-                    >
-                      Valider
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => { setPdrAwaitingReason(false); setPdrReason(''); }}
+                        variant="outline"
+                        className="flex-1 text-xs rounded-full border-[#E8F5EE] text-[#1A1A2E]"
+                        data-testid={`pdr-reason-back-${q.field}-${itemId}`}
+                      >
+                        Retour
+                      </Button>
+                      <Button
+                        onClick={() => handlePdrAnswer(false)}
+                        disabled={!pdrReason.trim() || submitting}
+                        className="flex-1 bg-[#1A5C3A] hover:bg-[#2ECC71] text-white text-xs rounded-full"
+                        data-testid={`pdr-reason-validate-${q.field}-${itemId}`}
+                      >
+                        Valider
+                      </Button>
+                    </div>
                   </>
                 )}
               </div>

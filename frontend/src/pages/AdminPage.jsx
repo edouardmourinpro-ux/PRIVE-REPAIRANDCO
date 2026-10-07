@@ -789,12 +789,11 @@ const AdminPage = () => {
             </button>
             <button
               onClick={toggleShowAllTabs}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-                showAllTabs ? 'bg-[#1A1A2E] text-white border-transparent' : 'bg-white text-[#1A1A2E] border-[#E8F5EE] hover:bg-[#E8F5EE]'
-              }`}
+              className="flex items-center gap-1 px-2 text-xs text-[#1A1A2E]/50 hover:text-[#1A5C3A] transition-colors"
               data-testid="admin-toggle-all-tabs"
             >
-              Toutes les demandes {showAllTabs ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              {showAllTabs ? 'Ranger les demandes' : 'Toutes les demandes'}
+              {showAllTabs ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
             {showAllTabs && EXTRA_TABS.map(t => (
               <button
