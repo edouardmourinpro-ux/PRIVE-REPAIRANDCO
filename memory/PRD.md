@@ -289,6 +289,15 @@ Frontend + 1 endpoint backend, rien publié (pas de deploy) — attente feu vert
 - Testé : backend 7/7 pytest, frontend 14/15 + 1 régression corrigée et revérifiée. **Rien publié**.
 - **P0 restant** : attendre les prochaines consignes précises de l'utilisateur.
 
+### S28 (07/10/2026) — 4 ajustements d'affichage admin (retour maquette)
+Frontend (+ 1 endpoint backend pour les libellés), rien publié (l'utilisateur publiera lui-même).
+- **En-tête : une seule pastille** : la pastille identité (`👤 ... · changer`) est masquée quand l'identité correspond exactement à l'équipe du magasin choisi (`!storeFilter || !currentIdentity.startsWith('Équipe ')`). Ne reste que `🏪 {magasin} · changer` dans ce cas ; les 2 pastilles restent visibles pour "Tous les magasins" ou une identité prénom (direction).
+- **Suppression de tous les tirets longs (—)** dans l'UI admin : en-tête/titre de page, `RulesBanner`, bandeaux "À appeler", fiche détail (timeline d'appels, bouton "Passer en perdu"), toasts, notifications navigateur, panneau de test. Remplacés par virgule/deux-points/parenthèses selon le contexte. Nom de lead de test backend harmonisé aussi ("TEST, ne pas traiter").
+- **Libellés exacts des 9 groupes "À appeler"** (`GET /admin/to-call`, server.py) : groupes 1/2/3/4/5/6 réécrits mot pour mot (ex. "Rappel prévu à 09h11 (en retard)", "Nouvelle demande, attend depuis 24 min", "3e appel (pas de réponse le 05/10 à 16h27)", "6 appels sans réponse", "Relance du devis prévue à 17h15" (sans suffixe en retard en section plus tard), "Réfléchit toujours après 2 relances"). Groupes 7/8/9 déjà conformes, inchangés. Toujours suffixé `· {magasin}`, ligne SMS client conservée.
+- **Pastille Taux de transfo** : 3 blocs séparés par des espaces (plus de points médians) : libellé gris petit à gauche, pourcentage gros/gras vert foncé au centre, détail `{facturé}/{total}` gris petit à droite.
+- Testé via testing_agent (iteration_23.json) : les 4 points comportementaux validés à 100% sur Magasin TEST (seed `seed_demo_to_call.py`). 2 écarts mineurs relevés (em dash résiduel dans `<h1>`/`<SEO title>` de la page admin) → corrigés immédiatement après le rapport, vérifiés par screenshot (titre page + h1 = "Admin Repair&Co" sans tiret).
+- **Rien publié/déployé** — l'utilisateur publiera lui-même.
+
 ### S27 (07/10/2026) — Politique SMS resserrée : un seul SMS, au client, à la création
 Backend only, rien publié/déployé (consigne maintenue — l'utilisateur publiera lui-même).
 - **Découplage des interrupteurs** : `SMS_ENABLED` ne gouverne plus QUE les SMS internes (alerte magasin, relances 15min/30min RPV, alerte direction 2h) via `send_sms()`. Le SMS client (`_send_client_sms`, via `_brevo_send_sms_sync` direct) n'a jamais dépendu de `SMS_ENABLED` — confirmé par audit de code, aucun changement nécessaire sur ce point.

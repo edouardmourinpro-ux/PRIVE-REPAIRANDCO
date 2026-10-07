@@ -1,0 +1,40 @@
+{
+  "summary": "Scoped frontend-only verification of the 4 display adjustments on /admin: header pills visibility logic, em-dash purge, 9 to-call banner labels, and TransfoPill composition. Seeded Magasin TEST via backend/scripts/seed_demo_to_call.py and logged in as david.m@repairandco.fr. Both pill paths and all 9 banner labels match spec. TransfoPill DOM structure matches spec exactly (3 whitespace-separated spans, no middle dots). Two minor residual em-dash occurrences found and flagged — one in the header title (likely a miss), one in test-lead name coming from backend (data, not UI chrome).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "AdminPage header h1 (line 687)",
+        "issue": "Still displays an em dash: '<h1>Admin — Repair&Co</h1>'. Spec explicitly asks for 'No em dash (—) anywhere in the admin UI (header, …)'. Same em dash is also present in the <SEO title=\"Admin — Repair & Co\" ...> on lines 650 and 683 (affects browser tab title).",
+        "selector": "h1.text-lg.font-bold inside .bg-[#1A5C3A] header; also <SEO title>",
+        "priority": "LOW"
+      },
+      {
+        "component": "TransfoPill rendering (line 836)",
+        "issue": "TransfoPill is rendered unconditionally next to the tabs bar, so it is visible on the 'À appeler' tab as well. The task spec parenthetical says '(not visible on À appeler tab)'. Wrap render in `{activeTab !== 'a_appeler' && <TransfoPill ... />}` if the intent was to hide it there. (If the pill is meant to always show, treat this as spec clarification only.)",
+        "selector": "[data-testid=\"admin-transfo-pill\"]",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_23.json"],
+  "action_items": [
+    "Replace the em dash in the admin header h1 and in the SEO title ('Admin — Repair&Co' → 'Admin · Repair&Co' or 'Admin Repair&Co').",
+    "Decide whether TransfoPill should be hidden on the 'À appeler' tab; if yes, gate its render with `activeTab !== 'a_appeler'`.",
+    "(Optional/cosmetic) Backend test-lead name 'TEST — ne pas traiter' (server.py L1881, L1938) also surfaces an em dash in DemandCard titles when test leads are present. Could be renamed to 'TEST, ne pas traiter' to be fully consistent with the spec, though this is TEST-only data."
+  ],
+  "critical_code_review_comments": [
+    "AdminPage.jsx is now 1845 lines — well above the 700-line soft limit. The TransfoPill, QuotedPriceInput, DemandCard-related sub-components and notification helpers should be moved into /app/frontend/src/components/admin/ in a dedicated refactor.",
+    "The pill-visibility condition `!storeFilter || !currentIdentity.startsWith('Équipe ')` is subtle; a short comment next to line 699 would make the two-path intent (specific store = hide identity, 'Tous' = show both) obvious to future readers."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (not tested)", "frontend": "~95% (4/4 spec points behaviorally correct, 2 minor UI-chrome deviations)"},
+  "test_credentials": "david.m@repairandco.fr / Repair2025Admin!",
+  "seed_data_creation": "Ran python3 /app/backend/scripts/seed_demo_to_call.py — recreated 9 Magasin TEST demo leads covering all 9 to-call groups (deleted 13 previous, recreated).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Spec points 1 (pills paths A+B), 3 (all 9 banner labels), 4 (TransfoPill DOM/text) verified green on the live preview. Spec point 2 (em dash purge) is 95% complete — the only two remaining em dashes in rendered UI are (a) the header h1 'Admin — Repair&Co' (AdminPage.jsx line 687 + SEO lines 650/683), and (b) the backend-generated TEST lead name 'TEST — ne pas traiter' (server.py L1881 / L1938). All ToCallTab banners, call timeline text, 'Passer en perdu' buttons, RulesBanner, and notification toasts are em-dash-free. Observed banner labels captured for reference: Group1 'Rappel prévu à 16h47 (en retard)', G2 'Nouvelle demande, attend depuis 4 min', G3 '2e appel (pas de réponse le 05/10 à 10h00)', G4 '6 appels sans réponse', G5 'Rappel prévu à 23h00', G6 'Réfléchit toujours après 2 relances', G7 'Il devait passer le mar. 06/10 : est-il venu ?', G8 'RDV du mar. 06/10 (9h30-12h30) passé : le client est-il venu ?', G9 'RDV aujourd\\'hui, 17h-19h30'. All banners correctly suffixed with ' · Magasin TEST'. TransfoPill text: 'Taux de transfo 30 j' / '9%' (bold dark-green #1A5C3A) / '1/11', three sibling spans separated by whitespace only (no middle dots), data-testid='admin-transfo-pill'.",
+  "rca of the issue": "Header em dash: the four tracked spots fixed by the main agent were header pills, RulesBanner, ToCallTab banners, DemandCard quick actions / call timeline, and notification titles. The hero <h1>Admin — Repair&Co</h1> and the <SEO title> were not updated in the same pass. Mitigation: change the two 'Admin — Repair&Co' strings in /app/frontend/src/pages/AdminPage.jsx (lines 650, 683, 687) to a comma or middle dot. TransfoPill-on-À-appeler: TransfoPill is rendered as a sibling of the tabs row without a conditional on activeTab (line 836); if hiding on À appeler is desired, wrap in `{activeTab !== 'a_appeler' && ...}`."
+}

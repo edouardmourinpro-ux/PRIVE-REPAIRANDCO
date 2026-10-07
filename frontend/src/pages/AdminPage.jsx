@@ -647,7 +647,7 @@ const AdminPage = () => {
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-[#E8F5EE] flex items-center justify-center px-4" data-testid="admin-login">
-        <SEO title="Admin — Repair & Co" path="/admin" noindex />
+        <SEO title="Admin Repair & Co" path="/admin" noindex />
         <Card className="w-full max-w-sm">
           <CardContent className="p-8">
             <h1 className="text-2xl font-bold text-center mb-6 text-[#1A5C3A]">Admin Repair&Co</h1>
@@ -680,11 +680,11 @@ const AdminPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50" data-testid="admin-dashboard">
-      <SEO title="Admin — Repair & Co" path="/admin" noindex />
+      <SEO title="Admin Repair & Co" path="/admin" noindex />
       {/* Header */}
       <div className="bg-[#1A5C3A] text-white px-4 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <h1 className="text-lg font-bold">Admin — Repair&Co</h1>
+          <h1 className="text-lg font-bold">Admin Repair&Co</h1>
           <div className="flex items-center gap-3">
             <span className="text-white/80 text-sm hidden sm:inline" data-testid="admin-total-count">
               {stats?.total || 0} demandes · <span className="text-red-300 font-semibold">{toCallBadgeCount} à appeler</span>

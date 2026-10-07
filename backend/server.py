@@ -1878,7 +1878,7 @@ async def test_notifications(body: NotificationsTestRequest, user=Depends(get_cu
                 _send_smtp_email_raw,
                 f"{subject_prefix} Notification — {store_name}",
                 build_email_html(
-                    title="TEST — ne pas traiter",
+                    title="TEST, ne pas traiter",
                     demand_type="Test de notification (bouton admin)",
                     store_name=store_name,
                     client={},
@@ -1935,7 +1935,7 @@ async def create_test_lead(body: TestLeadCreateRequest, user=Depends(get_current
         "test_same_person": bool(body.same_person),
         "test_accelerated": bool(body.accelerated),
         "first_name": "TEST",
-        "name": "TEST — ne pas traiter",
+        "name": "TEST, ne pas traiter",
         "phone": TEST_RECIPIENT_SMS or "0600000000",
         "email": TEST_RECIPIENT_EMAIL or "test@example.com",
         "escalations_sent": [],
