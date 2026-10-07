@@ -675,6 +675,9 @@ class PhoneUpdateRequest(BaseModel):
     by: str
     phone: str
 
+class BackfillTrackingSinceRequest(BaseModel):
+    code: str
+
 # Allowed status values (refonte serveur S20 — statut aligné directement sur le résultat d'appel)
 ALLOWED_STATUSES = {
     "nouveau", "pas_de_reponse", "a_rappeler", "reflechit", "devis_accepte",
@@ -1693,6 +1696,44 @@ async def get_older_open_count(store: Optional[str] = Query(None), user=Depends(
             if not created_at or not tracking_since or created_at < tracking_since:
                 count += 1
     return {"count": count}
+
+
+@api_router.post("/admin/migrate/backfill-tracking-since")
+async def backfill_tracking_since(body: BackfillTrackingSinceRequest, user=Depends(get_current_admin)):
+    """Opération ponctuelle (one-off, post-déploiement S20) : pour les demandes
+    devis/contact/rachat au statut 'nouveau', créées il y a moins de 7 jours
+    (fenêtre figée dans le code, non paramétrable), sans tracking_since ou
+    avec un tracking_since postérieur à created_at, pose tracking_since =
+    created_at — pour qu'elles réapparaissent dans « À appeler ». Jamais le
+    magasin TEST, jamais un autre statut que 'nouveau'. Idempotente (un 2e
+    appel ne trouve plus rien à corriger). Verrouillée par DELETE_CODE en
+    plus de l'auth admin ; journalise le résultat à chaque appel."""
+    if body.code != DELETE_CODE:
+        raise HTTPException(status_code=403, detail="Code de sécurité incorrect")
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    by_store: dict = {}
+    by_category: dict = {}
+    total = 0
+    for category, col_name in COLLECTIONS.items():
+        query = {"status": "nouveau", "created_at": {"$gte": cutoff}, "is_test": {"$ne": True}}
+        docs = await db[col_name].find(query, {"_id": 0, "id": 1, "created_at": 1, "tracking_since": 1, "store": 1}).to_list(10000)
+        cat_count = 0
+        for d in docs:
+            created_at = d.get("created_at")
+            tracking_since = d.get("tracking_since")
+            if not created_at:
+                continue
+            if tracking_since and tracking_since <= created_at:
+                continue
+            await db[col_name].update_one({"id": d["id"]}, {"$set": {"tracking_since": created_at}})
+            store_id = d.get("store") or "inconnu"
+            by_store[store_id] = by_store.get(store_id, 0) + 1
+            cat_count += 1
+            total += 1
+        by_category[category] = cat_count
+    logger.info(f"[MIGRATION backfill-tracking-since] total={total} by_category={by_category} by_store={by_store}")
+    return {"total": total, "by_category": by_category, "by_store": by_store}
+
 
 
 @api_router.get("/admin/transfo")
