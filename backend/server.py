@@ -815,7 +815,7 @@ def _build_client_creation_sms(store_id: str) -> str:
     phone = _store_phone(store_id)
     phone_clause = f" depuis le {phone}" if phone else ""
     if _is_client_creation_daytime():
-        core = f"Bonjour, Repair&Co {store_name}. Votre demande est bien arrivée ! On vous rappelle aujourd'hui{phone_clause}."
+        core = f"Bonjour, Repair&Co {store_name}. Votre demande est bien arrivée ! On vous rappelle dans l'heure{phone_clause}."
     else:
         core = f"Bonjour, Repair&Co {store_name}. Votre demande est bien arrivée ! On vous rappelle dès l'ouverture à 9h{phone_clause}."
     return _finalize_client_sms(core, " Merci de rester joignable !", " Restez joignable !")
