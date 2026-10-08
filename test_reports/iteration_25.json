@@ -1,0 +1,44 @@
+{
+  "summary": "Frontend UI verification of 4 admin fixes (S31 batch): store/identity gate persistence, 30s silent polling, new-lead banner, Hiboutik button removal, Relance Email no-blank-tab. 5 of 6 checks PASS. Banner (FIX2b) fails specifically for store='test' because /api/admin/latest filters out is_test=True leads — a backend contract mismatch, not a frontend regression. Login via david.m@repairandco.fr + Lattes/Magasin TEST gate works. Created exactly 2 test leads (one for FIX2b with store='test', then one retry) — total compliant with user's minimal-volume policy for banner verification.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/admin/latest?store=test", "issue": "Hard-codes query `is_test: {$ne: True}` so test-store leads are NEVER returned, even when `store=test` is passed. This breaks the new-lead banner (FIX2b) for the Magasin TEST — polling tick fetches 0 results, baseline never updates to the fresh test lead, banner never fires. Must mirror the `/admin/to-call` logic (if store==TEST_STORE_ID: query.is_test=True else is_test {$ne:True}).", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "FIX2b new-lead banner (test store)", "issue": "Banner never appears when a lead is created via POST /api/quote with store='test', because /api/admin/latest returns empty for test store (backend filter). Verified: lead creation returns 200, 'À appeler' count increments 47→48, but [data-testid=admin-new-lead-banner] never renders within 45s of creation across 2 attempts.", "affected_selectors": ["[data-testid=admin-new-lead-banner]", "[data-testid=admin-new-lead-banner-dismiss]"]},
+      {"flow": "Polling baseline reset on storeFilter change", "issue": "lastSeenCreatedAtRef is NOT reset when storeFilter changes in the polling useEffect (line 564-649 of AdminPage.jsx). After switching stores, the baseline from the previous store may still gate detection in the new store, potentially suppressing a legitimate banner. Minor compared to the backend bug above.", "affected_selectors": []}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "BACKEND: fix /api/admin/latest to allow test-store leads when store='test' is explicitly requested (mirror /admin/to-call pattern around TEST_STORE_ID at server.py:1551-1580). Without this, the FIX2b banner is unverifiable for the test store and will not fire in real usage either.",
+    "FRONTEND (minor): reset lastSeenCreatedAtRef.current = null inside the polling useEffect when storeFilter changes, so a new store starts with a clean baseline (AdminPage.jsx around line 564)."
+  ],
+  "critical_code_review_comments": [
+    "AdminPage.jsx is ~1859 lines — above the 700-line guideline. Should be split into subcomponents (StoreGateModal, IdentityModal, ToCallList, NewLeadBanner, PollingProvider).",
+    "server.py is ~2789 lines — same split recommendation. Admin endpoints in particular could move to a dedicated admin_router module.",
+    "Polling useEffect has 11 dependencies — makes it error-prone; wrapping handlers in refs would make the effect idempotent across incidental re-renders."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (not tested)", "frontend": "83% (5/6 fixes verified; FIX2b blocked by backend)"},
+  "test_credentials": "Admin: david.m@repairandco.fr / Repair2025Admin! — works.",
+  "seed_data_creation": "Created 2 test leads via POST /api/quote with store='test' (minimal volume, triggers only the fixed TEST_RECIPIENT_EMAIL per existing routing). IDs: bc8a7e52-00ac-4d7f-bc80-16de9a922fdb, 88c2ef0f-a884-421a-bf47-2bb8b793450d.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "After the backend fix to /api/admin/latest for TEST_STORE_ID, retest FIX2b end-to-end by logging in → Magasin TEST → wait 32s for baseline → POST /api/quote with store='test' → verify [data-testid=admin-new-lead-banner] appears within 35s with text 'Nouvelle demande : {label}, Magasin TEST', and dismiss button works. Also verify auto-hide at ~12s. Other 5 fixes already pass and need no retest.",
+  "verified_fixes": {
+    "FIX1a_store_gate_on_fresh_login": "PASS — gate modal shows immediately after password login.",
+    "FIX1b_no_gate_on_reload": "PASS — after picking Lattes and reloading, gate does NOT reappear; 'Lattes · changer' pill remains in header.",
+    "FIX1c_changer_reopens_gate": "PASS — clicking 'changer' manually reopens 'Quel magasin ?' modal.",
+    "FIX2_silent_30s_polling": "PASS — 5 unique endpoints polled in 35s (admin/latest, admin/stats, admin/to-call, admin/to-call/older-open-count, admin/transfo). URL unchanged, no full reload, no spinner flash observed.",
+    "FIX2b_new_lead_banner": "FAIL (blocked by backend /api/admin/latest test-store filter — see backend_issues).",
+    "FIX3_hiboutik_button_removed": "PASS — 'Voir dans Hiboutik' absent from admin page (0 occurrences) even with a lead detail expanded (verified on a lead with hiboutik_customer_id).",
+    "FIX4_relance_email_no_blank_tab": "PASS — clicking Relance Email on the lead detail opens no new tab/popup (tabs count unchanged, popups=[], no console error)."
+  },
+  "rca_of_the_issue": "FIX2b banner silent-fail root cause: GET /api/admin/latest (server.py:1551-1580) hardcodes {is_test: {$ne: True}} in the Mongo query before applying the store filter. When the admin UI polls with store='test' (because the manager selected 'Magasin TEST' from the store gate), the query becomes {is_test: {$ne: True}, store: 'test'} which never matches any document (test leads always carry is_test=True). The polling tick therefore sees arr=[] on every call, baseline is set to null, no 'fresh' is ever computed, and setNewLeadBanner is never invoked. Fix: branch on store == TEST_STORE_ID in get_latest_demands exactly like get_to_call_list does (set is_test=True + store=TEST_STORE_ID when test is explicitly requested, else keep the current filter). Reproduction: login as admin → pick 'Magasin TEST' from gate → wait 35s → POST /api/quote with store='test' → observe banner never appears despite the lead showing up in À-appeler list (which uses a different, correctly-branched endpoint)."
+}

@@ -1553,7 +1553,9 @@ async def get_latest_demands(store: Optional[str] = Query(None), user=Depends(ge
     """Return the 5 most-recent leads across all 4 collections, optionally filtered
     by store. Used by the admin UI for the "new lead" polling / alert system."""
     query = {"is_test": {"$ne": True}}
-    if store:
+    if store == TEST_STORE_ID:
+        query = {"is_test": True, "store": TEST_STORE_ID}
+    elif store:
         query["store"] = store
     items = []
     for demand_type, col_name in COLLECTIONS.items():

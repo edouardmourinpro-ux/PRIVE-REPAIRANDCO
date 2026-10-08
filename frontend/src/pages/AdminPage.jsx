@@ -555,6 +555,12 @@ const AdminPage = () => {
     return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
 
+  // Repart de zéro à chaque changement de magasin (sinon l'ancien repère
+  // peut masquer une vraie nouvelle demande du nouveau magasin sélectionné).
+  useEffect(() => {
+    lastSeenCreatedAtRef.current = null;
+  }, [storeFilter]);
+
   // Poll /api/admin/latest every 30s — TOUJOURS actif dès qu'un magasin est
   // choisi (S31) : rafraîchit en silence la liste « À appeler », les
   // compteurs d'onglets et le taux de transfo, pour que l'utilisateur n'ait
