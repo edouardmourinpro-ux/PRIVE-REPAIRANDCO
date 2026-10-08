@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import {
   LogOut, FileText, MessageSquare, Recycle,
   Loader2, ChevronDown, ChevronUp, Clock, Phone, Mail,
-  Download, Filter, Sparkles, MessageCircle, Save, Trash2, UserX, RefreshCw, ExternalLink,
+  Download, Filter, Sparkles, MessageCircle, Save, Trash2, UserX, RefreshCw,
   Bell, BellOff, Euro, Check,
 } from 'lucide-react';
 import { DateRangePicker } from '../components/DateRangePicker';
@@ -148,12 +148,10 @@ const AdminPage = () => {
     setStatusFilter('nouveau');
   };
 
-  // ---- "Quel magasin ?" fenêtre obligatoire à chaque connexion (S21) ----
+  // ---- "Quel magasin ?" demandée uniquement après une vraie connexion par
+  // mot de passe (handleLogin) ou un clic manuel sur "changer" — jamais au
+  // simple rechargement de page tant qu'un choix a déjà été fait (S31).
   const [showStoreGate, setShowStoreGate] = useState(false);
-
-  useEffect(() => {
-    if (isLoggedIn) setShowStoreGate(true);
-  }, [isLoggedIn]);
 
   const handleGatePickStore = (storeId) => {
     const identity = storeId === 'test'
@@ -216,14 +214,25 @@ const AdminPage = () => {
   const audioCtxRef = useRef(null);
   const lastSeenCreatedAtRef = useRef(null);
   const pollTimerRef = useRef(null);
+  const bannerTimerRef = useRef(null);
   const titlePrefixRef = useRef(false);
+  const [newLeadBanner, setNewLeadBanner] = useState(null);
 
   const authHeaders = { Authorization: `Bearer ${token}` };
 
   useEffect(() => {
     if (token) {
       axios.get(`${API_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
-        .then(() => { setIsLoggedIn(true); setLoading(false); })
+        .then(() => {
+          setIsLoggedIn(true);
+          setLoading(false);
+          // Rechargement de page avec une session déjà ouverte : on ne redemande
+          // le magasin/l'identité que si rien n'a jamais été choisi sur cet
+          // appareil (sinon ça ne doit JAMAIS se redemander tout seul).
+          const neverChosen = localStorage.getItem('admin_store_filter') === null
+            && localStorage.getItem('admin_identity') === null;
+          if (neverChosen) setShowStoreGate(true);
+        })
         .catch(() => { localStorage.removeItem('admin_token'); setToken(''); setIsLoggedIn(false); setLoading(false); });
     } else {
       setLoading(false);
@@ -241,8 +250,8 @@ const AdminPage = () => {
     } catch { setStats(null); }
   }, [storeFilter, dateFrom, dateTo, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadData = useCallback(async (tab = activeTab) => {
-    setDataLoading(true);
+  const loadData = useCallback(async (tab = activeTab, opts = {}) => {
+    if (!opts.silent) setDataLoading(true);
     try {
       const params = {};
       if (storeFilter) params.store = storeFilter;
@@ -251,23 +260,25 @@ const AdminPage = () => {
       if (statusFilter && statusFilter !== 'all') params.status = statusFilter;
       const r = await axios.get(`${API_URL}/api/admin/demandes/${tab}`, { headers: authHeaders, params });
       setData(r.data);
-    } catch { setData([]); }
-    setDataLoading(false);
+    } catch { if (!opts.silent) setData([]); }
+    if (!opts.silent) setDataLoading(false);
   }, [activeTab, storeFilter, dateFrom, dateTo, statusFilter, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadToCall = useCallback(async () => {
-    setToCallLoading(true);
+  const loadToCall = useCallback(async (opts = {}) => {
+    if (!opts.silent) setToCallLoading(true);
     try {
       const params = {};
       if (storeFilter) params.store = storeFilter;
       const r = await axios.get(`${API_URL}/api/admin/to-call`, { headers: authHeaders, params });
       setToCallData(r.data);
     } catch (e) {
-      setToCallData([]);
-      toast.error('Impossible de charger la liste « À appeler ». Rechargez la page.');
+      if (!opts.silent) {
+        setToCallData([]);
+        toast.error('Impossible de charger la liste « À appeler ». Rechargez la page.');
+      }
       console.error('loadToCall failed', e);
     }
-    setToCallLoading(false);
+    if (!opts.silent) setToCallLoading(false);
   }, [storeFilter, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadOlderOpenCount = useCallback(async () => {
@@ -310,6 +321,7 @@ const AdminPage = () => {
       localStorage.setItem('admin_token', t);
       setToken(t);
       setIsLoggedIn(true);
+      setShowStoreGate(true);
     } catch (err) {
       setLoginError(err.response?.data?.detail || 'Erreur de connexion');
     }
@@ -543,39 +555,32 @@ const AdminPage = () => {
     return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
 
-  // Poll /api/admin/latest every 20s while alerts are ON.
+  // Poll /api/admin/latest every 30s — TOUJOURS actif dès qu'un magasin est
+  // choisi (S31) : rafraîchit en silence la liste « À appeler », les
+  // compteurs d'onglets et le taux de transfo, pour que l'utilisateur n'ait
+  // jamais à recharger la page de la journée. Une vraie nouvelle demande
+  // affiche toujours le bandeau ; le son et la notification navigateur
+  // restent soumis au réglage "Alertes" (armé par l'utilisateur).
   useEffect(() => {
-    if (!isLoggedIn || !alertsEnabled) return undefined;
+    if (!isLoggedIn || showStoreGate) return undefined;
 
     let cancelled = false;
 
-    const initBaseline = async () => {
-      try {
-        const params = {};
-        if (storeFilter) params.store = storeFilter;
-        const r = await axios.get(`${API_URL}/api/admin/latest`, { headers: authHeaders, params });
-        if (cancelled) return;
-        const arr = Array.isArray(r.data) ? r.data : [];
-        lastSeenCreatedAtRef.current = arr[0]?.created_at || null;
-      } catch (err) {
-        if (err?.response?.status === 401) {
-          // Token expired → stop polling gracefully.
-          setAlertsEnabled(false);
-        }
-      }
-    };
-
     const notifyNew = (fresh) => {
-      // 1 or many "new" leads compared to lastSeen.
       const storeLabel = storeFilter
         ? (STORES.find(s => s.id === storeFilter)?.name || storeFilter)
         : 'Tous magasins';
+      const it = fresh[0];
+      setNewLeadBanner(fresh.length === 1
+        ? `Nouvelle demande : ${it.label || 'Client'}, ${storeLabel}`
+        : `${fresh.length} nouvelles demandes, ${storeLabel}`);
+      if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+      bannerTimerRef.current = setTimeout(() => setNewLeadBanner(null), 12000);
+      if (!alertsEnabled) return;
       playBeep();
-      // Browser notification (single one, aggregated if many)
       try {
         if ('Notification' in window && Notification.permission === 'granted') {
           if (fresh.length === 1) {
-            const it = fresh[0];
             const typeLabel = { devis: 'Devis', contact: 'Contact/RDV', rachat: 'Rachat', entreprise: 'Entreprise' }[it.type] || it.type;
             const n = new Notification(`Nouveau lead, ${storeLabel}`, {
               body: `${typeLabel} · ${it.label || 'Client'}`,
@@ -593,15 +598,21 @@ const AdminPage = () => {
           }
         }
       } catch { /* ignore */ }
-      // Toast fallback (visible dans l'onglet)
       toast(fresh.length === 1
-        ? `Nouveau lead · ${storeLabel}`
-        : `${fresh.length} nouveaux leads · ${storeLabel}`);
-      // Title prefix if tab is hidden
+        ? `Nouveau lead, ${storeLabel}`
+        : `${fresh.length} nouveaux leads, ${storeLabel}`);
       if (document.visibilityState !== 'visible' && !titlePrefixRef.current) {
         document.title = `(nouveau) ${document.title}`;
         titlePrefixRef.current = true;
       }
+    };
+
+    const refreshSilently = () => {
+      loadToCall({ silent: true });
+      loadOlderOpenCount();
+      loadTransfo();
+      loadStats();
+      if (activeTab !== 'a_appeler') loadData(activeTab, { silent: true });
     };
 
     const tick = async () => {
@@ -614,31 +625,28 @@ const AdminPage = () => {
         const baseline = lastSeenCreatedAtRef.current;
         if (!baseline) {
           lastSeenCreatedAtRef.current = arr[0]?.created_at || null;
-          return;
+        } else {
+          const fresh = arr.filter(x => (x.created_at || '') > baseline);
+          if (fresh.length > 0) {
+            lastSeenCreatedAtRef.current = fresh[0].created_at;
+            notifyNew(fresh);
+          }
         }
-        const fresh = arr.filter(x => (x.created_at || '') > baseline);
-        if (fresh.length > 0) {
-          lastSeenCreatedAtRef.current = fresh[0].created_at;
-          notifyNew(fresh);
-          // Refresh list + counters so the new lead appears in the UI.
-          loadData(activeTab);
-          loadStats();
-        }
+        refreshSilently();
       } catch (err) {
-        if (err?.response?.status === 401) {
-          setAlertsEnabled(false);
-        }
+        if (err?.response?.status === 401) setAlertsEnabled(false);
       }
     };
 
-    initBaseline();
-    pollTimerRef.current = setInterval(tick, 20000);
+    tick();
+    pollTimerRef.current = setInterval(tick, 30000);
     return () => {
       cancelled = true;
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
       pollTimerRef.current = null;
+      if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
     };
-  }, [isLoggedIn, alertsEnabled, storeFilter, activeTab, loadData, loadStats, playBeep]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoggedIn, showStoreGate, alertsEnabled, storeFilter, activeTab, loadData, loadToCall, loadOlderOpenCount, loadTransfo, loadStats, playBeep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-[#1A5C3A]" size={32} /></div>;
@@ -795,6 +803,24 @@ const AdminPage = () => {
             onTest={testAlertSound}
           />
         </div>
+
+        {/* Bandeau "nouvelle demande" (S31) — toujours affiché, quel que soit
+            l'onglet, dès qu'une demande arrive pour le magasin sélectionné */}
+        {newLeadBanner && (
+          <div
+            className="flex items-center justify-between gap-3 mb-4 px-4 py-2.5 rounded-xl bg-[#1A5C3A] text-white text-sm font-medium animate-in fade-in slide-in-from-top-2"
+            data-testid="admin-new-lead-banner"
+          >
+            <span>🔔 {newLeadBanner}</span>
+            <button
+              onClick={() => setNewLeadBanner(null)}
+              className="text-white/70 hover:text-white text-xs"
+              data-testid="admin-new-lead-banner-dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Tabs — seul "À appeler" visible par défaut (S23) */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -1330,7 +1356,10 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
 
   const handleRelanceEmail = () => requireIdentity(() => {
     onLogRelance(item.id, 'email');
-    window.open(getRelanceMailtoUrl(item));
+    // window.open laisse un onglet about:blank ouvert avec un mailto: (le lien
+    // ne "navigue" nulle part) — window.location.href ouvre le client mail
+    // sans jamais créer d'onglet.
+    window.location.href = getRelanceMailtoUrl(item);
   });
 
   const handleRelanceWA = () => requireIdentity(() => {
@@ -1581,21 +1610,6 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
                   data-testid={`demand-relance-wa-${item.id}`}
                 >
                   <MessageCircle size={12} /> Relance WhatsApp
-                </button>
-              )}
-              {item.hiboutik_customer_id && (
-                <button
-                  onClick={() => {
-                    const id = String(item.hiboutik_customer_id);
-                    try { navigator.clipboard.writeText(id); } catch { /* clipboard blocked */ }
-                    window.open('https://repairandco3475.hiboutik.com/', '_blank');
-                    toast.success(`ID #${id} copié, colle-le dans la barre de recherche Hiboutik (Cmd+V)`);
-                  }}
-                  title={`Client Hiboutik #${item.hiboutik_customer_id}`}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#1A5C3A] rounded-full text-xs text-white font-medium hover:bg-[#154a30] transition-colors"
-                  data-testid={`demand-hiboutik-${item.id}`}
-                >
-                  <ExternalLink size={12} /> Voir dans Hiboutik
                 </button>
               )}
               <button

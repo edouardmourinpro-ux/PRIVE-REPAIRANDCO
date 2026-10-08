@@ -63,6 +63,9 @@ JWT_ALGORITHM = "HS256"
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@repair-and-co.fr')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
 DELETE_CODE = os.environ.get('DELETE_CODE', 'MOUR1')
+# S31 (incident 08/10/2026) : garde-fou anti-rafale — nombre max de
+# notifications d'escalade envoyées en un seul passage du scheduler (5 min).
+MAX_ESCALATIONS_PER_TICK = 20
 # Destinataire unique des demandes B2B — hors CRM admin, email direct uniquement.
 B2B_EMAIL = os.environ.get('B2B_EMAIL', 'david.m@repairandco.fr')
 
@@ -2536,12 +2539,19 @@ async def _run_escalation_once():
     Late detection: if several tiers are already reached in one pass, only
     the highest is sent; lower ones are marked `<tier>:skipped`. The tier is
     claimed atomically (before sending) so no lead is ever notified twice for
-    the same tier, even across overlapping runs."""
+    the same tier, even across overlapping runs. S31 safety cap: at most
+    MAX_ESCALATIONS_PER_TICK notifications per call — an unexpected backlog
+    degrades gracefully (rest picked up on the next tick) instead of firing
+    a flood of emails/SMS in one go."""
     now_utc = datetime.now(timezone.utc)
     now_is_open = _is_business_hours()
+    sent_this_tick = 0
     for category, col_name in COLLECTIONS.items():
         docs = await db[col_name].find({"status": "nouveau"}, {"_id": 0}).to_list(500)
         for doc in docs:
+            if sent_this_tick >= MAX_ESCALATIONS_PER_TICK:
+                logger.warning(f"[ESCALATION] cap de {MAX_ESCALATIONS_PER_TICK}/tick atteint — reste traité au prochain passage (5 min)")
+                return
             created_at = doc.get("created_at")
             if not created_at:
                 continue
@@ -2571,15 +2581,18 @@ async def _run_escalation_once():
             if not claimed:
                 continue  # already claimed by another pass — never double-send
             await _send_tier_notification(doc, category, col_name, demand_id, highest, store_id, created_dt, now_utc)
+            sent_this_tick += 1
 
 async def _migrate_skip_stale_escalations():
-    """Idempotent safety net: any real (non-test) lead already >=2h business-old
-    that hasn't fully gone through the tiers gets the missing tiers marked
-    `skipped` WITHOUT sending anything — prevents a backlog (old deploy,
-    server downtime) from suddenly firing a flood of catch-up escalations."""
+    """Idempotent safety net: any lead (test OR real — S31: la fuite ne
+    protégeait que les leads réels, pas Magasin TEST) déjà >=2h business-old
+    et qui n'a pas fini ses paliers reçoit les paliers manquants marqués
+    `skipped` SANS rien envoyer — empêche un arriéré (ancien déploiement,
+    coupure serveur) de déclencher soudain une rafale d'escalades de
+    rattrapage au redémarrage."""
     now_utc = datetime.now(timezone.utc)
     for col_name in COLLECTIONS.values():
-        docs = await db[col_name].find({"is_test": {"$ne": True}}, {"_id": 0, "id": 1, "created_at": 1, "escalations_sent": 1}).to_list(5000)
+        docs = await db[col_name].find({}, {"_id": 0, "id": 1, "created_at": 1, "escalations_sent": 1}).to_list(5000)
         for doc in docs:
             created_at = doc.get("created_at")
             if not created_at:
@@ -2598,6 +2611,7 @@ async def _migrate_skip_stale_escalations():
                 {"id": doc["id"]},
                 {"$addToSet": {"escalations_sent": {"$each": [f"{t}:skipped" for t in missing]}}},
             )
+
 
 async def _cleanup_old_test_leads():
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
