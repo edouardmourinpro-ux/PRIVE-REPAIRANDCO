@@ -82,7 +82,7 @@ class TestCreationSms:
         # Store name may contain forbidden accents — check folded form appears
         folded_name = srv._strip_accents(srv.STORE_NAMES[store_id])
         assert folded_name in text
-        assert "aujourd'hui" in text
+        assert "dans l'heure" in text
         assert "ouverture" not in text
         assert phone in text, f"phone {phone} not injected for {store_id}"
 

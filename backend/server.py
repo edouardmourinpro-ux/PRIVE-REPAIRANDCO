@@ -324,8 +324,12 @@ def build_email_html(*, title: str, demand_type: str, store_name: str, client: d
         survey_block = _section("Mini-enquête client", survey_rows)
 
     note_block = (
-        f'<p style="margin:0 0 18px 0;padding:12px 14px;background:#E8F5EE;border-left:3px solid #2ECC71;color:#1A5C3A;font-size:13px;border-radius:6px">{header_note}</p>'
+        f'<p style="margin:0 0 18px 0;padding:12px 14px;background:#E8F5EE;border-left:3px solid #2ECC71;color:#1A5C3A;font-size:13px;border-radius:6px;white-space:pre-line">{header_note}</p>'
         if header_note else ""
+    )
+    action_block = (
+        f'<p style="color:#1A1A2E;font-size:12px;text-align:center;margin:14px 0 0 0;opacity:.6">{action_note}</p>'
+        if action_note else ""
     )
 
     return f"""
@@ -347,9 +351,7 @@ def build_email_html(*, title: str, demand_type: str, store_name: str, client: d
           Ouvrir dans /admin
         </a>
       </div>
-      <p style="color:#1A1A2E;font-size:12px;text-align:center;margin:14px 0 0 0;opacity:.6">
-        {action_note}
-      </p>
+      {action_block}
     </div>
     <div style="background:#E8F5EE;padding:12px 16px;text-align:center">
       <p style="color:#1A5C3A;font-size:11px;margin:0">Email automatique — Repair&amp;Co — repairandco.fr</p>
@@ -2603,76 +2605,86 @@ async def _cleanup_old_test_leads():
         await db[col_name].delete_many({"is_test": True, "created_at": {"$lt": cutoff}})
 
 async def _send_daily_digest(test_mode: bool = False):
-    """Sent every day at 8h Paris — even when everything is fine, so a
-    digest that stops arriving is itself a signal. test_mode=True sends only
-    to TEST_RECIPIENT_EMAIL, objet [TEST], and never touches any lead."""
+    """Sent exactly once/day at 8h Paris — the "already sent today" guard is
+    an atomic Mongo upsert in _background_scheduler (not an in-memory flag),
+    so a worker restart or several workers never send it twice. Even when
+    everything is fine, so a digest that stops arriving is itself a signal.
+    test_mode=True sends only to TEST_RECIPIENT_EMAIL, objet [TEST], and
+    never touches any lead."""
     since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     leads = 0
-    sms_sent = sms_failed = 0
     email_sent = email_failed = 0
     escalated = 0
     failed_leads = []
+    store_received: dict = {}
+    store_called: dict = {}
     for category, col_name in COLLECTIONS.items():
         docs = await db[col_name].find({"created_at": {"$gte": since}, "is_test": {"$ne": True}}, {"_id": 0}).to_list(2000)
         for d in docs:
             leads += 1
+            store_id = d.get("store") or "inconnu"
+            store_received[store_id] = store_received.get(store_id, 0) + 1
+            if d.get("call_attempts"):
+                store_called[store_id] = store_called.get(store_id, 0) + 1
             if d.get("escalations_sent"):
                 escalated += 1
             for n in (d.get("notifications") or []):
-                if n.get("channel") == "sms" and n.get("kind") == "primary":
-                    sms_sent += 1 if n.get("status") == "sent" else 0
-                    sms_failed += 1 if n.get("status") != "sent" else 0
-                elif n.get("channel") == "email" and n.get("kind") == "primary":
+                if n.get("channel") == "email" and n.get("kind") == "primary":
                     email_sent += 1 if n.get("status") == "sent" else 0
                     email_failed += 1 if n.get("status") != "sent" else 0
             if d.get("notify_status") in ("failed", "partial"):
-                store_name = STORE_NAMES.get(d.get("store"), d.get("store") or "—")
+                store_name = STORE_NAMES.get(d.get("store"), d.get("store") or "inconnu")
                 client = d.get("name") or d.get("company") or "Client"
-                failed_leads.append(f"{category} — {client} — {store_name}")
+                failed_leads.append(f"{category}, {client}, {store_name}")
 
     email_total = email_sent + email_failed
-    sms_total = sms_sent + sms_failed
-    client_sms_sent = client_sms_failed = 0
+
+    # Taux de transfo 30j par magasin (facturé / total, devis+contact+rachat).
+    since_30d = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    store_transfo_total: dict = {}
+    store_transfo_facture: dict = {}
     for col_name in COLLECTIONS.values():
-        docs = await db[col_name].find(
-            {"is_test": {"$ne": True}, "client_sms": {"$exists": True, "$ne": []}}, {"_id": 0, "client_sms": 1}
-        ).to_list(5000)
+        docs = await db[col_name].find({"created_at": {"$gte": since_30d}, "is_test": {"$ne": True}}, {"_id": 0, "store": 1, "status": 1}).to_list(20000)
         for d in docs:
-            for s in (d.get("client_sms") or []):
-                try:
-                    if datetime.fromisoformat(s["at"]) < datetime.fromisoformat(since):
-                        continue
-                except Exception:
-                    continue
-                if s.get("status") == "sent":
-                    client_sms_sent += 1
-                else:
-                    client_sms_failed += 1
+            store_id = d.get("store") or "inconnu"
+            store_transfo_total[store_id] = store_transfo_total.get(store_id, 0) + 1
+            if d.get("status") == "facture":
+                store_transfo_facture[store_id] = store_transfo_facture.get(store_id, 0) + 1
+
     status = "ok"
     if leads > 0:
         if email_total == 0 or email_sent == 0:
             status = "down"
         elif email_total and (email_failed / email_total) > 0.2:
             status = "degraded"
-        if SMS_ENABLED and (sms_total == 0 or sms_sent == 0):
-            status = "down"
-        elif SMS_ENABLED and sms_total and (sms_failed / sms_total) > 0.2 and status == "ok":
-            status = "degraded"
 
-    subject_prefix = "[TEST] " if test_mode else ("🚨 ALERTE — " if status in ('down', 'degraded') else "")
-    subject = f"{subject_prefix}Digest quotidien notifications — {leads} leads (24h)"
+    subject_prefix = "[TEST] " if test_mode else ("🚨 ALERTE, " if status in ('down', 'degraded') else "")
+    subject = f"{subject_prefix}Digest quotidien notifications, {leads} leads (24h)"
     report_lines = [
         f"Leads (24h) : {leads}",
-        (f"SMS envoyés : {sms_sent} / échoués : {sms_failed}" if SMS_ENABLED else "SMS : désactivé (SMS_ENABLED=false)"),
         f"Emails envoyés : {email_sent} / échoués : {email_failed}",
-        f"SMS clients : envoyés {client_sms_sent} / échoués {client_sms_failed}",
         f"Leads escaladés : {escalated}",
+        "",
+        "Par magasin (reçues 24h / avec appel noté / sans appel, puis taux de transfo 30j) :",
     ]
+    for store_id, store_label in STORE_NAMES.items():
+        if store_id == TEST_STORE_ID:
+            continue
+        received = store_received.get(store_id, 0)
+        called = store_called.get(store_id, 0)
+        not_called = received - called
+        t_total = store_transfo_total.get(store_id, 0)
+        t_facture = store_transfo_facture.get(store_id, 0)
+        t_rate = round((t_facture / t_total) * 100) if t_total else 0
+        report_lines.append(
+            f"- {store_label} : {received} reçue(s), {called} avec appel, {not_called} sans appel, transfo 30j {t_rate}% ({t_facture}/{t_total})"
+        )
     if failed_leads:
+        report_lines.append("")
         report_lines.append("Leads en échec de notification :")
         report_lines.extend(f"- {x}" for x in failed_leads)
     html = build_email_html(
-        title="Digest quotidien — Notifications" + (" (TEST)" if test_mode else ""),
+        title="Digest quotidien, Notifications" + (" (TEST)" if test_mode else ""),
         demand_type="Rapport de supervision (24h)",
         store_name="Tous magasins",
         client={},
@@ -2680,28 +2692,36 @@ async def _send_daily_digest(test_mode: bool = False):
         submitted_at=format_now_fr(),
         demand_id="digest",
         header_note="\n".join(report_lines),
+        action_note="",
     )
     target = TEST_RECIPIENT_EMAIL if test_mode else SUPERVISION_EMAIL
     if target:
         await send_email_tracked(target, subject, html, kind="supervision" if not test_mode else "primary")
     else:
-        logger.warning(f"[DIGEST] {'TEST_RECIPIENT_EMAIL' if test_mode else 'SUPERVISION_EMAIL'} non configuré — digest non envoyé")
-
-_last_digest_date = None
+        logger.warning(f"[DIGEST] {'TEST_RECIPIENT_EMAIL' if test_mode else 'SUPERVISION_EMAIL'} non configuré, digest non envoyé")
 
 async def _background_scheduler():
     """Runs every 5 minutes: escalation checks + test-lead cleanup + (once/day
-    at 8h Paris) the digest."""
-    global _last_digest_date
+    at 8h Paris) the digest. The "already sent today" guard lives in Mongo
+    (collection system_state, _id=last_digest_date) via un $max atomique :
+    même avec plusieurs workers ou un redémarrage pendant l'heure 8h, un seul
+    envoi par jour (un flag en mémoire se réinitialise au redémarrage, d'où
+    le double envoi du 07/10)."""
     while True:
         try:
             await _run_escalation_once()
             await _cleanup_old_test_leads()
             now_paris = datetime.now(PARIS_TZ)
             today_str = now_paris.strftime('%Y-%m-%d')
-            if now_paris.hour == 8 and _last_digest_date != today_str:
-                await _send_daily_digest()
-                _last_digest_date = today_str
+            if now_paris.hour == 8:
+                previous = await db.system_state.find_one_and_update(
+                    {"_id": "last_digest_date"},
+                    {"$max": {"date": today_str}},
+                    upsert=True,
+                )
+                already_sent_today = bool(previous and previous.get("date") == today_str)
+                if not already_sent_today:
+                    await _send_daily_digest()
         except Exception as e:
             logger.error(f"[SCHEDULER] error: {e}")
         await asyncio.sleep(300)
