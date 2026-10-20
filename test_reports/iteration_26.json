@@ -1,0 +1,51 @@
+{
+  "summary": "Frontend E2E test (Playwright, desktop 1920x1080) of S32 features on Magasin TEST only: Corbeille (request deletion w/ reason, direction-only tab, restore, hard delete w/ MOUR1), 'Pris en charge' checkbox, 3-button 'est-il venu ?' flow + new 'Non' callback choices, PrisEnChargeFlow (group 10, 7-day guard), CallLogPanel callback choices unchanged, 'pas de réponse' call logging. ALL 13 requested scenarios PASSED. Only 2 TEST leads created (store=test), both deleted at the end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin header (dashboard)", "issues": ["Title 'Admin Repair&Co' (h1 in header, AdminPage.jsx ~l.760) is invisible: computed color rgb(26,92,58) on bg #1A5C3A (global h1 color overrides text-white of parent). Add text-white directly on the h1. Probably pre-existing, not S32."]},
+      {"screen": "À appeler > est-il venu ? > Non", "issues": ["Once 'Non' is clicked there is no 'Retour/Annuler' to get back to the 3 buttons (only a tab switch resets the view). Misclick = stuck. Consider a small Retour link."]},
+      {"screen": "Header counters", "issues": ["'1 demandes' plural not handled (minor French grammar)."]}
+    ]
+  },
+  "passed_tests": [
+    "Login admin + store gate + identity modal",
+    "Tous les magasins + David -> 'Corbeille (0)' button visible",
+    "Store=Magasin TEST + David (via store filter) -> Corbeille visible (identity not Équipe)",
+    "Store gate 'Magasin TEST' -> identity 'Équipe Magasin TEST' -> Corbeille ABSENT on À appeler and Devis tabs; reappears if store filter set to Tous les magasins (matches spec OR-rule)",
+    "Trash icon opens 'Demander la suppression' modal, textarea only, 0 inputs/no code field; confirm disabled when empty AND whitespace-only; enabled once filled",
+    "After confirm: row removed instantly from À appeler and Devis; counters À appeler 2->1, Devis 2->1, Corbeille 0->1",
+    "Corbeille row shows 'TEST_Corbeille · Devis · Magasin TEST', 'Demandé par David le 20/10/2026 07:20', '« TEST doublon agent »' (also tested with by=Équipe Magasin TEST)",
+    "Restaurer -> row leaves Corbeille (empty state shown, count 0), lead back in À appeler and Devis, counters restored",
+    "Supprimer définitivement -> code modal; confirm disabled when empty; wrong code -> 'Code de sécurité incorrect' (corbeille-delete-error) and row kept; MOUR1 -> modal closes, row gone, count 0, doc removed from Mongo",
+    "Pris en charge checkbox present before Facturé (DOM order verified), checking -> badge 'Pris en charge', leaves À appeler (2->1); unchecking -> back to 'Nouveau' (status_history fallback correct), back in À appeler",
+    "Pris en charge checkbox ABSENT on Facturé demand",
+    "Group 7 row shows 3 buttons Oui, pris en charge / Oui, facturé / Non; 'Non' shows Demain 10h, Dans 2 jours, La semaine prochaine + datetime-local + 'Autre date' (disabled when empty); NO 'Dans 1h'/'Ce soir 18h'",
+    "'Oui, pris en charge' -> toast 'Passage enregistré', row leaves À appeler, status 'Pris en charge' in Devis tab, history shows 'Est-il venu ? Oui, pris en charge'",
+    "CallLogPanel 'à rappeler' and 'réfléchit' still show Dans 1 h / Ce soir 18h / Demain 10h / custom + Valider",
+    "CallLogPanel 'Pas de réponse' (4 oui) -> toast 'Appel enregistré', badge 'Pas de réponse', call count 1, row leaves À appeler (next callback +3h ouvrées)",
+    "Group 10 (seeded: pris_en_charge backdated 8 days) in 'À classer' with label 'Appareil pris en charge le 12/10 : la réparation a-t-elle été facturée ?', buttons Oui, facturé / Pas encore; 'Reporter de 7 jours' hidden until note typed; submit removes row"
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "Add text-white on header h1 'Admin Repair&Co' (invisible green-on-green)",
+    "Optional: add a 'Retour' link in PassageFlow non_date view",
+    "Optional: wrap handleRestoreDemand / handleExtendPrisEnCharge callers with try/catch + toast.error (CorbeilleTab.handleRestore uses try/finally only -> unhandled rejection & no user feedback on API failure); add success toast after hard delete"
+  ],
+  "critical_code_review_comments": [
+    "AdminPage.jsx: the useEffect 'if activeTab===corbeille && !isDirection -> a_appeler' is duplicated (l.321-323 and l.340-342) - remove one",
+    "AdminPage.jsx is 1979 lines - should be split (DemandCard, StaffFeedbackForm into own files)",
+    "CorbeilleTab.handleRestore: no catch -> silent failure if /restore errors",
+    "Backend hard DELETE does not require deletion_requested to be set (any demand deletable with code via API) - acceptable if intended",
+    "'Tous les magasins' À appeler list contains ~11 leftover TEST_User leads in real stores (Béziers etc.) from earlier testing sessions - consider cleaning them"
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not requested)", "frontend": "100%"},
+  "seed_data_creation": "Created 2 devis leads via POST /api/quote store=test (TEST_Corbeille id 3d4d1a6a..., TEST_Passage id 4a88ccf2...). Mongo-seeded appt_date/appt_end_at to yesterday for TEST_Passage (group 7) and backdated pris_en_charge history 8 days for TEST_Corbeille (group 10). Both hard-deleted at end (UI with MOUR1 / API).",
+  "test_credentials": "david.m@repairandco.fr / Repair2025Admin! ; DELETE_CODE MOUR1",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "To get direction mode on Magasin TEST: store gate 'Tous les magasins' -> identity David -> open 'Toutes les demandes' -> Devis tab -> admin-store-filter='test'. Store gate 'store-gate-test-store' sets identity 'Équipe Magasin TEST' (team mode, no Corbeille). /admin/to-call without store excludes store=test leads. Container date is Oct 2026."
+}

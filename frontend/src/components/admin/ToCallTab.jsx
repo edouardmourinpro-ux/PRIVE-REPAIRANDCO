@@ -129,6 +129,15 @@ const PassageFlow = ({ itemId, onSubmit }) => {
           >
             Autre date
           </ActionBtn>
+          <button
+            type="button"
+            onClick={() => setView('buttons')}
+            disabled={submitting}
+            className="text-xs text-[#1A1A2E]/50 hover:text-[#1A1A2E] underline px-2"
+            data-testid={`passage-nonvenu-back-${itemId}`}
+          >
+            Retour
+          </button>
         </div>
       </div>
     );

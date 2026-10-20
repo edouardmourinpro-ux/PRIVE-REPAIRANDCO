@@ -335,12 +335,6 @@ const AdminPage = () => {
     }
   }, [isLoggedIn, activeTab, storeFilter, dateFrom, dateTo, statusFilter, isDirection, loadStats, loadData, loadToCall, loadOlderOpenCount, loadTransfo, loadCorbeille]);
 
-  // Si l'identité redevient "Équipe X" (ou qu'un magasin est choisi) alors que
-  // la Corbeille était ouverte, on la quitte — elle n'est plus accessible.
-  useEffect(() => {
-    if (activeTab === 'corbeille' && !isDirection) setActiveTab('a_appeler');
-  }, [activeTab, isDirection]);
-
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -451,18 +445,24 @@ const AdminPage = () => {
 
   // Corbeille — validation direction : restaurer ou supprimer définitivement.
   const handleRestoreDemand = async (id, category) => {
-    const by = localStorage.getItem('admin_identity') || '';
-    await axios.post(`${API_URL}/api/admin/demandes/${category}/${id}/restore`, { by }, { headers: authHeaders });
-    setCorbeilleData(prev => prev.filter(d => d.id !== id));
-    loadStats();
-    loadToCall();
-    loadTransfo();
-    loadOlderOpenCount();
+    try {
+      const by = localStorage.getItem('admin_identity') || '';
+      await axios.post(`${API_URL}/api/admin/demandes/${category}/${id}/restore`, { by }, { headers: authHeaders });
+      setCorbeilleData(prev => prev.filter(d => d.id !== id));
+      toast.success('Demande restaurée');
+      loadStats();
+      loadToCall();
+      loadTransfo();
+      loadOlderOpenCount();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Erreur lors de la restauration');
+    }
   };
 
   const handleHardDelete = async (id, code, category) => {
     await axios.delete(`${API_URL}/api/admin/demandes/${category}/${id}`, { headers: authHeaders, data: { code } });
     setCorbeilleData(prev => prev.filter(d => d.id !== id));
+    toast.success('Demande supprimée définitivement');
   };
 
   // Garde-fou "Pris en charge" (S32) : "Pas encore" repousse de 7 jours avec explication.

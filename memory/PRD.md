@@ -1,5 +1,8 @@
 # Repair & Co — PRD
 
+> **MAJ 20/10/2026 (v7) — 3 correctifs équipe (Corbeille/cadence/Pris en charge)** :
+> - Voir section **S33** ci-dessous pour le détail complet. Backend + frontend, **rien publié** (preview uniquement, attente feu vert explicite).
+
 > **MAJ 23/07/2026 (v6) — Blog SEO** :
 > - Section blog data-driven créée : `/blog` (index en cartes) + `/blog/:slug` (article, template `BlogArticlePage`).
 > - Ajouter un futur article = ajouter une entrée dans `/app/frontend/src/data/blog.js` (import du composant contenu depuis `content/articles/`).
@@ -368,3 +371,31 @@ Rien publié.
 - **Barre d'onglets** : "À appeler" reste la seule pastille verte mise en avant ; "Toutes les demandes" n'est plus un bouton-pilule mais un petit lien texte gris discret avec chevron, placé après les onglets, devenant "Ranger les demandes" une fois déplié.
 - Vérifié manuellement (curl + screenshots) sur Magasin TEST : les 4 points de la section "✅ Vérification" du cahier des charges sont confirmés.
 
+
+### S33 (20/10/2026) — 3 changements terrain après 2 semaines d'usage réel
+Backend + frontend, **rien publié** (preview uniquement, Magasin TEST pour tous les tests — attente feu vert explicite).
+
+**1. Corbeille = demande de suppression validée par la direction.**
+- La corbeille sur une ligne n'efface plus jamais directement. `POST /admin/demandes/{cat}/{id}/request-deletion` (by, reason obligatoire, **pas de code**) pose `deletion_requested: {at, by, reason}` — rien n'est supprimé en base.
+- Filtre `deletion_requested: None` ajouté à TOUTES les vues équipe : `get_demandes`, `/admin/to-call`, `/admin/to-call/older-open-count`, `/admin/stats` (base_query), `/admin/transfo`. La demande disparaît donc immédiatement partout (listes, compteurs, taux de transfo) sans être supprimée.
+- Nouvel onglet **Corbeille**, bouton `Corbeille (N)` visible uniquement si `isDirection` (= `!storeFilter || !currentIdentity.startsWith('Équipe ')`, même formule que le header S28). `GET /admin/corbeille?store=` liste les demandes en attente (label client, magasin, demandeur, date, raison).
+- `POST .../restore` (by) efface `deletion_requested`, pousse un historique `deletion_history` ; `DELETE /admin/demandes/{cat}/{id}` (déjà existant, code `MOUR1`) reste la seule voie de suppression définitive, désormais réservée à la Corbeille.
+- Nouveau composant `frontend/src/components/admin/CorbeilleTab.jsx`. `DemandCard` : modale "Demander la suppression" (textarea raison obligatoire, zéro champ code) remplace l'ancienne modale code.
+
+**2. Cadence de relance "pas de réponse" étalée sur 7 jours (au lieu de 3h ouvrées en boucle).**
+- Nouveaux helpers `_add_business_minutes`, `_roll_to_next_opening` (lun-sam 9h-20h Paris, DST géré via `PARIS_TZ`), `_pas_de_reponse_next_callback_at(count_pdr)` : palier 1 → +3h ouvrées ; 2 → J+1 10h ; 3 → J+2 10h ; 4 → J+4 10h ; 5 → J+7 10h ; 6 → `next_callback_at=None` (bascule groupe 4 "À classer", inchangé).
+- `next_callback_at` est désormais **stocké** à chaque appel "pas de réponse" (calculé dans `/call`) plutôt que recalculé à la volée ; `/admin/to-call` compare juste `next_callback_at <= now` (avec repli sur l'ancien calcul élapsed>180min si `next_callback_at` absent, pour les docs antérieurs à S33 — zéro migration nécessaire).
+- Validé par curl en conditions réelles (6 appels consécutifs sur un lead Magasin TEST) : paliers exacts y compris la bascule CEST→CET fin octobre (palier 5 correctement en UTC+1).
+- Flow "est-il venu ? Non" (no-show) : nouveaux choix `dans_2_jours` (J+2 10h) et `semaine_prochaine` (J+7 10h) ajoutés à `CALLBACK_CHOICES`/`_resolve_callback_at`, remplacent `1h`/`18h` **uniquement dans ce contexte précis** (CallLogPanel "à rappeler"/"réfléchit" inchangés).
+
+**3. Case "Pris en charge" (étape entre devis accepté et facturé).**
+- Réutilise le statut legacy existant `pris_en_charge` (déjà dans `ALLOWED_STATUSES`/`FACTURABLE_STATUSES`). Nouvelle checkbox sur `DemandCard`, juste avant "Facturé", visible sauf `facture`/`refus_devis`/`client_perdu`. Cocher → `PATCH .../status` (status=pris_en_charge) efface désormais `next_callback_at`+`appt_*` côté serveur. Décocher → `getPreviousStatusBefore(item, 'pris_en_charge')` (helper généralisé dans `statusDisplay.js`, remplace l'ancien `getPreviousStatusBeforeFacture` spécifique).
+- `TO_CALL_EXCLUDED_STATUSES = NON_CALLABLE_STATUSES - {"pris_en_charge"}` : `pris_en_charge` n'est plus bloqué en amont de `/admin/to-call`, il est juste invisible tant que le garde-fou 7 jours n'est pas atteint (nouveau **groupe 10**, section "à_classer").
+- `POST .../passage` réécrit : "est-il venu ?" propose directement 3 issues (`pris_en_charge`, `facture`, `venu=false`) — supprime l'ancien sous-flux "Facturé ? Oui/Non" + note obligatoire (devenu `pris_en_charge`).
+- Garde-fou 7 jours : groupe 10 calculé depuis le dernier `status_history` à `pris_en_charge`, libellé "Appareil pris en charge le JJ/MM : la réparation a-t-elle été facturée ?" + 2 actions : "Oui, facturé" (`PATCH status=facture`) et "Pas encore" (`POST .../pris-en-charge/extend`, note obligatoire, repousse 7j via un nouvel entry `status_history` sans changer le statut).
+- `STATUS_FILTER_ORDER` (frontend) inclut maintenant `pris_en_charge` (retiré de `LEGACY_STATUS_ORDER`) — visible dans la barre de filtre statut comme les autres.
+
+**Validation effectuée** :
+- Backend : validation exhaustive par curl direct sur Magasin TEST (cycle complet corbeille request→corbeille→restore→hard-delete ; 6 appels "pas de réponse" avec vérification des paliers business-hours/DST exacts ; cycle `pris_en_charge`→backdating 8j→groupe 10→extend/facture). Tous corrects au premier essai.
+- Frontend : testing_agent (iteration_26.json) — **13/13 scénarios PASS**, aucun bug bloquant. 1 bug de code dupliqué trouvé et corrigé (useEffect `isDirection` en double). 2 améliorations UX mineures ajoutées (bouton "Retour" dans le flow "Non venu", toasts succès/erreur sur Restaurer/Supprimer définitivement). Note design pré-existante hors scope signalée (titre `<h1>` invisible vert sur vert) — non corrigée (hors périmètre S33).
+- **Rien publié/déployé** — attente feu vert explicite de l'utilisateur, comme pour S22-S32.
