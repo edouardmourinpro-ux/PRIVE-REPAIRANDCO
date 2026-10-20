@@ -15,6 +15,7 @@ const GROUP_STYLE = {
   8: { bg: 'bg-cyan-50', bar: 'border-cyan-500', text: 'text-cyan-700' },
   4: { bg: 'bg-gray-100', bar: 'border-gray-400', text: 'text-gray-700' },
   6: { bg: 'bg-gray-100', bar: 'border-gray-400', text: 'text-gray-700' },
+  10: { bg: 'bg-gray-100', bar: 'border-gray-400', text: 'text-gray-700' },
 };
 const DEFAULT_STYLE = { bg: 'bg-gray-50', bar: 'border-gray-300', text: 'text-[#1A1A2E]' };
 
@@ -29,7 +30,7 @@ const SECTION_META = {
   },
   a_classer: {
     title: 'À classer',
-    desc: "6 appels sans réponse, ou client qui réfléchit toujours après 2 relances.",
+    desc: "6 appels sans réponse, client qui réfléchit toujours après 2 relances, ou appareil pris en charge depuis plus de 7 jours.",
   },
 };
 const SECTION_ORDER = ['maintenant', 'plus_tard', 'a_classer'];
@@ -64,9 +65,9 @@ const ActionBtn = ({ onClick, children, testId, variant = 'default', disabled })
 );
 
 const PASSAGE_CALLBACK_CHOICES = [
-  { value: '1h', label: 'Dans 1 h' },
-  { value: '18h', label: 'Ce soir 18h' },
   { value: 'demain_10h', label: 'Demain 10h' },
+  { value: 'dans_2_jours', label: 'Dans 2 jours' },
+  { value: 'semaine_prochaine', label: 'La semaine prochaine' },
 ];
 
 // Parcours "est-il venu ?" (groupes 7/8 — POST /passage). Composant stable
@@ -74,7 +75,7 @@ const PASSAGE_CALLBACK_CHOICES = [
 // le curseur du champ texte ne saute donc pas.
 const PassageFlow = ({ itemId, onSubmit }) => {
   const [view, setView] = useState('buttons');
-  const [note, setNote] = useState('');
+  const [customDate, setCustomDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async (payload) => {
@@ -89,69 +90,46 @@ const PassageFlow = ({ itemId, onSubmit }) => {
   if (view === 'buttons') {
     return (
       <div className="flex items-center gap-2 flex-wrap">
-        <ActionBtn onClick={() => setView('facture_ask')} disabled={submitting} testId={`passage-venu-${itemId}`}>Oui, il est venu</ActionBtn>
+        <ActionBtn onClick={() => submit({ venu: true, pris_en_charge: true })} disabled={submitting} testId={`passage-pris-en-charge-${itemId}`}>Oui, pris en charge</ActionBtn>
+        <ActionBtn onClick={() => submit({ venu: true, facture: true })} disabled={submitting} testId={`passage-facture-oui-${itemId}`}>Oui, facturé</ActionBtn>
         <ActionBtn onClick={() => setView('non_date')} disabled={submitting} testId={`passage-non-venu-${itemId}`} variant="ghost">Non</ActionBtn>
-      </div>
-    );
-  }
-
-  if (view === 'facture_ask') {
-    return (
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-medium text-[#1A1A2E]/70">Facturé ?</span>
-        <ActionBtn onClick={() => submit({ venu: true, facture: true })} disabled={submitting} testId={`passage-facture-oui-${itemId}`}>Oui</ActionBtn>
-        <ActionBtn onClick={() => setView('non_facture_detail')} disabled={submitting} testId={`passage-facture-non-${itemId}`} variant="ghost">Non</ActionBtn>
-      </div>
-    );
-  }
-
-  if (view === 'non_facture_detail') {
-    return (
-      <div className="flex flex-col gap-2 w-full max-w-sm">
-        <label className="text-xs font-medium text-[#1A1A2E]/70" htmlFor={`passage-note-input-${itemId}`}>
-          Pourquoi pas de facture ? (obligatoire)
-        </label>
-        <input
-          id={`passage-note-input-${itemId}`}
-          type="text"
-          value={note}
-          onChange={e => setNote(e.target.value)}
-          placeholder="Ex : pas prêt à payer aujourd'hui"
-          className="px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm min-h-[40px] bg-white focus:outline-none focus:border-[#2ECC71]"
-          data-testid={`passage-note-input-${itemId}`}
-        />
-        {note.trim().length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            {PASSAGE_CALLBACK_CHOICES.map(c => (
-              <ActionBtn
-                key={c.value}
-                onClick={() => submit({ venu: true, facture: false, note: note.trim(), callback_choice: c.value })}
-                disabled={submitting}
-                testId={`passage-callback-${c.value}-${itemId}`}
-              >
-                {c.label}
-              </ActionBtn>
-            ))}
-          </div>
-        )}
       </div>
     );
   }
 
   if (view === 'non_date') {
     return (
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-medium text-[#1A1A2E]/70">Prochain rappel :</span>
-        {PASSAGE_CALLBACK_CHOICES.map(c => (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-medium text-[#1A1A2E]/70">Prochain rappel :</span>
+          {PASSAGE_CALLBACK_CHOICES.map(c => (
+            <ActionBtn
+              key={c.value}
+              onClick={() => submit({ venu: false, callback_choice: c.value })}
+              disabled={submitting}
+              testId={`passage-nonvenu-callback-${c.value}-${itemId}`}
+            >
+              {c.label}
+            </ActionBtn>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="datetime-local"
+            value={customDate}
+            onChange={e => setCustomDate(e.target.value)}
+            className="px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm min-h-[40px] bg-white focus:outline-none focus:border-[#2ECC71]"
+            data-testid={`passage-nonvenu-custom-input-${itemId}`}
+          />
           <ActionBtn
-            key={c.value}
-            onClick={() => submit({ venu: false, callback_choice: c.value })}
-            disabled={submitting}
-            testId={`passage-nonvenu-callback-${c.value}-${itemId}`}
+            onClick={() => customDate && submit({ venu: false, callback_choice: 'custom', callback_at: new Date(customDate).toISOString() })}
+            disabled={!customDate || submitting}
+            testId={`passage-nonvenu-custom-${itemId}`}
+            variant="ghost"
           >
-            {c.label}
+            Autre date
           </ActionBtn>
-        ))}
+        </div>
       </div>
     );
   }
@@ -159,12 +137,59 @@ const PassageFlow = ({ itemId, onSubmit }) => {
   return null;
 };
 
-// Onglet "📞 À appeler" — 3 sections / 9 groupes calculés côté serveur (S20).
+// Garde-fou "Pris en charge" au bout de 7 jours (groupe 10 — S32).
+const PrisEnChargeFlow = ({ itemId, onFacture, onExtend }) => {
+  const [view, setView] = useState('buttons');
+  const [note, setNote] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const run = async (fn) => {
+    setSubmitting(true);
+    try {
+      await fn();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (view === 'buttons') {
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <ActionBtn onClick={() => run(onFacture)} disabled={submitting} testId={`pec-facture-${itemId}`}>Oui, facturé</ActionBtn>
+        <ActionBtn onClick={() => setView('explain')} disabled={submitting} testId={`pec-pas-encore-${itemId}`} variant="ghost">Pas encore</ActionBtn>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2 w-full max-w-sm">
+      <label className="text-xs font-medium text-[#1A1A2E]/70" htmlFor={`pec-note-${itemId}`}>
+        Pourquoi pas encore facturé ? (obligatoire)
+      </label>
+      <input
+        id={`pec-note-${itemId}`}
+        type="text"
+        value={note}
+        onChange={e => setNote(e.target.value)}
+        placeholder="Ex : pièce en commande"
+        className="px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm min-h-[40px] bg-white focus:outline-none focus:border-[#2ECC71]"
+        data-testid={`pec-note-input-${itemId}`}
+      />
+      {note.trim().length > 0 && (
+        <ActionBtn onClick={() => run(() => onExtend(note.trim()))} disabled={submitting} testId={`pec-note-submit-${itemId}`}>
+          Reporter de 7 jours
+        </ActionBtn>
+      )}
+    </div>
+  );
+};
+
+// Onglet "📞 À appeler" — 3 sections / 10 groupes calculés côté serveur (S20-S32).
 // Ne modifie jamais de données par lui-même : chaque action ré-interroge le
 // serveur via onRefresh() pour rester la source de vérité (aucun page reload).
 export const ToCallTab = ({
   items, loading, requireIdentity, onLogCall, onStatusChange, onLogPassage,
-  onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onLogRelance, onUpdatePhone, onRefresh,
+  onSaveStaffFeedback, onSaveQuotedPrice, onRequestDeletion, onExtendPrisEnCharge, onLogRelance, onUpdatePhone, onRefresh,
   olderOpenCount, onShowOlderDemands, DemandCard,
 }) => {
   const [confirmingId, setConfirmingId] = useState(null);
@@ -197,6 +222,18 @@ export const ToCallTab = ({
       } catch (e) {
         reject(e);
       }
+    });
+  });
+
+  const confirmFactureFromPec = (item) => new Promise((resolve, reject) => {
+    requireIdentity(() => {
+      onStatusChange(item.id, 'facture', {}, item.category).then(() => { onRefresh(); resolve(); }).catch(reject);
+    });
+  });
+
+  const extendPec = (item, note) => new Promise((resolve, reject) => {
+    requireIdentity(() => {
+      onExtendPrisEnCharge(item.id, note, item.category).then(() => { onRefresh(); resolve(); }).catch(reject);
     });
   });
 
@@ -316,6 +353,14 @@ export const ToCallTab = ({
                           onSubmit={(payload) => submitPassage(item, payload)}
                         />
                       )}
+
+                      {item.group === 10 && (
+                        <PrisEnChargeFlow
+                          itemId={item.id}
+                          onFacture={() => confirmFactureFromPec(item)}
+                          onExtend={(note) => extendPec(item, note)}
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -326,7 +371,7 @@ export const ToCallTab = ({
                       onStatusChange={(id, status, extra) => onStatusChange(id, status, extra, item.category)}
                       onSaveStaffFeedback={(id, payload) => onSaveStaffFeedback(id, payload, item.category)}
                       onSaveQuotedPrice={(id, price) => onSaveQuotedPrice(id, price, item.category)}
-                      onDelete={(id, code) => onDelete(id, code, item.category)}
+                      onRequestDeletion={(id, reason) => onRequestDeletion(id, reason, item.category)}
                       onLogRelance={(id, channel) => onLogRelance(id, channel, item.category)}
                       onUpdatePhone={(id, phone, code) => onUpdatePhone(id, phone, code, item.category)}
                       requireIdentity={requireIdentity}

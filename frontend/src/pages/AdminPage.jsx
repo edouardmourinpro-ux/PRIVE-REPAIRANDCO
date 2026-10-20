@@ -23,12 +23,13 @@ import { ToCallTab } from '../components/admin/ToCallTab';
 import { LOST_REASON_LABELS } from '../data/lostReasons';
 import {
   STATUS_META, STATUS_FILTER_ORDER, LEGACY_STATUS_ORDER, FACTURABLE_STATUSES,
-  getStatusDisplay, getPreviousStatusBeforeFacture, APPT_SLOT_SHORT, formatApptDateShort, formatCallbackShort,
+  getStatusDisplay, getPreviousStatusBeforeFacture, getPreviousStatusBefore, APPT_SLOT_SHORT, formatApptDateShort, formatCallbackShort,
 } from '../lib/statusDisplay';
 import { getRelanceMailtoUrl, getRelanceWaUrl } from '../lib/relanceText';
 import { sanitizePriceInput } from '../lib/priceInput';
 import { STAFF_IDENTITY_STORE_MAP, STAFF_IDENTITIES } from '../data/staffIdentities';
 import { DEVICE_TYPE_LABELS, parseRdvMessage, formatLeadTitle } from '../lib/leadFormat';
+import { CorbeilleTab } from '../components/admin/CorbeilleTab';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -126,6 +127,8 @@ const AdminPage = () => {
   const [toCallLoading, setToCallLoading] = useState(false);
   const [olderOpenCount, setOlderOpenCount] = useState(0);
   const [transfo, setTransfo] = useState(null);
+  const [corbeilleData, setCorbeilleData] = useState([]);
+  const [corbeilleLoading, setCorbeilleLoading] = useState(false);
 
   // "Toutes les demandes" déplie Devis/Contact/Rachat — replié par défaut,
   // seul "À appeler" est visible (S23). Le choix est mémorisé.
@@ -299,17 +302,44 @@ const AdminPage = () => {
     } catch { setTransfo(null); }
   }, [storeFilter, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Corbeille (S32) — réservée à la direction : "Tous les magasins" sélectionné,
+  // ou identité qui n'est pas une "Équipe X" (même formule que le lien "changer
+  // d'identité" déjà utilisé plus bas dans le header).
+  const isDirection = !storeFilter || !currentIdentity.startsWith('Équipe ');
+
+  const loadCorbeille = useCallback(async () => {
+    try {
+      const params = {};
+      if (storeFilter) params.store = storeFilter;
+      const r = await axios.get(`${API_URL}/api/admin/corbeille`, { headers: authHeaders, params });
+      setCorbeilleData(r.data);
+    } catch { setCorbeilleData([]); }
+  }, [storeFilter, token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Si l'identité redevient "Équipe X" (ou qu'un magasin est choisi) alors que
+  // la Corbeille était ouverte, on la quitte — elle n'est plus accessible.
+  useEffect(() => {
+    if (activeTab === 'corbeille' && !isDirection) setActiveTab('a_appeler');
+  }, [activeTab, isDirection]);
+
   useEffect(() => {
     if (isLoggedIn) {
       loadStats();
       loadToCall();
       loadOlderOpenCount();
       loadTransfo();
-      if (activeTab !== 'a_appeler') {
+      if (isDirection) loadCorbeille();
+      if (activeTab !== 'a_appeler' && activeTab !== 'corbeille') {
         loadData(activeTab);
       }
     }
-  }, [isLoggedIn, activeTab, storeFilter, dateFrom, dateTo, statusFilter, loadStats, loadData, loadToCall, loadOlderOpenCount, loadTransfo]);
+  }, [isLoggedIn, activeTab, storeFilter, dateFrom, dateTo, statusFilter, isDirection, loadStats, loadData, loadToCall, loadOlderOpenCount, loadTransfo, loadCorbeille]);
+
+  // Si l'identité redevient "Équipe X" (ou qu'un magasin est choisi) alors que
+  // la Corbeille était ouverte, on la quitte — elle n'est plus accessible.
+  useEffect(() => {
+    if (activeTab === 'corbeille' && !isDirection) setActiveTab('a_appeler');
+  }, [activeTab, isDirection]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -406,11 +436,40 @@ const AdminPage = () => {
     setData(prev => prev.map(d => d.id === id ? { ...d, quoted_price: price } : d));
   };
 
-  const handleDeleteDemand = async (id, code, category = activeTab) => {
-    await axios.delete(`${API_URL}/api/admin/demandes/${category}/${id}`, { headers: authHeaders, data: { code } });
+  // Corbeille (S32) — demande de suppression équipe (raison, pas de code),
+  // la demande disparaît immédiatement de toutes les vues équipe.
+  const handleRequestDeletion = async (id, reason, category = activeTab) => {
+    const by = localStorage.getItem('admin_identity') || '';
+    await axios.post(`${API_URL}/api/admin/demandes/${category}/${id}/request-deletion`, { by, reason }, { headers: authHeaders });
     setData(prev => prev.filter(d => d.id !== id));
-    loadToCall();
+    setToCallData(prev => prev.filter(d => d.id !== id));
     loadStats();
+    loadTransfo();
+    loadOlderOpenCount();
+    if (isDirection) loadCorbeille();
+  };
+
+  // Corbeille — validation direction : restaurer ou supprimer définitivement.
+  const handleRestoreDemand = async (id, category) => {
+    const by = localStorage.getItem('admin_identity') || '';
+    await axios.post(`${API_URL}/api/admin/demandes/${category}/${id}/restore`, { by }, { headers: authHeaders });
+    setCorbeilleData(prev => prev.filter(d => d.id !== id));
+    loadStats();
+    loadToCall();
+    loadTransfo();
+    loadOlderOpenCount();
+  };
+
+  const handleHardDelete = async (id, code, category) => {
+    await axios.delete(`${API_URL}/api/admin/demandes/${category}/${id}`, { headers: authHeaders, data: { code } });
+    setCorbeilleData(prev => prev.filter(d => d.id !== id));
+  };
+
+  // Garde-fou "Pris en charge" (S32) : "Pas encore" repousse de 7 jours avec explication.
+  const handleExtendPrisEnCharge = async (id, note, category = activeTab) => {
+    const by = localStorage.getItem('admin_identity') || '';
+    await axios.post(`${API_URL}/api/admin/demandes/${category}/${id}/pris-en-charge/extend`, { by, note }, { headers: authHeaders });
+    loadToCall();
   };
 
   const logRelance = async (id, channel, category = activeTab) => {
@@ -864,6 +923,19 @@ const AdminPage = () => {
                 {t.count !== undefined && <span className={`ml-1 px-2 py-0.5 rounded-full text-xs ${activeTab === t.id ? 'bg-white/20' : 'bg-[#E8F5EE]'}`}>{t.count}</span>}
               </button>
             ))}
+            {isDirection && (
+              <button
+                onClick={() => setActiveTab('corbeille')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                  activeTab === 'corbeille' ? 'bg-gray-800 text-white' : 'bg-white text-[#1A1A2E] hover:bg-gray-100 border border-[#E8F5EE]'
+                }`}
+                data-testid="admin-tab-corbeille"
+              >
+                <Trash2 size={16} />
+                Corbeille
+                <span className={`ml-1 px-2 py-0.5 rounded-full text-xs ${activeTab === 'corbeille' ? 'bg-white/20' : 'bg-[#E8F5EE]'}`}>{corbeilleData.length}</span>
+              </button>
+            )}
           </div>
           <TransfoPill transfo={transfo} />
         </div>
@@ -878,13 +950,22 @@ const AdminPage = () => {
             onLogPassage={logPassage}
             onSaveStaffFeedback={saveStaffFeedback}
             onSaveQuotedPrice={saveQuotedPrice}
-            onDelete={handleDeleteDemand}
+            onRequestDeletion={handleRequestDeletion}
+            onExtendPrisEnCharge={handleExtendPrisEnCharge}
             onLogRelance={logRelance}
             onUpdatePhone={updatePhone}
             onRefresh={loadToCall}
             olderOpenCount={olderOpenCount}
             onShowOlderDemands={showOlderDemandsInDevis}
             DemandCard={DemandCard}
+          />
+        ) : activeTab === 'corbeille' ? (
+          <CorbeilleTab
+            items={corbeilleData}
+            loading={corbeilleLoading}
+            requireIdentity={requireIdentity}
+            onRestore={handleRestoreDemand}
+            onHardDelete={handleHardDelete}
           />
         ) : (
         <>
@@ -954,7 +1035,7 @@ const AdminPage = () => {
                 onStatusChange={updateStatus}
                 onSaveStaffFeedback={saveStaffFeedback}
                 onSaveQuotedPrice={saveQuotedPrice}
-                onDelete={handleDeleteDemand}
+                onRequestDeletion={handleRequestDeletion}
                 onLogRelance={logRelance}
                 onUpdatePhone={updatePhone}
                 requireIdentity={requireIdentity}
@@ -1332,11 +1413,11 @@ const NotifTestPanel = ({ authHeaders, onOpenRattrapage }) => {
   );
 };
 
-const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onDelete, onLogRelance, onUpdatePhone, requireIdentity, onLogCall }) => {
+const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuotedPrice, onRequestDeletion, onLogRelance, onUpdatePhone, requireIdentity, onLogCall }) => {
   const [open, setOpen] = useState(false);
   const feedbackRef = useRef(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteCode, setDeleteCode] = useState('');
+  const [deleteReason, setDeleteReason] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showCallPanel, setShowCallPanel] = useState(false);
@@ -1350,10 +1431,10 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
     setDeleteLoading(true);
     setDeleteError('');
     try {
-      await onDelete(item.id, deleteCode);
+      await onRequestDeletion(item.id, deleteReason.trim());
       setShowDeleteModal(false);
     } catch (err) {
-      setDeleteError(err.response?.data?.detail || 'Code incorrect');
+      setDeleteError(err.response?.data?.detail || 'Erreur lors de la demande de suppression');
     }
     setDeleteLoading(false);
   };
@@ -1390,6 +1471,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   const hasCustomerSurvey = item.customer_source || item.customer_feedback;
   const statusDisplay = getStatusDisplay(item);
   const showFactureCheckbox = FACTURABLE_STATUSES.includes(item.status || 'nouveau');
+  const showPrisEnChargeCheckbox = !['facture', 'refus_devis', 'client_perdu'].includes(item.status || 'nouveau');
 
   const handleFactureToggle = (checked) => {
     requireIdentity(() => {
@@ -1405,16 +1487,32 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
     });
   };
 
+  const handlePrisEnChargeToggle = (checked) => {
+    requireIdentity(() => {
+      if (checked) {
+        onStatusChange(item.id, 'pris_en_charge');
+      } else {
+        onStatusChange(item.id, getPreviousStatusBefore(item, 'pris_en_charge'));
+      }
+    });
+  };
+
   const callAttempts = item.call_attempts || [];
   const lastCall = callAttempts.length ? callAttempts[callAttempts.length - 1] : null;
   const showRefusAction = lastCall?.outcome === 'joint' && lastCall?.detail === 'refus' && !['refus_devis', 'client_perdu', 'facture'].includes(item.status);
   const showInvalidAction = lastCall?.outcome === 'numero_invalide' && !['client_perdu', 'facture'].includes(item.status);
+  const passageLabel = (p) => {
+    if (!p.venu) return 'Est-il venu ? Non';
+    if (p.facture) return 'Est-il venu ? Oui, facturé';
+    if (p.pris_en_charge) return 'Est-il venu ? Oui, pris en charge';
+    return 'Est-il venu ? Oui, non facturé';
+  };
   const timeline = [
-    ...(item.status_history || []).map(h => ({ at: h.at, by: h.by, note: null, label: `Statut : ${STATUS_META[h.status]?.label || h.status}` })),
+    ...(item.status_history || []).map(h => ({ at: h.at, by: h.by, note: h.note || null, label: `Statut : ${STATUS_META[h.status]?.label || h.status}` })),
     ...callAttempts.map(c => ({ at: c.at, by: c.by, note: c.note, label: `Appel : ${callResultLabel(c)}` })),
     ...(item.relances || []).map(r => ({ at: r.at, by: r.by, note: null, label: `Relance ${r.channel === 'email' ? 'email' : 'WhatsApp'} envoyée` })),
     ...(item.client_sms || []).filter(s => s.status === 'sent').map(s => ({ at: s.at, by: 'Système', note: null, label: `SMS client envoyé (${CLIENT_SMS_TYPE_LABELS[s.type] || s.type})` })),
-    ...(item.passages || []).map(p => ({ at: p.at, by: p.by, note: p.note, label: p.venu ? (p.facture ? 'Est-il venu ? Oui, facturé' : 'Est-il venu ? Oui, non facturé') : 'Est-il venu ? Non' })),
+    ...(item.passages || []).map(p => ({ at: p.at, by: p.by, note: p.note, label: passageLabel(p) })),
   ].sort((a, b) => new Date(a.at) - new Date(b.at));
 
 
@@ -1487,7 +1585,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   return (
     <Card className="bg-white border border-gray-100 hover:shadow-sm transition-shadow" data-testid={`demand-card-${item.id}`}>
       <CardContent className="p-4">
-        <div className="flex flex-col gap-3 sm:grid sm:grid-cols-[minmax(0,1fr)_110px_190px_90px_50px_90px_32px] sm:items-center sm:gap-3">
+        <div className="flex flex-col gap-3 sm:grid sm:grid-cols-[minmax(0,1fr)_110px_190px_110px_90px_50px_90px_32px] sm:items-center sm:gap-3">
           <button onClick={() => setOpen(!open)} className="flex items-center justify-between text-left min-w-0" data-testid={`demand-toggle-${item.id}`}>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -1522,7 +1620,24 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             {statusDisplay.text}
           </span>
 
-          {/* Col 4 — case "Facturé" (visible seulement si le client a dit oui) */}
+          {/* Col 4 — case "Pris en charge" (appareil au magasin, plus de rappel) */}
+          <div className="flex items-center justify-center">
+            {showPrisEnChargeCheckbox && (
+              <label className="flex items-center gap-1.5 text-xs font-medium text-sky-700 cursor-pointer" data-testid={`pris-en-charge-label-${item.id}`}>
+                <input
+                  type="checkbox"
+                  checked={item.status === 'pris_en_charge'}
+                  onChange={e => { e.stopPropagation(); handlePrisEnChargeToggle(e.target.checked); }}
+                  onClick={e => e.stopPropagation()}
+                  className="w-4 h-4 accent-sky-600 cursor-pointer"
+                  data-testid={`pris-en-charge-checkbox-${item.id}`}
+                />
+                Pris en charge
+              </label>
+            )}
+          </div>
+
+          {/* Col 5 — case "Facturé" (visible seulement si le client a dit oui) */}
           <div className="flex items-center justify-center">
             {showFactureCheckbox && (
               <label className="flex items-center gap-1.5 text-xs font-medium text-[#1A5C3A] cursor-pointer" data-testid={`facture-label-${item.id}`}>
@@ -1539,7 +1654,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             )}
           </div>
 
-          {/* Col 5 — nombre d'appels */}
+          {/* Col 6 — nombre d'appels */}
           <div className="flex items-center justify-center">
             {callAttempts.length > 0 && (
               <span className="flex items-center gap-1 text-xs text-[#1A5C3A] font-semibold" data-testid={`call-count-${item.id}`}>
@@ -1548,7 +1663,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             )}
           </div>
 
-          {/* Col 6 — bouton Appel */}
+          {/* Col 7 — bouton Appel */}
           <button
             onClick={e => { e.stopPropagation(); requireIdentity(() => setShowCallPanel(true)); }}
             className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-[#1A5C3A] rounded-full text-xs text-white font-medium hover:bg-[#2ECC71] transition-colors min-h-[30px]"
@@ -1557,11 +1672,11 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             <Phone size={12} /> Appel
           </button>
 
-          {/* Col 7 — corbeille */}
+          {/* Col 8 — corbeille : demande de suppression (raison obligatoire, pas de code) */}
           <button
-            onClick={e => { e.stopPropagation(); setDeleteCode(''); setDeleteError(''); setShowDeleteModal(true); }}
+            onClick={e => { e.stopPropagation(); requireIdentity(() => { setDeleteReason(''); setDeleteError(''); setShowDeleteModal(true); }); }}
             className="flex items-center justify-center p-1.5 rounded text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
-            title="Supprimer"
+            title="Demander la suppression"
             data-testid={`demand-delete-${item.id}`}
           >
             <Trash2 size={13} />
@@ -1738,25 +1853,24 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirmation dialog */}
-      <Dialog open={showDeleteModal} onOpenChange={o => { setShowDeleteModal(o); if (!o) setDeleteCode(''); }}>
+      {/* Demande de suppression (Corbeille, S32) — raison obligatoire, pas de code */}
+      <Dialog open={showDeleteModal} onOpenChange={o => { setShowDeleteModal(o); if (!o) setDeleteReason(''); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-[#1A1A2E]">Supprimer cette demande</DialogTitle>
+            <DialogTitle className="text-[#1A1A2E]">Demander la suppression</DialogTitle>
             <DialogDescription>
-              Entrez le code de sécurité pour confirmer la suppression définitive.
+              La demande sera retirée de toutes les vues en attendant la validation de la direction (Corbeille). Rien n'est supprimé pour l'instant.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 mt-2">
-            <Input
-              type="password"
-              placeholder="Code de sécurité"
-              value={deleteCode}
-              onChange={e => setDeleteCode(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && deleteCode && handleDeleteSubmit()}
-              className="form-input"
+            <textarea
+              placeholder="Raison (obligatoire) — ex : doublon, faux numéro…"
+              value={deleteReason}
+              onChange={e => setDeleteReason(e.target.value)}
+              rows={3}
               autoFocus
-              data-testid={`delete-code-input-${item.id}`}
+              className="w-full px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm focus:outline-none focus:border-[#2ECC71] resize-none"
+              data-testid={`delete-reason-input-${item.id}`}
             />
             {deleteError && (
               <p className="text-red-600 text-sm" data-testid={`delete-error-${item.id}`}>{deleteError}</p>
@@ -1767,12 +1881,12 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
               </Button>
               <Button
                 onClick={handleDeleteSubmit}
-                disabled={deleteLoading || !deleteCode}
+                disabled={deleteLoading || !deleteReason.trim()}
                 className="bg-red-600 hover:bg-red-700 text-white text-xs rounded-full"
                 data-testid={`delete-confirm-${item.id}`}
               >
                 {deleteLoading ? <Loader2 className="animate-spin mr-1" size={14} /> : <Trash2 size={14} className="mr-1" />}
-                Supprimer
+                Demander la suppression
               </Button>
             </div>
           </div>

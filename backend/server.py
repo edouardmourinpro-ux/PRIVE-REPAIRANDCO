@@ -646,6 +646,17 @@ class StaffFeedbackRequest(BaseModel):
 class QuotedPriceRequest(BaseModel):
     quoted_price: str = ""
 
+class RequestDeletionBody(BaseModel):
+    by: str
+    reason: str
+
+class RestoreRequest(BaseModel):
+    by: str
+
+class ExtendPrisEnChargeRequest(BaseModel):
+    by: str
+    note: str
+
 class CallLogRequest(BaseModel):
     by: str
     outcome: str  # joint | pas_de_reponse | numero_invalide
@@ -671,6 +682,7 @@ class PassageRequest(BaseModel):
     by: str
     venu: bool
     facture: Optional[bool] = None
+    pris_en_charge: Optional[bool] = None
     callback_choice: Optional[str] = None
     callback_at: Optional[str] = None
     note: Optional[str] = None
@@ -724,7 +736,7 @@ REFUS_REASON_CODES = {"prix", "delai", "deja_repare_ailleurs", "plus_besoin", "p
 
 CALL_OUTCOMES = {"joint", "pas_de_reponse", "numero_invalide"}
 CALL_JOINT_DETAILS = {"rdv_pris", "devis_accepte", "vient_magasin", "rappeler", "refus", "reflechit"}
-CALLBACK_CHOICES = {"1h", "18h", "demain_10h", "custom"}
+CALLBACK_CHOICES = {"1h", "18h", "demain_10h", "custom", "dans_2_jours", "semaine_prochaine"}
 
 CALL_DETAIL_LABELS = {
     "rdv_pris": "RDV pris", "vient_magasin": "Vient en magasin",
@@ -765,7 +777,11 @@ APPT_SLOT_SMS_TEXT = {
 PASSAGE_WINDOW = (9, 0, 20, 0)
 
 # Statuts pour lesquels un lead n'a plus besoin d'être appelé (onglet "À appeler" — S19/S20).
+# "pris_en_charge" (S32) n'est PAS exclu de l'onglet "À appeler" lui-même — il
+# est juste invisible tant que son garde-fou de 7 jours n'est pas atteint (voir
+# TO_CALL_EXCLUDED_STATUSES et le groupe 10 dans /admin/to-call).
 NON_CALLABLE_STATUSES = {"pris_en_charge", "facture", "refus_devis", "client_perdu"}
+TO_CALL_EXCLUDED_STATUSES = NON_CALLABLE_STATUSES - {"pris_en_charge"}
 
 FR_WEEKDAY_ABBR = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
 
@@ -919,6 +935,10 @@ def _resolve_callback_at(choice: Optional[str], custom_at: Optional[str]) -> Opt
             dt += timedelta(days=1)
     elif choice == "demain_10h":
         dt = (now_paris + timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0)
+    elif choice == "dans_2_jours":
+        dt = (now_paris + timedelta(days=2)).replace(hour=10, minute=0, second=0, microsecond=0)
+    elif choice == "semaine_prochaine":
+        dt = (now_paris + timedelta(days=7)).replace(hour=10, minute=0, second=0, microsecond=0)
     elif choice == "custom":
         return custom_at
     else:
@@ -1195,7 +1215,7 @@ async def get_demandes(category: str, store: Optional[str] = Query(None), date_f
     col_name = COLLECTIONS.get(category)
     if not col_name:
         raise HTTPException(status_code=400, detail="Catégorie invalide")
-    query = {}
+    query = {"deletion_requested": None}
     if store:
         query["store"] = store
     if status and status != "all":
@@ -1228,6 +1248,12 @@ async def update_demand_status(category: str, demand_id: str, body: UpdateStatus
 
     now_iso = datetime.now(timezone.utc).isoformat()
     update_fields = {"status": new_status}
+    if new_status == "pris_en_charge":
+        # L'appareil est au magasin : plus de rappel/RDV en attente (S32).
+        update_fields.update({
+            "next_callback_at": None, "appt_type": None, "appt_date": None,
+            "appt_slot": None, "appt_start_at": None, "appt_end_at": None,
+        })
     if new_status in ("client_perdu", "refus_devis") and body.lost_reason_code:
         if body.lost_reason_code not in LOST_REASON_CODES:
             raise HTTPException(status_code=400, detail="Motif de perte invalide")
@@ -1322,7 +1348,11 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
     if not doc:
         raise HTTPException(status_code=404, detail="Demande non trouvée")
 
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_dt = datetime.now(timezone.utc)
+    now_iso = now_dt.isoformat()
+    if body.outcome == "pas_de_reponse":
+        count_pdr = sum(1 for c in (doc.get("call_attempts") or []) if c.get("outcome") == "pas_de_reponse") + 1
+        callback_at = _pas_de_reponse_next_callback_at(now_dt, count_pdr)
     entry = {
         "at": now_iso, "by": by, "outcome": body.outcome, "detail": body.detail,
         "refus_reason": body.refus_reason if body.detail == "refus" else None,
@@ -1413,7 +1443,9 @@ async def log_relance(category: str, demand_id: str, body: RelanceRequest, user=
 
 @api_router.post("/admin/demandes/{category}/{demand_id}/passage")
 async def log_passage(category: str, demand_id: str, body: PassageRequest, user=Depends(get_current_admin)):
-    """Enregistre un passage en magasin (venu ou no-show) et referme le RDV/passage en cours."""
+    """Enregistre un passage en magasin (venu ou no-show) et referme le RDV/passage en cours.
+    Depuis S32 : « est-il venu ? » propose 3 issues directes — pris en charge
+    (l'appareil reste au magasin, plus de rappel), facturé, ou non venu."""
     col_name = COLLECTIONS.get(category)
     if not col_name:
         raise HTTPException(status_code=400, detail="Catégorie invalide")
@@ -1430,20 +1462,21 @@ async def log_passage(category: str, demand_id: str, body: PassageRequest, user=
     facture = None
 
     if body.venu:
-        if body.facture:
+        if body.pris_en_charge:
+            new_status = "pris_en_charge"
+            facture = False
+        else:
             new_status = "facture"
             facture = True
-        else:
-            facture = False
-            if not (body.note or "").strip():
-                raise HTTPException(status_code=400, detail="La note est obligatoire si le client est venu sans être facturé")
-            new_status = "a_rappeler"
-            callback_at = _require_callback_at(body.callback_choice, body.callback_at)
     else:
         new_status = "a_rappeler"
         callback_at = _require_callback_at(body.callback_choice, body.callback_at)
 
-    entry = {"at": now_iso, "by": by, "venu": bool(body.venu), "facture": facture, "note": (body.note or "").strip() or None}
+    entry = {
+        "at": now_iso, "by": by, "venu": bool(body.venu), "facture": facture,
+        "pris_en_charge": bool(body.pris_en_charge) if body.venu else False,
+        "note": (body.note or "").strip() or None,
+    }
 
     set_fields = {
         "status": new_status, "next_callback_at": callback_at,
@@ -1510,6 +1543,9 @@ async def update_phone(category: str, demand_id: str, body: PhoneUpdateRequest, 
 
 @api_router.delete("/admin/demandes/{category}/{demand_id}")
 async def delete_demand(category: str, demand_id: str, body: DeleteRequest, user=Depends(get_current_admin)):
+    """Suppression DÉFINITIVE — réservée à la vue Corbeille (direction),
+    toujours protégée par le code de sécurité. L'équipe ne passe plus jamais
+    par ici : elle utilise /request-deletion (S32)."""
     col_name = COLLECTIONS.get(category)
     if not col_name:
         raise HTTPException(status_code=400, detail="Catégorie invalide")
@@ -1519,6 +1555,113 @@ async def delete_demand(category: str, demand_id: str, body: DeleteRequest, user
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Demande non trouvée")
     return {"status": "deleted"}
+
+@api_router.post("/admin/demandes/{category}/{demand_id}/request-deletion")
+async def request_deletion(category: str, demand_id: str, body: RequestDeletionBody, user=Depends(get_current_admin)):
+    """Corbeille (S32) : une équipe demande la suppression d'une ligne (raison
+    obligatoire, pas de code de sécurité). Ne supprime rien — la demande
+    disparaît juste de toutes les vues équipe (filtre deletion_requested=None
+    appliqué partout) jusqu'à validation par la direction dans la Corbeille."""
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    by = (body.by or "").strip()
+    if not by:
+        raise HTTPException(status_code=400, detail="Identité manquante")
+    reason = (body.reason or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="Raison obligatoire")
+    result = await db[col_name].update_one(
+        {"id": demand_id},
+        {"$set": {"deletion_requested": {"at": datetime.now(timezone.utc).isoformat(), "by": by, "reason": reason}}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+    return {"status": "requested"}
+
+@api_router.post("/admin/demandes/{category}/{demand_id}/restore")
+async def restore_demand(category: str, demand_id: str, body: RestoreRequest, user=Depends(get_current_admin)):
+    """Corbeille (S32) : annule une demande de suppression — la ligne
+    réapparaît immédiatement dans toutes les vues équipe, rien d'autre
+    n'est modifié (son statut n'a jamais changé pendant la mise en attente)."""
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    by = (body.by or "").strip()
+    if not by:
+        raise HTTPException(status_code=400, detail="Identité manquante")
+    doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0, "deletion_requested": 1})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+    if not doc.get("deletion_requested"):
+        raise HTTPException(status_code=400, detail="Cette demande n'est pas en attente de suppression")
+    restore_entry = {
+        "action": "restored", "at": datetime.now(timezone.utc).isoformat(), "by": by,
+        "requested_by": doc["deletion_requested"].get("by"),
+        "requested_at": doc["deletion_requested"].get("at"),
+        "reason": doc["deletion_requested"].get("reason"),
+    }
+    await db[col_name].update_one(
+        {"id": demand_id},
+        {"$set": {"deletion_requested": None}, "$push": {"deletion_history": restore_entry}},
+    )
+    return {"status": "restored"}
+
+@api_router.get("/admin/corbeille")
+async def get_corbeille(store: Optional[str] = Query(None), user=Depends(get_current_admin)):
+    """Corbeille (S32), réservée à la direction côté UI : liste des demandes
+    de suppression en attente de validation. Lecture seule — ne supprime et
+    ne restaure rien."""
+    query = {"deletion_requested": {"$ne": None}}
+    if store == TEST_STORE_ID:
+        query["is_test"] = True
+        query["store"] = TEST_STORE_ID
+    elif store:
+        query["is_test"] = {"$ne": True}
+        query["store"] = store
+    items = []
+    for category, col_name in COLLECTIONS.items():
+        docs = await db[col_name].find(query, {"_id": 0}).to_list(500)
+        for d in docs:
+            label = (
+                d.get("name")
+                or " ".join(x for x in [d.get("first_name"), d.get("last_name")] if x).strip()
+                or d.get("company")
+                or "Client"
+            )
+            items.append({
+                "id": d["id"], "category": category, "store": d.get("store"),
+                "store_name": STORE_NAMES.get(d.get("store"), d.get("store") or ""),
+                "label": label, "phone": d.get("phone"), "email": d.get("email"),
+                "deletion_requested": d.get("deletion_requested"),
+            })
+    items.sort(key=lambda it: (it.get("deletion_requested") or {}).get("at", ""), reverse=True)
+    return items
+
+@api_router.post("/admin/demandes/{category}/{demand_id}/pris-en-charge/extend")
+async def extend_pris_en_charge(category: str, demand_id: str, body: ExtendPrisEnChargeRequest, user=Depends(get_current_admin)):
+    """Garde-fou « Pris en charge » (S32) : relance l'horloge de 7 jours quand
+    la réparation n'est pas encore facturée, avec une explication obligatoire.
+    Ne change jamais le statut (déjà pris_en_charge)."""
+    col_name = COLLECTIONS.get(category)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Catégorie invalide")
+    by = (body.by or "").strip()
+    if not by:
+        raise HTTPException(status_code=400, detail="Identité manquante")
+    note = (body.note or "").strip()
+    if not note:
+        raise HTTPException(status_code=400, detail="Explication obligatoire")
+    doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0, "status": 1})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+    if doc.get("status") != "pris_en_charge":
+        raise HTTPException(status_code=400, detail="Cette demande n'est plus au statut Pris en charge")
+    await db[col_name].update_one(
+        {"id": demand_id},
+        {"$push": {"status_history": {"status": "pris_en_charge", "at": datetime.now(timezone.utc).isoformat(), "by": by, "note": note}}},
+    )
+    return {"status": "extended"}
 
 @api_router.patch("/admin/demandes/{category}/{demand_id}/feedback")
 async def update_staff_feedback(category: str, demand_id: str, body: StaffFeedbackRequest, user=Depends(get_current_admin)):
@@ -1584,11 +1727,11 @@ async def get_latest_demands(store: Optional[str] = Query(None), user=Depends(ge
 @api_router.get("/admin/to-call")
 async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_current_admin)):
     """Qui appeler maintenant — agrège devis/contact/rachat (jamais Entreprise,
-    hors CRM), applique les 9 groupes métier (S20) répartis en 3 sections
+    hors CRM), applique les 10 groupes métier (S20-S32) répartis en 3 sections
     (maintenant / plus tard aujourd'hui / à classer). Lecture seule."""
     now_utc = datetime.now(timezone.utc)
     today_paris = now_utc.astimezone(PARIS_TZ).date()
-    query = {"status": {"$nin": list(NON_CALLABLE_STATUSES)}}
+    query = {"status": {"$nin": list(TO_CALL_EXCLUDED_STATUSES)}, "deletion_requested": None}
     if store == TEST_STORE_ID:
         query["is_test"] = True
         query["store"] = TEST_STORE_ID
@@ -1599,7 +1742,7 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
             query["store"] = store
 
     GROUP_SECTION = {1: "maintenant", 2: "maintenant", 3: "maintenant", 7: "maintenant", 8: "maintenant",
-                      5: "plus_tard", 9: "plus_tard", 4: "a_classer", 6: "a_classer"}
+                      5: "plus_tard", 9: "plus_tard", 4: "a_classer", 6: "a_classer", 10: "a_classer"}
 
     items = []
     for category, col_name in COLLECTIONS.items():
@@ -1639,7 +1782,13 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
                 elif call_attempts:
                     try:
                         last_call_dt = datetime.fromisoformat(call_attempts[-1]["at"])
-                        if _business_minutes_elapsed(last_call_dt, now_utc) > 180:
+                        is_due = False
+                        if next_callback_at:
+                            is_due = datetime.fromisoformat(next_callback_at) <= now_utc
+                        else:
+                            # Reprise ancien calcul (docs antérieurs à S32, sans next_callback_at stocké).
+                            is_due = _business_minutes_elapsed(last_call_dt, now_utc) > 180
+                        if is_due:
                             last_date_short = last_call_dt.astimezone(PARIS_TZ).strftime('%d/%m')
                             group, label = 3, f"{count_pdr + 1}e appel (pas de réponse le {last_date_short} à {_format_paris_hhmm(last_call_dt)})"
                     except Exception:
@@ -1670,6 +1819,18 @@ async def get_to_call_list(store: Optional[str] = Query(None), user=Depends(get_
                 except Exception:
                     pass
 
+            if group is None and status == "pris_en_charge":
+                history = d.get("status_history") or []
+                pec_entries = [h for h in history if h.get("status") == "pris_en_charge"]
+                if pec_entries:
+                    try:
+                        pec_dt = datetime.fromisoformat(pec_entries[-1]["at"])
+                        if (now_utc - pec_dt) >= timedelta(days=7):
+                            date_short = pec_dt.astimezone(PARIS_TZ).strftime('%d/%m')
+                            group, label = 10, f"Appareil pris en charge le {date_short} : la réparation a-t-elle été facturée ?"
+                    except Exception:
+                        pass
+
             if group is None:
                 continue
 
@@ -1693,7 +1854,7 @@ async def get_older_open_count(store: Optional[str] = Query(None), user=Depends(
     le début du suivi complet ET jamais appelées — donc absentes de « À
     appeler ». Lecture seule, sert uniquement au message affiché quand la
     liste est vide."""
-    query = {"status": {"$in": ["nouveau", "contacte", "pris_en_charge"]}}
+    query = {"status": {"$in": ["nouveau", "contacte", "pris_en_charge"]}, "deletion_requested": None}
     if store == TEST_STORE_ID:
         query["is_test"] = True
         query["store"] = TEST_STORE_ID
@@ -1760,7 +1921,7 @@ async def get_transfo(store: Optional[str] = Query(None), user=Depends(get_curre
     facture = 0
     for cat in ("devis", "contact", "rachat"):
         col_name = COLLECTIONS[cat]
-        query = {"created_at": {"$gte": since}}
+        query = {"created_at": {"$gte": since}, "deletion_requested": None}
         if store == TEST_STORE_ID:
             query["is_test"] = True
             query["store"] = TEST_STORE_ID
@@ -2093,7 +2254,7 @@ async def get_admin_stats(
     date_to: Optional[str] = Query(None),
     user=Depends(get_current_admin),
 ):
-    base_query = {}
+    base_query = {"deletion_requested": None}
     if store == TEST_STORE_ID:
         base_query["is_test"] = True
         base_query["store"] = TEST_STORE_ID
@@ -2398,6 +2559,73 @@ def _business_minutes_elapsed(start_utc: datetime, end_utc: datetime) -> float:
         total_minutes += (segment_end - cursor).total_seconds() / 60
         cursor = segment_end
     return total_minutes
+
+def _add_business_minutes(start_utc: datetime, minutes: float) -> datetime:
+    """Avance de `minutes` minutes ouvrées (lun-sam 9h-20h Paris) à partir de
+    start_utc, en sautant les dimanches et les heures de fermeture. Utilisé
+    pour le 1er palier de relance « pas de réponse » (S32 : 3h ouvrées)."""
+    cursor = start_utc.astimezone(PARIS_TZ)
+    remaining = minutes
+    guard = 0
+    while guard < 400:
+        guard += 1
+        if cursor.weekday() == 6:
+            cursor = (cursor + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+            continue
+        day_open = cursor.replace(hour=9, minute=0, second=0, microsecond=0)
+        day_close = cursor.replace(hour=20, minute=0, second=0, microsecond=0)
+        if cursor < day_open:
+            cursor = day_open
+        if cursor >= day_close:
+            cursor = (cursor + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+            continue
+        available = (day_close - cursor).total_seconds() / 60
+        if remaining <= available:
+            cursor = cursor + timedelta(minutes=remaining)
+            remaining = 0
+            break
+        remaining -= available
+        cursor = (cursor + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+    return cursor.astimezone(timezone.utc)
+
+def _roll_to_next_opening(dt_paris: datetime) -> datetime:
+    """Si dt tombe un dimanche ou hors 9h-20h (lun-sam), reporte à l'ouverture
+    suivante (9h) — règle demandée par les équipes (S32) pour la cadence de
+    relance « pas de réponse »."""
+    guard = 0
+    while guard < 14:
+        guard += 1
+        if dt_paris.weekday() == 6:
+            dt_paris = (dt_paris + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+            continue
+        if dt_paris.hour < 9:
+            dt_paris = dt_paris.replace(hour=9, minute=0, second=0, microsecond=0)
+            continue
+        if dt_paris.hour >= 20:
+            dt_paris = (dt_paris + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+            continue
+        break
+    return dt_paris
+
+# Cadence de relance "pas de réponse" (S32, demande équipes après 2 semaines
+# d'usage réel) — étalée sur 7 jours au lieu de toutes les 3h ouvrées pour ne
+# pas consommer les 6 tentatives en 2 jours. count_pdr = nombre total
+# d'appels "pas de réponse" déjà enregistrés APRÈS celui qui vient d'être
+# loggé. None à partir du 6e (le lead bascule en "à classer", plus de relance
+# programmée).
+PDR_CADENCE_CALENDAR_DAYS = {2: 1, 3: 2, 4: 4, 5: 7}
+
+def _pas_de_reponse_next_callback_at(last_call_utc: datetime, count_pdr: int) -> Optional[str]:
+    if count_pdr == 1:
+        return _add_business_minutes(last_call_utc, 180).isoformat()
+    calendar_days = PDR_CADENCE_CALENDAR_DAYS.get(count_pdr)
+    if calendar_days is None:
+        return None
+    last_paris = last_call_utc.astimezone(PARIS_TZ)
+    target_date = last_paris.date() + timedelta(days=calendar_days)
+    target_paris = datetime(target_date.year, target_date.month, target_date.day, 10, 0, tzinfo=PARIS_TZ)
+    target_paris = _roll_to_next_opening(target_paris)
+    return target_paris.astimezone(timezone.utc).isoformat()
 
 def _lead_age_minutes(doc: dict, now_utc: datetime, created_dt: datetime) -> float:
     if doc.get('is_test') and doc.get('test_accelerated'):

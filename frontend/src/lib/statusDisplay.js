@@ -44,8 +44,8 @@ export const STATUS_META = {
   pris_en_charge: { label: 'Pris en charge', activeBg: 'bg-sky-500',    idleBg: 'bg-sky-50',    idleText: 'text-sky-700',    border: 'border-sky-100' },
 };
 
-export const STATUS_FILTER_ORDER = ['nouveau', 'pas_de_reponse', 'a_rappeler', 'reflechit', 'devis_accepte', 'rdv_pris', 'facture', 'refus_devis', 'client_perdu'];
-export const LEGACY_STATUS_ORDER = ['contacte', 'pris_en_charge'];
+export const STATUS_FILTER_ORDER = ['nouveau', 'pas_de_reponse', 'a_rappeler', 'reflechit', 'devis_accepte', 'rdv_pris', 'pris_en_charge', 'facture', 'refus_devis', 'client_perdu'];
+export const LEGACY_STATUS_ORDER = ['contacte'];
 
 // Statuts depuis lesquels le client a dit "oui" — seuls ceux-là affichent la
 // case à cocher "Facturé" sur la ligne (+ "facture" lui-même, pour décocher).
@@ -69,17 +69,20 @@ export const getStatusDisplay = (item) => {
   return { text, idleBg: meta.idleBg, idleText: meta.idleText, border: meta.border };
 };
 
-// Décocher "Facturé" → retrouve le statut juste avant le dernier passage à
-// "facture" dans l'historique. Valeur de repli raisonnable si l'historique manque.
-export const getPreviousStatusBeforeFacture = (item) => {
+// Décocher "Facturé"/"Pris en charge" → retrouve le statut juste avant le
+// dernier passage à `targetStatus` dans l'historique. Valeur de repli
+// raisonnable si l'historique manque.
+export const getPreviousStatusBefore = (item, targetStatus) => {
   const history = item.status_history || [];
   for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i].status === 'facture') {
+    if (history[i].status === targetStatus) {
       for (let j = i - 1; j >= 0; j--) {
-        if (history[j].status !== 'facture') return history[j].status;
+        if (history[j].status !== targetStatus) return history[j].status;
       }
       break;
     }
   }
   return 'devis_accepte';
 };
+
+export const getPreviousStatusBeforeFacture = (item) => getPreviousStatusBefore(item, 'facture');
