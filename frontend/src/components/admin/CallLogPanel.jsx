@@ -34,6 +34,9 @@ const PDR_QUESTIONS = [
 export const CallLogPanel = ({ open, onClose, item, onSubmit, onSaveQuotedPrice }) => {
   const itemId = item?.id;
   const phone = item?.phone;
+  // S34 : les 4 questions (2e appel/message/email/WhatsApp) n'ont de sens
+  // qu'au tout premier "pas de réponse" de la demande.
+  const isFirstPdr = !(item?.call_attempts || []).some(c => c.outcome === 'pas_de_reponse');
 
   const [step, setStep] = useState('root');
   const [note, setNote] = useState('');
@@ -134,6 +137,7 @@ export const CallLogPanel = ({ open, onClose, item, onSubmit, onSaveQuotedPrice 
     else if (step === 'devis_when') setStep('devis_price');
     else if (step === 'reflechit_when') setStep('reflechit_price');
     else if (step === 'pas_de_reponse') {
+      if (!isFirstPdr) { setStep('root'); return; }
       if (pdrAwaitingReason) { setPdrAwaitingReason(false); setPdrReason(''); }
       else if (pdrIndex > 0) setPdrIndex(pdrIndex - 1);
       else setStep('root');
@@ -274,7 +278,22 @@ export const CallLogPanel = ({ open, onClose, item, onSubmit, onSaveQuotedPrice 
             </div>
           )}
 
-          {step === 'pas_de_reponse' && (() => {
+          {step === 'pas_de_reponse' && (!isFirstPdr ? (
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-[#1A1A2E]">Pas de réponse</p>
+              <p className="text-xs text-[#1A1A2E]/50">
+                Déjà appelé sans réponse sur cette demande — plus besoin de repréciser les canaux.
+              </p>
+              <Button
+                onClick={() => submit({ outcome: 'pas_de_reponse' })}
+                disabled={submitting}
+                className="w-full bg-[#1A5C3A] hover:bg-[#2ECC71] text-white text-sm rounded-full min-h-[44px]"
+                data-testid={`pdr-single-submit-${itemId}`}
+              >
+                Enregistrer l'appel
+              </Button>
+            </div>
+          ) : (() => {
             const q = PDR_QUESTIONS[pdrIndex];
             return (
               <div className="space-y-3">
@@ -330,7 +349,7 @@ export const CallLogPanel = ({ open, onClose, item, onSubmit, onSaveQuotedPrice 
                 )}
               </div>
             );
-          })()}
+          })())}
 
           <div className="mt-2">
             {!showNote ? (

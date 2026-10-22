@@ -955,7 +955,10 @@ def _call_result_label(entry: Optional[dict]) -> str:
             label += f" ({LOST_REASON_LABELS.get(entry['refus_reason'], entry['refus_reason'])})"
         return label
     if outcome == "pas_de_reponse":
-        return "Pas de réponse — message laissé" if entry.get("message_laisse") else "Pas de réponse — sans message"
+        ml = entry.get("message_laisse")
+        if ml is None:
+            return "Pas de réponse"
+        return "Pas de réponse — message laissé" if ml else "Pas de réponse — sans message"
     if outcome == "numero_invalide":
         return "Numéro invalide"
     return outcome or ""
@@ -1286,10 +1289,15 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
     if body.outcome not in CALL_OUTCOMES:
         raise HTTPException(status_code=400, detail="Résultat d'appel invalide")
 
+    doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+
     appt_date = appt_slot = appt_type = None
     appt_start_at = appt_end_at = None
     callback_at = None
     lost_reason_code = None
+    is_first_pdr = False
 
     if body.outcome == "joint":
         detail = body.detail
@@ -1327,26 +1335,29 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
             lost_reason_code = body.refus_reason
 
     elif body.outcome == "pas_de_reponse":
-        for flag_field, reason_field, question in [
-            ("rappel_2e", "rappel_2e_raison", "avez-vous rappelé une 2e fois"),
-            ("message_laisse", "message_laisse_raison", "message vocal laissé"),
-            ("mail_envoye", "mail_envoye_raison", "email envoyé au client"),
-            ("message_envoye", "message_envoye_raison", "WhatsApp envoyé au client"),
-        ]:
-            value = getattr(body, flag_field)
-            if value is None:
-                raise HTTPException(status_code=400, detail=f"Réponse manquante — {question} ?")
-            if value is False and not (getattr(body, reason_field) or "").strip():
-                raise HTTPException(status_code=400, detail=f"Raison manquante — pourquoi « non » à « {question} » ?")
+        # S34 : les 4 questions (2e appel/message/email/WhatsApp) n'ont de sens
+        # qu'au 1er "pas de réponse" de la demande — à partir du 2e, un seul
+        # écran "Enregistrer l'appel" sans question (voir plus bas, les 4
+        # champs sont alors forcés à None, jamais False, pour ne pas confondre
+        # "non posé" et "non").
+        is_first_pdr = not any(c.get("outcome") == "pas_de_reponse" for c in (doc.get("call_attempts") or []))
+        if is_first_pdr:
+            for flag_field, reason_field, question in [
+                ("rappel_2e", "rappel_2e_raison", "avez-vous rappelé une 2e fois"),
+                ("message_laisse", "message_laisse_raison", "message vocal laissé"),
+                ("mail_envoye", "mail_envoye_raison", "email envoyé au client"),
+                ("message_envoye", "message_envoye_raison", "WhatsApp envoyé au client"),
+            ]:
+                value = getattr(body, flag_field)
+                if value is None:
+                    raise HTTPException(status_code=400, detail=f"Réponse manquante — {question} ?")
+                if value is False and not (getattr(body, reason_field) or "").strip():
+                    raise HTTPException(status_code=400, detail=f"Raison manquante — pourquoi « non » à « {question} » ?")
         new_status = "pas_de_reponse"
 
     else:  # numero_invalide
         new_status = "client_perdu"
         lost_reason_code = "numero_invalide"
-
-    doc = await db[col_name].find_one({"id": demand_id}, {"_id": 0})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Demande non trouvée")
 
     now_dt = datetime.now(timezone.utc)
     now_iso = now_dt.isoformat()
@@ -1360,10 +1371,14 @@ async def log_call(category: str, demand_id: str, body: CallLogRequest, user=Dep
     }
     if body.outcome == "pas_de_reponse":
         entry.update({
-            "rappel_2e": body.rappel_2e, "rappel_2e_raison": (body.rappel_2e_raison or "").strip() or None,
-            "message_laisse": body.message_laisse, "message_laisse_raison": (body.message_laisse_raison or "").strip() or None,
-            "mail_envoye": body.mail_envoye, "mail_envoye_raison": (body.mail_envoye_raison or "").strip() or None,
-            "message_envoye": body.message_envoye, "message_envoye_raison": (body.message_envoye_raison or "").strip() or None,
+            "rappel_2e": body.rappel_2e if is_first_pdr else None,
+            "rappel_2e_raison": ((body.rappel_2e_raison or "").strip() or None) if is_first_pdr else None,
+            "message_laisse": body.message_laisse if is_first_pdr else None,
+            "message_laisse_raison": ((body.message_laisse_raison or "").strip() or None) if is_first_pdr else None,
+            "mail_envoye": body.mail_envoye if is_first_pdr else None,
+            "mail_envoye_raison": ((body.mail_envoye_raison or "").strip() or None) if is_first_pdr else None,
+            "message_envoye": body.message_envoye if is_first_pdr else None,
+            "message_envoye_raison": ((body.message_envoye_raison or "").strip() or None) if is_first_pdr else None,
         })
     if callback_at:
         entry["callback_at"] = callback_at

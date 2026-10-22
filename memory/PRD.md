@@ -399,3 +399,12 @@ Backend + frontend, **rien publié** (preview uniquement, Magasin TEST pour tous
 - Backend : validation exhaustive par curl direct sur Magasin TEST (cycle complet corbeille request→corbeille→restore→hard-delete ; 6 appels "pas de réponse" avec vérification des paliers business-hours/DST exacts ; cycle `pris_en_charge`→backdating 8j→groupe 10→extend/facture). Tous corrects au premier essai.
 - Frontend : testing_agent (iteration_26.json) — **13/13 scénarios PASS**, aucun bug bloquant. 1 bug de code dupliqué trouvé et corrigé (useEffect `isDirection` en double). 2 améliorations UX mineures ajoutées (bouton "Retour" dans le flow "Non venu", toasts succès/erreur sur Restaurer/Supprimer définitivement). Note design pré-existante hors scope signalée (titre `<h1>` invisible vert sur vert) — non corrigée (hors périmètre S33).
 - **Rien publié/déployé** — attente feu vert explicite de l'utilisateur, comme pour S22-S32.
+
+
+### S34 (22/10/2026) — Parcours "pas de réponse" allégé à partir du 2e appel
+Même lot que S33, même déploiement, **rien publié** (preview uniquement).
+- **1er appel "pas de réponse" d'une demande** (aucun `call_attempts` avec `outcome=pas_de_reponse` existant) : inchangé — les 4 questions (2e appel/message/email/WhatsApp) avec raison obligatoire sur chaque "non".
+- **À partir du 2e appel "pas de réponse" sur la même demande** : `CallLogPanel.jsx` affiche un écran unique "Pas de réponse" + bouton "Enregistrer l'appel", sans aucune question (nouveau `isFirstPdr` calculé depuis `item.call_attempts`). Le backend (`/call`, `server.py`) ignore désormais la validation des 4 champs dès que `is_first_pdr=False`, et **force** les 4 champs à `None` (jamais `False`) quelle que soit la valeur envoyée par le client — défense en profondeur, pas seulement côté UI.
+- Historique de la fiche (`callResultLabel` front + `_call_result_label` back, utilisé aussi dans l'export CSV) : distingue désormais `None` ("Pas de réponse" tout court, canaux jamais demandés) de `False` ("— sans message", réellement répondu non) — avant ce correctif, un appel sans question aurait affiché à tort "sans message".
+- Cadence des relances (S33) et bascule "6 appels → À classer" inchangées — elles ne dépendent que du nombre d'appels `pas_de_reponse`, pas du détail des 4 champs.
+- Validé par curl sur Magasin TEST : 1er appel sans les 4 champs → rejeté ; 1er appel complet → accepté ; 2e appel sans aucun champ → accepté, stocké avec les 4 champs à `null`. Confirmé par capture d'écran : le 2e appel affiche bien l'écran unique à un bouton.

@@ -68,6 +68,10 @@ const callResultLabel = (c) => {
     return l;
   }
   if (c.outcome === 'pas_de_reponse') {
+    // S34 : à partir du 2e "pas de réponse" sur la même demande, les 4
+    // champs ne sont plus posés (backend les force à null, jamais false) —
+    // l'historique affiche alors juste "Pas de réponse", sans les canaux.
+    if (c.rappel_2e == null) return 'Pas de réponse';
     const parts = [c.message_laisse ? 'message laissé' : 'sans message'];
     if (c.rappel_2e === false) parts.push(`pas rappelé 2x (${c.rappel_2e_raison || 'non précisée'})`);
     if (c.message_laisse === false && c.message_laisse_raison) parts.push(`pas de message (${c.message_laisse_raison})`);
