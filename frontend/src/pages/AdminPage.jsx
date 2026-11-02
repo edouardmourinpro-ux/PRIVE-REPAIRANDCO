@@ -20,7 +20,7 @@ import { StoreGateModal } from '../components/admin/StoreGateModal';
 import { RulesBanner } from '../components/admin/RulesBanner';
 import { CallLogPanel } from '../components/admin/CallLogPanel';
 import { ToCallTab } from '../components/admin/ToCallTab';
-import { LOST_REASON_LABELS } from '../data/lostReasons';
+import { LOST_REASON_LABELS, PERDU_REASON_OPTIONS, PERDU_REASON_LABELS } from '../data/lostReasons';
 import {
   STATUS_META, STATUS_FILTER_ORDER, LEGACY_STATUS_ORDER, FACTURABLE_STATUSES,
   getStatusDisplay, getPreviousStatusBeforeFacture, getPreviousStatusBefore, APPT_SLOT_SHORT, formatApptDateShort, formatCallbackShort,
@@ -380,6 +380,7 @@ const AdminPage = () => {
       loadTransfo();
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Erreur lors de la mise à jour du statut');
+      throw e;
     }
   };
 
@@ -1430,6 +1431,11 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   const [phoneCode, setPhoneCode] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [phoneLoading, setPhoneLoading] = useState(false);
+  const [showPerduModal, setShowPerduModal] = useState(false);
+  const [perduMotif, setPerduMotif] = useState('');
+  const [perduReason, setPerduReason] = useState('');
+  const [perduError, setPerduError] = useState('');
+  const [perduLoading, setPerduLoading] = useState(false);
 
   const handleDeleteSubmit = async () => {
     setDeleteLoading(true);
@@ -1476,6 +1482,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   const statusDisplay = getStatusDisplay(item);
   const showFactureCheckbox = FACTURABLE_STATUSES.includes(item.status || 'nouveau');
   const showPrisEnChargeCheckbox = !['facture', 'refus_devis', 'client_perdu'].includes(item.status || 'nouveau');
+  const showPerduCheckbox = (item.status || 'nouveau') !== 'facture';
 
   const handleFactureToggle = (checked) => {
     requireIdentity(() => {
@@ -1501,6 +1508,32 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
     });
   };
 
+  const handlePerduToggle = (checked) => {
+    requireIdentity(() => {
+      if (checked) {
+        setPerduMotif('');
+        setPerduReason('');
+        setPerduError('');
+        setShowPerduModal(true);
+      } else {
+        onStatusChange(item.id, getPreviousStatusBefore(item, 'client_perdu'));
+      }
+    });
+  };
+
+  const handlePerduSubmit = async () => {
+    if (!perduMotif || !perduReason.trim()) return;
+    setPerduLoading(true);
+    setPerduError('');
+    try {
+      await onStatusChange(item.id, 'client_perdu', { lostReasonCode: perduMotif, lostReasonText: perduReason.trim() });
+      setShowPerduModal(false);
+    } catch (err) {
+      setPerduError(err.response?.data?.detail || 'Erreur lors du classement');
+    }
+    setPerduLoading(false);
+  };
+
   const callAttempts = item.call_attempts || [];
   const lastCall = callAttempts.length ? callAttempts[callAttempts.length - 1] : null;
   const showRefusAction = lastCall?.outcome === 'joint' && lastCall?.detail === 'refus' && !['refus_devis', 'client_perdu', 'facture'].includes(item.status);
@@ -1511,8 +1544,15 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
     if (p.pris_en_charge) return 'Est-il venu ? Oui, pris en charge';
     return 'Est-il venu ? Oui, non facturé';
   };
+  const statusHistoryLabel = (h) => {
+    if (h.status === 'client_perdu' && h.lost_reason_code) {
+      const motif = PERDU_REASON_LABELS[h.lost_reason_code] || h.lost_reason_code;
+      return `Perdu : ${motif}${h.lost_reason ? `, ${h.lost_reason}` : ''}`;
+    }
+    return `Statut : ${STATUS_META[h.status]?.label || h.status}`;
+  };
   const timeline = [
-    ...(item.status_history || []).map(h => ({ at: h.at, by: h.by, note: h.note || null, label: `Statut : ${STATUS_META[h.status]?.label || h.status}` })),
+    ...(item.status_history || []).map(h => ({ at: h.at, by: h.by, note: h.note || null, label: statusHistoryLabel(h) })),
     ...callAttempts.map(c => ({ at: c.at, by: c.by, note: c.note, label: `Appel : ${callResultLabel(c)}` })),
     ...(item.relances || []).map(r => ({ at: r.at, by: r.by, note: null, label: `Relance ${r.channel === 'email' ? 'email' : 'WhatsApp'} envoyée` })),
     ...(item.client_sms || []).filter(s => s.status === 'sent').map(s => ({ at: s.at, by: 'Système', note: null, label: `SMS client envoyé (${CLIENT_SMS_TYPE_LABELS[s.type] || s.type})` })),
@@ -1589,7 +1629,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
   return (
     <Card className="bg-white border border-gray-100 hover:shadow-sm transition-shadow" data-testid={`demand-card-${item.id}`}>
       <CardContent className="p-4">
-        <div className="flex flex-col gap-3 sm:grid sm:grid-cols-[minmax(0,1fr)_110px_190px_110px_90px_50px_90px_32px] sm:items-center sm:gap-3">
+        <div className="flex flex-col gap-3 sm:grid sm:grid-cols-[minmax(0,1fr)_110px_190px_110px_90px_90px_50px_90px_32px] sm:items-center sm:gap-3">
           <button onClick={() => setOpen(!open)} className="flex items-center justify-between text-left min-w-0" data-testid={`demand-toggle-${item.id}`}>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -1617,12 +1657,19 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
           />
 
           {/* Col 3 — statut / prochaine action */}
-          <span
-            className={`text-xs px-2.5 py-1.5 rounded-full font-medium text-center ${statusDisplay.idleBg} ${statusDisplay.idleText} border ${statusDisplay.border}`}
-            data-testid={`demand-status-badge-${item.id}`}
-          >
-            {statusDisplay.text}
-          </span>
+          <div className="flex flex-col items-center gap-0.5">
+            <span
+              className={`text-xs px-2.5 py-1.5 rounded-full font-medium text-center ${statusDisplay.idleBg} ${statusDisplay.idleText} border ${statusDisplay.border}`}
+              data-testid={`demand-status-badge-${item.id}`}
+            >
+              {statusDisplay.text}
+            </span>
+            {item.status === 'client_perdu' && item.lost_reason_code && (
+              <span className="text-[10px] text-gray-500" data-testid={`demand-lost-reason-badge-${item.id}`}>
+                Perdu, {(PERDU_REASON_LABELS[item.lost_reason_code] || item.lost_reason_code).toLowerCase()}
+              </span>
+            )}
+          </div>
 
           {/* Col 4 — case "Pris en charge" (appareil au magasin, plus de rappel) */}
           <div className="flex items-center justify-center">
@@ -1641,7 +1688,24 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             )}
           </div>
 
-          {/* Col 5 — case "Facturé" (visible seulement si le client a dit oui) */}
+          {/* Col 5 — case "Perdu" (client définitivement perdu) */}
+          <div className="flex items-center justify-center">
+            {showPerduCheckbox && (
+              <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 cursor-pointer" data-testid={`perdu-label-${item.id}`}>
+                <input
+                  type="checkbox"
+                  checked={item.status === 'client_perdu'}
+                  onChange={e => { e.stopPropagation(); handlePerduToggle(e.target.checked); }}
+                  onClick={e => e.stopPropagation()}
+                  className="w-4 h-4 accent-gray-700 cursor-pointer"
+                  data-testid={`perdu-checkbox-${item.id}`}
+                />
+                Perdu
+              </label>
+            )}
+          </div>
+
+          {/* Col 6 — case "Facturé" (visible seulement si le client a dit oui) */}
           <div className="flex items-center justify-center">
             {showFactureCheckbox && (
               <label className="flex items-center gap-1.5 text-xs font-medium text-[#1A5C3A] cursor-pointer" data-testid={`facture-label-${item.id}`}>
@@ -1658,7 +1722,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             )}
           </div>
 
-          {/* Col 6 — nombre d'appels */}
+          {/* Col 7 — nombre d'appels */}
           <div className="flex items-center justify-center">
             {callAttempts.length > 0 && (
               <span className="flex items-center gap-1 text-xs text-[#1A5C3A] font-semibold" data-testid={`call-count-${item.id}`}>
@@ -1667,7 +1731,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             )}
           </div>
 
-          {/* Col 7 — bouton Appel */}
+          {/* Col 8 — bouton Appel */}
           <button
             onClick={e => { e.stopPropagation(); requireIdentity(() => setShowCallPanel(true)); }}
             className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-[#1A5C3A] rounded-full text-xs text-white font-medium hover:bg-[#2ECC71] transition-colors min-h-[30px]"
@@ -1676,7 +1740,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             <Phone size={12} /> Appel
           </button>
 
-          {/* Col 8 — corbeille : demande de suppression (raison obligatoire, pas de code) */}
+          {/* Col 9 — corbeille : demande de suppression (raison obligatoire, pas de code) */}
           <button
             onClick={e => { e.stopPropagation(); requireIdentity(() => { setDeleteReason(''); setDeleteError(''); setShowDeleteModal(true); }); }}
             className="flex items-center justify-center p-1.5 rounded text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
@@ -1891,6 +1955,67 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
               >
                 {deleteLoading ? <Loader2 className="animate-spin mr-1" size={14} /> : <Trash2 size={14} className="mr-1" />}
                 Demander la suppression
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Case "Perdu" (S35) — motif unique + phrase obligatoire, pas de code */}
+      <Dialog open={showPerduModal} onOpenChange={o => { if (!o) { setShowPerduModal(false); setPerduMotif(''); setPerduReason(''); setPerduError(''); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-[#1A1A2E]">Pourquoi cette demande est-elle perdue ?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <div className="grid grid-cols-2 gap-2">
+              {PERDU_REASON_OPTIONS.map(o => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => setPerduMotif(o.value)}
+                  className={`text-xs px-3 py-2 rounded-full border font-medium transition-colors ${
+                    perduMotif === o.value ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-[#1A1A2E] border-[#E8F5EE] hover:bg-gray-50'
+                  }`}
+                  data-testid={`perdu-motif-${o.value}-${item.id}`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <textarea
+              placeholder="Expliquez en une phrase (obligatoire)"
+              value={perduReason}
+              onChange={e => setPerduReason(e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 border border-[#E8F5EE] rounded-lg text-sm focus:outline-none focus:border-[#2ECC71] resize-none"
+              data-testid={`perdu-reason-input-${item.id}`}
+            />
+            {!perduReason.trim() && (
+              <p className="text-xs text-[#1A1A2E]/50" data-testid={`perdu-reason-hint-${item.id}`}>
+                Dites ce qui s'est passé, en une phrase.
+              </p>
+            )}
+            {perduError && (
+              <p className="text-red-600 text-sm" data-testid={`perdu-error-${item.id}`}>{perduError}</p>
+            )}
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => { setShowPerduModal(false); setPerduMotif(''); setPerduReason(''); setPerduError(''); }}
+                className="text-xs rounded-full"
+                data-testid={`perdu-cancel-${item.id}`}
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={handlePerduSubmit}
+                disabled={perduLoading || !perduMotif || !perduReason.trim()}
+                className="bg-gray-800 hover:bg-gray-900 text-white text-xs rounded-full"
+                data-testid={`perdu-confirm-${item.id}`}
+              >
+                {perduLoading ? <Loader2 className="animate-spin mr-1" size={14} /> : <UserX size={14} className="mr-1" />}
+                Valider
               </Button>
             </div>
           </div>

@@ -914,16 +914,22 @@ def _is_in_tracked_pipeline(doc: dict) -> bool:
     return is_tracked or bool(doc.get("call_attempts"))
 
 def _unreachable_rule_satisfied(doc: dict) -> bool:
-    """« Injoignable » exige >= 6 appels "pas de réponse" — mais SEULEMENT
-    pour les leads réellement suivis : un lead ancien (créé avant
-    tracking_since) ET jamais encore appelé depuis le déploiement est
-    bypassé (de vrais appels ont pu être faits avant d'être journalisés).
-    Dès qu'un premier appel est journalisé sur ce lead, il rejoint le suivi
-    normal et la règle des 6 appels s'applique comme pour les autres."""
+    """« Injoignable » (S35) exige >= 3 appels "pas de réponse" ET au moins 7
+    jours écoulés depuis le tout premier d'entre eux — l'ancien seuil fixe de
+    6 appels ne convenait plus depuis que la cadence de relance (S33) étale
+    les tentatives sur 7 jours : un client clairement perdu après 3 essais
+    espacés de 11 jours restait coincé dans "À appeler". Bypass inchangé pour
+    les leads antérieurs au suivi et jamais encore appelés."""
     if not _is_in_tracked_pipeline(doc):
         return True
-    count = sum(1 for c in (doc.get("call_attempts") or []) if c.get("outcome") == "pas_de_reponse")
-    return count >= 6
+    pdr_calls = [c for c in (doc.get("call_attempts") or []) if c.get("outcome") == "pas_de_reponse"]
+    if len(pdr_calls) < 3:
+        return False
+    try:
+        first_pdr_at = datetime.fromisoformat(pdr_calls[0]["at"])
+    except Exception:
+        return False
+    return (datetime.now(timezone.utc) - first_pdr_at) >= timedelta(days=7)
 
 def _resolve_callback_at(choice: Optional[str], custom_at: Optional[str]) -> Optional[str]:
     now_paris = datetime.now(PARIS_TZ)
@@ -1251,20 +1257,32 @@ async def update_demand_status(category: str, demand_id: str, body: UpdateStatus
 
     now_iso = datetime.now(timezone.utc).isoformat()
     update_fields = {"status": new_status}
-    if new_status == "pris_en_charge":
-        # L'appareil est au magasin : plus de rappel/RDV en attente (S32).
+    if new_status in ("pris_en_charge", "client_perdu"):
+        # L'appareil est au magasin, ou le client est perdu : plus de
+        # rappel/RDV en attente (S32/S35).
         update_fields.update({
             "next_callback_at": None, "appt_type": None, "appt_date": None,
             "appt_slot": None, "appt_start_at": None, "appt_end_at": None,
         })
+    if new_status not in ("client_perdu", "refus_devis"):
+        # Réouverture (décocher "Perdu"/"Refus") : le motif et la phrase
+        # n'ont plus lieu d'être (S35).
+        update_fields["lost_reason_code"] = None
+        update_fields["lost_reason"] = None
+    history_entry = {"status": new_status, "at": now_iso, "by": by}
     if new_status in ("client_perdu", "refus_devis") and body.lost_reason_code:
         if body.lost_reason_code not in LOST_REASON_CODES:
             raise HTTPException(status_code=400, detail="Motif de perte invalide")
         if new_status == "client_perdu" and body.lost_reason_code == "injoignable" and not _unreachable_rule_satisfied(doc):
-            raise HTTPException(status_code=400, detail="Il faut 6 appels « Pas de réponse » avant de classer Injoignable.")
+            raise HTTPException(
+                status_code=400,
+                detail="Pour classer Injoignable, il faut 3 appels sans réponse et au moins 7 jours depuis le premier appel. Si le client est perdu pour une autre raison, choisissez le motif correspondant.",
+            )
         update_fields["lost_reason_code"] = body.lost_reason_code
+        history_entry["lost_reason_code"] = body.lost_reason_code
     if body.lost_reason:
         update_fields["lost_reason"] = body.lost_reason
+        history_entry["lost_reason"] = body.lost_reason
     if not doc.get("assigned_to"):
         update_fields["assigned_to"] = by
     if (doc.get("status") or "nouveau") == "nouveau" and not doc.get("first_contact_at"):
@@ -1272,7 +1290,7 @@ async def update_demand_status(category: str, demand_id: str, body: UpdateStatus
 
     result = await db[col_name].update_one(
         {"id": demand_id},
-        {"$set": update_fields, "$push": {"status_history": {"status": new_status, "at": now_iso, "by": by}}},
+        {"$set": update_fields, "$push": {"status_history": history_entry}},
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Demande non trouvée")
