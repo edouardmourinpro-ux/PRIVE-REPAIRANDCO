@@ -1,0 +1,30 @@
+{
+  "summary": "S35 'Perdu' checkbox frontend E2E on Magasin TEST (2 leads created via POST /api/quote store=test, hard-deleted at end). All 9 requested scenarios PASS. 1 bug found & fixed: after validating Perdu, the history line in the same session showed 'Statut : Perdu' instead of 'Perdu : {Motif}, {phrase}' (only correct after reload) because updateStatus pushed a local status_history entry without lost_reason_code/lost_reason. Fixed and re-verified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AdminPage.updateStatus (local state)", "issue": "FIXED: optimistic status_history entry lacked lost_reason_code/lost_reason so statusHistoryLabel rendered 'Statut : Perdu' until page reload", "selector": "demand-card-{id} Historique", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "DemandCard expanded - 'Raison perte client' block", "issues": ["Uses LOST_REASON_LABELS ('N\\'en a plus besoin', 'Délai', 'Prix') while row badge/history use PERDU_REASON_LABELS ('Plus besoin', 'Délai trop long', 'Prix trop élevé') - inconsistent wording for the same motif"]},
+      {"screen": "Perdu modal - Injoignable refusal", "issues": ["Same error text shown twice: toast (top-right) + red inline text in modal (perdu-error-). Acceptable but redundant"]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional: align 'Raison perte client' block labels with PERDU_REASON_LABELS for consistency",
+    "Optional: decide whether to keep both toast + inline error for Injoignable refusal"
+  ],
+  "critical_code_review_comments": [
+    "updateStatus reopen (uncheck Perdu) does not clear lost_reason_code/lost_reason in local state (server does); harmless visually since badge is gated on status==='client_perdu', but stale data may surface in 'Raison perte client' block if it is not gated by status",
+    "Other callers of onStatusChange (facture/pris en charge toggles, quick actions) don't catch the rethrown error from updateStatus -> unhandled promise rejection in console on failures",
+    "AdminPage.jsx is ~2100 lines - should be split (DemandCard into its own file)"
+  ],
+  "updated_files": ["/app/frontend/src/pages/AdminPage.jsx"],
+  "success_rate": {"backend": "N/A (not requested)", "frontend": "100% (9/9 after fix)"},
+  "seed_data_creation": "TEST_PerduA (8d6c92cb...) and TEST_PerduB (bfdd998f...) devis store=test, both hard-deleted via DELETE /api/admin/demandes/devis/{id} code MOUR1. DB check: 0 remaining.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Flow: login -> store-gate-test-store (team 'Équipe Magasin TEST') -> À appeler shows test leads with perdu-checkbox. For all-demands view: admin-toggle-all-tabs -> admin-tab-devis. Facturé checkbox appears only for FACTURABLE_STATUSES (check Pris en charge first). Verified: Perdu after Pris en charge (idx order), 7 motifs labels, Valider disabled w/o motif / w/o text / whitespace, hint text, single-select, Annuler closes w/o PATCH and box stays unchecked, Plus besoin succeeds w/o calls, badge 'Perdu, plus besoin', removed from À appeler, history 'Perdu : Plus besoin, ...', uncheck -> Nouveau + badge gone + DB lost fields null, Injoignable w/o calls refused with exact toast and box stays unchecked, Facturé -> no Perdu checkbox."
+}

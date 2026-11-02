@@ -371,9 +371,13 @@ const AdminPage = () => {
       const nowIso = new Date().toISOString();
       setData(prev => prev.map(d => d.id === id ? {
         ...d, status: newStatus,
-        status_history: [...(d.status_history || []), { status: newStatus, at: nowIso, by: payload.by }],
-        ...(extra.lostReasonCode ? { lost_reason_code: extra.lostReasonCode } : {}),
-        ...(extra.lostReasonText ? { lost_reason: extra.lostReasonText } : {}),
+        status_history: [...(d.status_history || []), {
+          status: newStatus, at: nowIso, by: payload.by,
+          ...(payload.lost_reason_code ? { lost_reason_code: payload.lost_reason_code } : {}),
+          ...(payload.lost_reason ? { lost_reason: payload.lost_reason } : {}),
+        }],
+        lost_reason_code: extra.lostReasonCode || null,
+        lost_reason: extra.lostReasonText || null,
       } : d));
       loadToCall();
       loadStats();
@@ -1855,7 +1859,7 @@ const DemandCard = ({ item, type, onStatusChange, onSaveStaffFeedback, onSaveQuo
             {(item.lost_reason || item.lost_reason_code) && (
               <div className="p-3 bg-red-50 rounded-xl border border-red-100">
                 <p className="text-xs font-semibold text-red-600 mb-1 flex items-center gap-1"><UserX size={12} /> Raison perte client</p>
-                {item.lost_reason_code && <p className="text-sm text-red-700 font-medium">{LOST_REASON_LABELS[item.lost_reason_code] || item.lost_reason_code}</p>}
+                {item.lost_reason_code && <p className="text-sm text-red-700 font-medium">{PERDU_REASON_LABELS[item.lost_reason_code] || item.lost_reason_code}</p>}
                 {item.lost_reason && <p className="text-sm text-red-700">{item.lost_reason}</p>}
               </div>
             )}
